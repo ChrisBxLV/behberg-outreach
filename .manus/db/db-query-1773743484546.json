@@ -1,0 +1,9 @@
+{
+  "query": "INSERT IGNORE INTO `__drizzle_migrations` (hash, created_at) VALUES ('0001_lame_night_nurse', 1773743452743);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3WKsmjmPrpU8VEX.root --database fBx5MgvWwyJLqYksUfBr69 --execute INSERT IGNORE INTO `__drizzle_migrations` (hash, created_at) VALUES ('0001_lame_night_nurse', 1773743452743);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 218
+}
