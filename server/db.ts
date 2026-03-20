@@ -2,7 +2,7 @@ import { eq, and, desc, asc, like, inArray, sql, isNull, isNotNull, lt, gt } fro
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   users, contacts, importBatches, campaigns, sequenceSteps,
-  campaignContacts, emailLogs, trackingEvents, sheetsSync,
+  campaignContacts, emailLogs, trackingEvents,
   type InsertUser, type InsertContact, type InsertCampaign,
   type InsertSequenceStep, type InsertEmailLog,
 } from "../drizzle/schema";
@@ -340,8 +340,34 @@ export async function recordOpenEvent(trackingId: string, ip: string, userAgent:
   const db = await getDb();
   if (!db) return;
 
+  const maskedIp = (() => {
+    const value = (ip ?? "").trim();
+    if (!value) return "";
+    // Basic IPv4 masking: 192.168.1.42 -> 192.168.1.0
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(value)) {
+      const parts = value.split(".");
+      return `${parts[0]}.${parts[1]}.${parts[2]}.0`;
+    }
+    // Basic IPv6 masking: keep first 4 hextets, zero the rest
+    if (value.includes(":")) {
+      const parts = value.split(":");
+      const head = parts.slice(0, 4).join(":");
+      return `${head}::`;
+    }
+    return value;
+  })();
+
+  const normalizedUa = (userAgent ?? "").slice(0, 512);
+
   // Record tracking event
-  await db.insert(trackingEvents).values({ trackingId, eventType: "open", ipAddress: ip, userAgent });
+  await db
+    .insert(trackingEvents)
+    .values({
+      trackingId,
+      eventType: "open",
+      ipAddress: maskedIp,
+      userAgent: normalizedUa,
+    });
 
   // Update email log
   const log = await getEmailLogByTrackingId(trackingId);
@@ -388,21 +414,26 @@ export async function getCampaignStats(campaignId: number) {
   return result[0];
 }
 
-// ─── Google Sheets Sync ───────────────────────────────────────────────────────
-export async function getSheetsSync() {
+export async function unsubscribeByTrackingId(trackingId: string): Promise<boolean> {
   const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(sheetsSync).limit(1);
-  return result[0];
-}
+  if (!db) return false;
 
-export async function upsertSheetsSync(data: Partial<typeof sheetsSync.$inferInsert>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const existing = await getSheetsSync();
-  if (existing) {
-    await db.update(sheetsSync).set(data).where(eq(sheetsSync.id, existing.id));
-  } else {
-    await db.insert(sheetsSync).values(data as any);
+  const log = await getEmailLogByTrackingId(trackingId);
+  if (!log) return false;
+
+  // Mark contact unsubscribed
+  await db.update(contacts).set({ stage: "unsubscribed" }).where(eq(contacts.id, log.contactId));
+
+  // Mark enrollment unsubscribed (if present)
+  if (log.campaignContactId) {
+    await db
+      .update(campaignContacts)
+      .set({ status: "unsubscribed" })
+      .where(eq(campaignContacts.id, log.campaignContactId));
   }
+
+  // Record click event for auditability (minimal data)
+  await db.insert(trackingEvents).values({ trackingId, eventType: "click" });
+
+  return true;
 }
