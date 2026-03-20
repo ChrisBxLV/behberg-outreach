@@ -5,7 +5,6 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { contactsRouter } from "./routers/contacts";
 import { campaignsRouter } from "./routers/campaigns";
-import { sheetsRouter } from "./routers/sheets";
 import { emailRouter } from "./routers/email";
 import { settingsRouter } from "./routers/settings";
 
@@ -21,7 +20,6 @@ export const appRouter = router({
   }),
   contacts: contactsRouter,
   campaigns: campaignsRouter,
-  sheets: sheetsRouter,
   email: emailRouter,
   settings: settingsRouter,
 });

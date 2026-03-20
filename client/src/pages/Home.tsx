@@ -119,7 +119,7 @@ export default function Home() {
               {[
                 { icon: Users, color: "bg-blue-500/20 text-blue-400", title: "Import Contacts", sub: "Upload Apollo/LinkedIn CSV export", path: "/contacts" },
                 { icon: Mail, color: "bg-primary/20 text-primary", title: "Build a Sequence", sub: "Create multi-step email campaigns", path: "/campaigns" },
-                { icon: CheckCircle2, color: "bg-emerald-500/20 text-emerald-400", title: "Configure Integrations", sub: "Set up SMTP and Google Sheets", path: "/settings" },
+                { icon: CheckCircle2, color: "bg-emerald-500/20 text-emerald-400", title: "Configure Integrations", sub: "Set up SMTP and platform settings", path: "/settings" },
               ].map(({ icon: Icon, color, title, sub, path }) => (
                 <button key={path} onClick={() => setLocation(path)} className="w-full flex items-center gap-4 p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors text-left group">
                   <div className={`p-2 rounded-lg ${color} transition-colors`}><Icon className="h-4 w-4" /></div>

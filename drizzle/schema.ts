@@ -172,21 +172,3 @@ export const trackingEvents = mysqlTable("tracking_events", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
-// ─── Google Sheets Sync ───────────────────────────────────────────────────────
-export const sheetsSync = mysqlTable("sheets_sync", {
-  id: int("id").autoincrement().primaryKey(),
-  spreadsheetId: varchar("spreadsheetId", { length: 256 }),
-  spreadsheetName: varchar("spreadsheetName", { length: 256 }),
-  sheetName: varchar("sheetName", { length: 128 }).default("Contacts"),
-  accessToken: text("accessToken"),
-  refreshToken: text("refreshToken"),
-  tokenExpiry: bigint("tokenExpiry", { mode: "number" }),
-  lastSyncAt: timestamp("lastSyncAt"),
-  lastSyncDirection: mysqlEnum("lastSyncDirection", ["push", "pull"]),
-  syncStatus: mysqlEnum("syncStatus", ["idle", "syncing", "error"]).default("idle"),
-  errorMessage: text("errorMessage"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
-
-export type SheetsSync = typeof sheetsSync.$inferSelect;

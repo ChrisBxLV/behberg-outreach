@@ -14,7 +14,6 @@ export const settingsRouter = router({
   getAppConfig: protectedProcedure.query(async () => {
     return {
       appBaseUrl: process.env.APP_BASE_URL ?? "",
-      googleConfigured: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
       smtpConfigured: !!(process.env.SMTP_USER && process.env.SMTP_PASS),
     };
   }),

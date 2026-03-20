@@ -26,8 +26,6 @@ vi.mock("./db", () => ({
   updateCampaignContact: vi.fn().mockResolvedValue(undefined),
   getEmailLogsByCampaign: vi.fn().mockResolvedValue([]),
   markEmailReplied: vi.fn().mockResolvedValue(undefined),
-  getSheetsSync: vi.fn().mockResolvedValue(null),
-  upsertSheetsSync: vi.fn().mockResolvedValue(undefined),
   getAllContactsForSync: vi.fn().mockResolvedValue([]),
   getCampaignStats: vi.fn().mockResolvedValue({ sentCount: 0, openCount: 0, replyCount: 0, bounceCount: 0 }),
   upsertUser: vi.fn().mockResolvedValue(undefined),
@@ -61,13 +59,6 @@ vi.mock("./services/llmPersonalization", () => ({
 vi.mock("./services/sequenceScheduler", () => ({
   launchCampaign: vi.fn().mockResolvedValue(undefined),
   processEmailQueue: vi.fn().mockResolvedValue({ processed: 0, errors: 0 }),
-}));
-
-vi.mock("./services/sheetsSync", () => ({
-  getAuthUrl: vi.fn().mockReturnValue("https://accounts.google.com/oauth"),
-  exchangeCodeForTokens: vi.fn().mockResolvedValue(undefined),
-  pushToSheets: vi.fn().mockResolvedValue({ rowsWritten: 0, spreadsheetId: "test-id" }),
-  pullFromSheets: vi.fn().mockResolvedValue({ imported: 0, updated: 0 }),
 }));
 
 // ─── Test helpers ──────────────────────────────────────────────────────────────
@@ -266,34 +257,7 @@ describe("settings", () => {
   it("returns app configuration", async () => {
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.settings.getAppConfig();
-    expect(result).toHaveProperty("googleConfigured");
     expect(result).toHaveProperty("smtpConfigured");
-  });
-});
-
-// ─── Sheets ───────────────────────────────────────────────────────────────────
-describe("sheets", () => {
-  it("returns sheets connection status", async () => {
-    const caller = appRouter.createCaller(makeCtx());
-    const result = await caller.sheets.status();
-    expect(result).toHaveProperty("connected");
-    expect(result).toHaveProperty("hasGoogleCredentials");
-  });
-
-  it("returns Google OAuth URL when credentials are set", async () => {
-    process.env.GOOGLE_CLIENT_ID = "test-client-id";
-    process.env.GOOGLE_CLIENT_SECRET = "test-client-secret";
-    const caller = appRouter.createCaller(makeCtx());
-    const result = await caller.sheets.getAuthUrl();
-    expect(result.url).toContain("google.com");
-    delete process.env.GOOGLE_CLIENT_ID;
-    delete process.env.GOOGLE_CLIENT_SECRET;
-  });
-
-  it("disconnects sheets", async () => {
-    const caller = appRouter.createCaller(makeCtx());
-    const result = await caller.sheets.disconnect();
-    expect(result.success).toBe(true);
   });
 });
 

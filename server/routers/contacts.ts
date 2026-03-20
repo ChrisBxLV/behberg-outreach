@@ -4,9 +4,6 @@ import {
   getContacts, getContactById, createContact, updateContact,
   deleteContacts, bulkUpdateContactStage, getImportBatches, getEmailLogsByContact,
 } from "../db";
-import { importCsvContacts } from "../services/csvImport";
-import multer from "multer";
-import type { Request, Response } from "express";
 
 export const contactsRouter = router({
   list: protectedProcedure
