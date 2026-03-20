@@ -11,6 +11,16 @@ import type { Contact, Campaign, SequenceStep } from "../../drizzle/schema";
 let schedulerRunning = false;
 
 export function startScheduler() {
+  const disableSchedulerRaw = process.env.DISABLE_SCHEDULER ?? "";
+  const disableScheduler = disableSchedulerRaw.trim().toLowerCase();
+  const schedulerDisabled =
+    disableScheduler === "1" || disableScheduler === "true" || disableScheduler === "yes";
+
+  if (schedulerDisabled) {
+    console.log(`[Scheduler] Not starting; DISABLE_SCHEDULER=${JSON.stringify(disableSchedulerRaw)}`);
+    return;
+  }
+
   if (schedulerRunning) return;
   schedulerRunning = true;
 
@@ -74,6 +84,39 @@ async function processContactStep(
       await updateCampaignContact(cc.id, { status: "completed", completedAt: new Date(), nextSendAt: null });
     }
     return;
+  }
+
+  // Idempotency guard: if we already sent (or queued) this step for this enrollment,
+  // don't generate duplicates on retries/restarts.
+  {
+    const logs = await getEmailLogsByContact(contact.id);
+    const existing = logs.find(
+      l =>
+        l.campaignContactId === cc.id &&
+        l.sequenceStepId === nextStep.id &&
+        (l.status === "sent" || l.status === "queued")
+    );
+
+    if (existing) {
+      // If it was already sent, advance the sequence as if this send succeeded.
+      if (existing.status === "sent") {
+        const nextStepIndex = currentStepIndex + 1;
+        const afterNext = steps[nextStepIndex];
+
+        if (afterNext) {
+          const nextSendAt = calculateNextSendAt(afterNext);
+          await updateCampaignContact(cc.id, { currentStep: nextStepIndex, nextSendAt });
+        } else {
+          await updateCampaignContact(cc.id, {
+            status: "completed",
+            completedAt: new Date(),
+            nextSendAt: null,
+          });
+        }
+      }
+
+      return;
+    }
   }
 
   // Personalize email

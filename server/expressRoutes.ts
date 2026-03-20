@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import multer from "multer";
 import { importCsvContacts } from "./services/csvImport";
-import { recordOpenEvent } from "./db";
+import { recordOpenEvent, unsubscribeByTrackingId } from "./db";
 import { startScheduler } from "./services/sequenceScheduler";
+import { sdk } from "./_core/sdk";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -26,6 +27,9 @@ export function registerExpressRoutes(app: Express) {
   // ── CSV Import ─────────────────────────────────────────────────────────────
   app.post("/api/import/csv", upload.single("file"), async (req, res) => {
     try {
+      // Protect CSV import: it writes PII to your database.
+      await sdk.authenticateRequest(req);
+
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
@@ -60,28 +64,39 @@ export function registerExpressRoutes(app: Express) {
     }
   });
 
-  // ── Google Sheets OAuth Callback ───────────────────────────────────────────
-  app.get("/api/sheets/callback", async (req, res) => {
-    const { code, error } = req.query;
-
-    if (error) {
-      return res.redirect(`/?sheets_error=${encodeURIComponent(String(error))}`);
-    }
-
-    if (!code) {
-      return res.redirect("/?sheets_error=no_code");
-    }
-
+  // ── Unsubscribe (by tracking id) ───────────────────────────────────────────
+  app.get("/api/unsubscribe/:trackingId", async (req, res) => {
+    const { trackingId } = req.params;
     try {
-      const { exchangeCodeForTokens } = await import("./services/sheetsSync");
-      await exchangeCodeForTokens(String(code));
-      res.redirect("/settings?sheets_connected=1");
+      const ok = await unsubscribeByTrackingId(trackingId);
+      res
+        .status(ok ? 200 : 404)
+        .set({ "Content-Type": "text/html; charset=utf-8" })
+        .send(
+          ok
+            ? "<html><body><h2>Unsubscribed</h2><p>You will no longer receive emails from us.</p></body></html>"
+            : "<html><body><h2>Not found</h2><p>This unsubscribe link is invalid.</p></body></html>"
+        );
     } catch (err: any) {
-      console.error("[Sheets OAuth] Error:", err.message);
-      res.redirect(`/settings?sheets_error=${encodeURIComponent(err.message)}`);
+      console.error("[Unsubscribe] Error:", err.message);
+      res
+        .status(500)
+        .set({ "Content-Type": "text/html; charset=utf-8" })
+        .send("<html><body><h2>Error</h2><p>Could not process unsubscribe.</p></body></html>");
     }
   });
 
   // ── Start background scheduler ─────────────────────────────────────────────
-  startScheduler();
+  const disableSchedulerRaw = process.env.DISABLE_SCHEDULER ?? "";
+  const disableScheduler = disableSchedulerRaw.trim().toLowerCase();
+
+  // Treat common "truthy" values as disable.
+  const schedulerDisabled =
+    disableScheduler === "1" || disableScheduler === "true" || disableScheduler === "yes";
+
+  if (!schedulerDisabled) {
+    startScheduler();
+  } else {
+    console.log(`[Scheduler] Disabled via DISABLE_SCHEDULER=${JSON.stringify(disableSchedulerRaw)}`);
+  }
 }
