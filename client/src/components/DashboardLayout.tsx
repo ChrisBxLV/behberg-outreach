@@ -28,10 +28,10 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: Users, label: "Contacts", path: "/contacts" },
-  { icon: Mail, label: "Campaigns", path: "/campaigns" },
-  { icon: Settings, label: "Settings", path: "/settings" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/app" },
+  { icon: Users, label: "Contacts", path: "/app/contacts" },
+  { icon: Mail, label: "Campaigns", path: "/app/campaigns" },
+  { icon: Settings, label: "Settings", path: "/app/settings" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -114,7 +114,11 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
+  const activeMenuItem = menuItems.find(
+    item =>
+      item.path === location ||
+      (item.path !== "/app" && location.startsWith(`${item.path}/`)),
+  );
   const isMobile = useIsMobile();
 
   useEffect(() => {

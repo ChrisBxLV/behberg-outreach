@@ -66,10 +66,18 @@ export default function Home() {
             <p className="text-muted-foreground mt-1">Here's an overview of your outreach pipeline.</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setLocation("/contacts")}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLocation("/app/contacts")}
+            >
               <Users className="h-4 w-4 mr-2" />Contacts
             </Button>
-            <Button size="sm" onClick={() => setLocation("/campaigns")} className="bg-primary text-primary-foreground">
+            <Button
+              size="sm"
+              onClick={() => setLocation("/app/campaigns")}
+              className="bg-primary text-primary-foreground"
+            >
               <Mail className="h-4 w-4 mr-2" />New Campaign
             </Button>
           </div>
@@ -86,7 +94,12 @@ export default function Home() {
           <Card className="border-border/50 bg-card/80">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-base font-semibold">Recent Campaigns</CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => setLocation("/campaigns")} className="text-primary hover:text-primary">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLocation("/app/campaigns")}
+                className="text-primary hover:text-primary"
+              >
                 View all <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </CardHeader>
@@ -95,11 +108,17 @@ export default function Home() {
                 <div className="text-center py-8 text-muted-foreground">
                   <Mail className="h-8 w-8 mx-auto mb-2 opacity-40" />
                   <p className="text-sm">No campaigns yet</p>
-                  <Button size="sm" className="mt-3" onClick={() => setLocation("/campaigns")}>Create your first campaign</Button>
+                  <Button
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => setLocation("/app/campaigns")}
+                  >
+                    Create your first campaign
+                  </Button>
                 </div>
               ) : (
                 recentCampaigns.map(campaign => (
-                  <div key={campaign.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => setLocation(`/campaigns/${campaign.id}`)}>
+                  <div key={campaign.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => setLocation(`/app/campaigns/${campaign.id}`)}>
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{campaign.name}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{campaign.sentCount ?? 0} sent · {campaign.openCount ?? 0} opens</p>
@@ -117,9 +136,9 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-3">
               {[
-                { icon: Users, color: "bg-blue-500/20 text-blue-400", title: "Import Contacts", sub: "Upload Apollo/LinkedIn CSV export", path: "/contacts" },
-                { icon: Mail, color: "bg-primary/20 text-primary", title: "Build a Sequence", sub: "Create multi-step email campaigns", path: "/campaigns" },
-                { icon: CheckCircle2, color: "bg-emerald-500/20 text-emerald-400", title: "Configure Integrations", sub: "Set up SMTP and platform settings", path: "/settings" },
+                { icon: Users, color: "bg-blue-500/20 text-blue-400", title: "Import Contacts", sub: "Upload Apollo/LinkedIn CSV export", path: "/app/contacts" },
+                { icon: Mail, color: "bg-primary/20 text-primary", title: "Build a Sequence", sub: "Create multi-step email campaigns", path: "/app/campaigns" },
+                { icon: CheckCircle2, color: "bg-emerald-500/20 text-emerald-400", title: "Configure Integrations", sub: "Set up SMTP and platform settings", path: "/app/settings" },
               ].map(({ icon: Icon, color, title, sub, path }) => (
                 <button key={path} onClick={() => setLocation(path)} className="w-full flex items-center gap-4 p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors text-left group">
                   <div className={`p-2 rounded-lg ${color} transition-colors`}><Icon className="h-4 w-4" /></div>

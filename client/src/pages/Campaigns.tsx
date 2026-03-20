@@ -147,7 +147,7 @@ export default function Campaigns() {
                         size="sm"
                         variant="outline"
                         className="flex-1 text-xs"
-                        onClick={() => setLocation(`/campaigns/${campaign.id}`)}
+                        onClick={() => setLocation(`/app/campaigns/${campaign.id}`)}
                       >
                         <ArrowRight className="h-3 w-3 mr-1" />Open
                       </Button>
