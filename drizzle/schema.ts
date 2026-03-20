@@ -11,6 +11,16 @@ import {
   bigint,
 } from "drizzle-orm/mysql-core";
 
+// ─── Organizations (multi-tenant workspace) ───────────────────────────────────
+export const organizations = mysqlTable("organizations", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 256 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Organization = typeof organizations.$inferSelect;
+export type InsertOrganization = typeof organizations.$inferInsert;
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -18,7 +28,14 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
+  // Password login (PBKDF2 derived hash). Nullable to support existing OAuth-only users.
+  passwordSalt: varchar("passwordSalt", { length: 128 }),
+  passwordHash: varchar("passwordHash", { length: 128 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  /** Workspace this user belongs to (null = platform / legacy users). */
+  organizationId: int("organizationId"),
+  /** owner = org admin who signed up; member = invited by owner. */
+  orgMemberRole: mysqlEnum("orgMemberRole", ["owner", "member"]),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -26,6 +43,21 @@ export const users = mysqlTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+export const loginChallenges = mysqlTable("login_challenges", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull(),
+  codeHash: varchar("codeHash", { length: 128 }).notNull(),
+  requestIp: varchar("requestIp", { length: 64 }),
+  expiresAt: timestamp("expiresAt").notNull(),
+  attemptCount: int("attemptCount").default(0).notNull(),
+  maxAttempts: int("maxAttempts").default(5).notNull(),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type LoginChallenge = typeof loginChallenges.$inferSelect;
+export type InsertLoginChallenge = typeof loginChallenges.$inferInsert;
 
 // ─── Contacts ─────────────────────────────────────────────────────────────────
 export const contacts = mysqlTable("contacts", {
@@ -55,6 +87,8 @@ export const contacts = mysqlTable("contacts", {
   // Timestamps
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  /** Row-level scope: same id as organizations.id; null = legacy unscoped rows. */
+  organizationId: int("organizationId"),
 });
 
 export type Contact = typeof contacts.$inferSelect;
@@ -96,6 +130,7 @@ export const campaigns = mysqlTable("campaigns", {
   notifiedBounce: boolean("notifiedBounce").default(false),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  organizationId: int("organizationId"),
 });
 
 export type Campaign = typeof campaigns.$inferSelect;

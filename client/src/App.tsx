@@ -4,20 +4,30 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import InsideSoftwareLanding from "./pages/InsideSoftwareLanding";
+import MarketingLanding from "./pages/MarketingLanding";
 import Home from "./pages/Home";
 import Contacts from "./pages/Contacts";
 import Campaigns from "./pages/Campaigns";
 import CampaignDetail from "./pages/CampaignDetail";
 import Settings from "./pages/Settings";
+import Login from "./pages/Login";
+import LoginVerify from "./pages/LoginVerify";
+import SignUp from "./pages/SignUp";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/contacts" component={Contacts} />
-      <Route path="/campaigns" component={Campaigns} />
-      <Route path="/campaigns/:id" component={CampaignDetail} />
-      <Route path="/settings" component={Settings} />
+      <Route path="/" component={InsideSoftwareLanding} />
+      <Route path="/home" component={MarketingLanding} />
+      <Route path="/login" component={Login} />
+      <Route path="/signup" component={SignUp} />
+      <Route path="/login/verify" component={LoginVerify} />
+      <Route path="/app" component={Home} />
+      <Route path="/app/contacts" component={Contacts} />
+      <Route path="/app/campaigns" component={Campaigns} />
+      <Route path="/app/campaigns/:id" component={CampaignDetail} />
+      <Route path="/app/settings" component={Settings} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

@@ -4,19 +4,45 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   Mail, CheckCircle2, XCircle, RefreshCw,
-  Settings2, Play, AlertCircle
+  Settings2, Play, AlertCircle, Users,
 } from "lucide-react";
-import { useLocation } from "wouter";
 
 export default function Settings() {
-  const [location] = useLocation();
   const utils = trpc.useUtils();
 
   const { data: smtpConfig } = trpc.settings.getSmtpConfig.useQuery();
   const { data: appConfig } = trpc.settings.getAppConfig.useQuery();
+  const { data: orgMine } = trpc.organization.mine.useQuery();
+  const isOrgOwner = orgMine?.role === "owner";
+
+  const { data: members, refetch: refetchMembers } = trpc.organization.members.useQuery(undefined, {
+    enabled: Boolean(isOrgOwner),
+  });
+
+  const [memberLoginId, setMemberLoginId] = useState("");
+  const [memberName, setMemberName] = useState("");
+  const [memberPassword, setMemberPassword] = useState("");
+
+  const addMemberMutation = trpc.organization.addMember.useMutation({
+    onSuccess: (r) => {
+      if (!r.success) {
+        if (r.reason === "login_taken") toast.error("That sign-in id is already in use.");
+        else toast.error("Could not add member.");
+        return;
+      }
+      toast.success("Member added. They can sign in with the password you set.");
+      setMemberLoginId("");
+      setMemberName("");
+      setMemberPassword("");
+      void refetchMembers();
+      void utils.organization.members.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const testSmtpMutation = trpc.email.testSmtp.useMutation({
     onSuccess: (r) => {
@@ -36,6 +62,81 @@ export default function Settings() {
           <h1 className="text-2xl font-bold">Settings</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Configure your integrations and platform settings</p>
         </div>
+
+        {isOrgOwner && orgMine?.organization ? (
+          <Card className="border-border/50 bg-card/80">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-violet-500/20">
+                  <Users className="h-5 w-5 text-violet-300" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Organization members</CardTitle>
+                  <CardDescription className="text-xs">
+                    {orgMine.organization.name} — add people who can sign in and use this workspace.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border border-border/40 divide-y divide-border/40">
+                {(members ?? []).length === 0 ? (
+                  <p className="p-3 text-sm text-muted-foreground">No members yet besides you.</p>
+                ) : (
+                  (members ?? []).map(m => (
+                    <div key={m.id} className="p-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <div>
+                        <p className="font-medium">{m.name || "—"}</p>
+                        <p className="text-xs text-muted-foreground">{m.email ?? "—"}</p>
+                      </div>
+                      <Badge variant="outline" className="capitalize">
+                        {m.orgMemberRole ?? "member"}
+                      </Badge>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-border/30">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add member</p>
+                <Input
+                  placeholder="Sign-in email or username"
+                  value={memberLoginId}
+                  onChange={e => setMemberLoginId(e.target.value)}
+                  autoComplete="off"
+                />
+                <Input
+                  placeholder="Display name"
+                  value={memberName}
+                  onChange={e => setMemberName(e.target.value)}
+                  autoComplete="off"
+                />
+                <Input
+                  type="password"
+                  placeholder="Temporary password (min 8 chars)"
+                  value={memberPassword}
+                  onChange={e => setMemberPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <Button
+                  size="sm"
+                  disabled={addMemberMutation.isPending || memberPassword.length < 8}
+                  onClick={() =>
+                    addMemberMutation.mutate({
+                      loginId: memberLoginId.trim().toLowerCase(),
+                      displayName: memberName.trim(),
+                      password: memberPassword,
+                    })
+                  }
+                >
+                  {addMemberMutation.isPending ? "Adding…" : "Add member"}
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  Share the sign-in id and password securely. They use the same Sign in page as you.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* SMTP Configuration */}
         <Card className="border-border/50 bg-card/80">

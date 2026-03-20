@@ -101,6 +101,9 @@ jspm_packages/
 tmp/
 temp/
 
+# Local dev auth (no DATABASE_URL)
+.data/
+
 # Database
 *.db
 *.sqlite

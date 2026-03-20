@@ -1,4 +1,4 @@
-# Behberg Outreach Platform — TODO
+# Behberg Outreach Platform - TODO
 
 ## Phase 1: Foundation
 - [x] Design system: dark elegant theme, color palette, typography

@@ -198,3 +198,36 @@ export async function testSmtpConnection(): Promise<{ success: boolean; error?: 
     return { success: false, error: err.message };
   }
 }
+
+export async function sendLoginCodeEmail(opts: {
+  toEmail: string;
+  code: string;
+  expiresInMinutes: number;
+  /** When the code is emailed to a fallback inbox, name the account it applies to. */
+  accountLoginHint?: string;
+}) {
+  const transporter = getTransporter();
+  const fromEmail = process.env.SMTP_USER ?? "outreach@behberg.com";
+  const subject = "Your Behberg admin login code";
+  const hintLine =
+    opts.accountLoginHint && opts.accountLoginHint.toLowerCase() !== opts.toEmail.toLowerCase()
+      ? ` This code is for account: ${opts.accountLoginHint}.`
+      : "";
+  const text = `Your Behberg login code is ${opts.code}. It expires in ${opts.expiresInMinutes} minutes.${hintLine}`;
+  const html = `<!DOCTYPE html>
+<html>
+<body style="font-family:Segoe UI,Arial,sans-serif;color:#111;line-height:1.6;">
+  <p>Your Behberg login code is:</p>
+  <p style="font-size:28px;letter-spacing:6px;font-weight:700;margin:8px 0;">${opts.code}</p>
+  <p>This code expires in ${opts.expiresInMinutes} minutes.${hintLine ? `<br/><span style="font-size:13px;color:#444">${hintLine.trim()}</span>` : ""}</p>
+</body>
+</html>`;
+
+  await transporter.sendMail({
+    from: `"Behberg Admin" <${fromEmail}>`,
+    to: opts.toEmail,
+    subject,
+    text,
+    html,
+  });
+}

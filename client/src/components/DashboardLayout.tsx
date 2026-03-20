@@ -19,7 +19,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
+import { getLoginUrl, getPublicHomeUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { LayoutDashboard, LogOut, PanelLeft, Users, Mail, Settings, BarChart3 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -28,10 +28,10 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: Users, label: "Contacts", path: "/contacts" },
-  { icon: Mail, label: "Campaigns", path: "/campaigns" },
-  { icon: Settings, label: "Settings", path: "/settings" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/app" },
+  { icon: Users, label: "Contacts", path: "/app/contacts" },
+  { icon: Mail, label: "Campaigns", path: "/app/campaigns" },
+  { icon: Settings, label: "Settings", path: "/app/settings" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -79,6 +79,16 @@ export default function DashboardLayout({
           >
             Sign in
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-muted-foreground"
+            onClick={() => {
+              window.location.href = getPublicHomeUrl();
+            }}
+          >
+            Back to home
+          </Button>
         </div>
       </div>
     );
@@ -114,7 +124,11 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
+  const activeMenuItem = menuItems.find(
+    item =>
+      item.path === location ||
+      (item.path !== "/app" && location.startsWith(`${item.path}/`)),
+  );
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -225,7 +239,7 @@ function DashboardLayoutContent({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
-                  onClick={logout}
+                  onClick={() => void logout()}
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />

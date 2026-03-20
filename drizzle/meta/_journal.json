@@ -15,6 +15,27 @@
       "when": 1773743452743,
       "tag": "0001_lame_night_nurse",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1773743600000,
+      "tag": "0002_petite_login_challenges",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1773743700000,
+      "tag": "0003_focused_password_login_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1774048000000,
+      "tag": "0004_organizations_org_scope",
+      "breakpoints": true
     }
   ]
 }

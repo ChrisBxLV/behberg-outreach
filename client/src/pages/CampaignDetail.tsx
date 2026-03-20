@@ -192,7 +192,9 @@ export default function CampaignDetail() {
       <DashboardLayout>
         <div className="p-8 text-center">
           <p className="text-muted-foreground">Campaign not found</p>
-          <Button className="mt-4" onClick={() => setLocation("/campaigns")}>Back to Campaigns</Button>
+          <Button className="mt-4" onClick={() => setLocation("/app/campaigns")}>
+            Back to Campaigns
+          </Button>
         </div>
       </DashboardLayout>
     );
@@ -207,7 +209,12 @@ export default function CampaignDetail() {
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => setLocation("/campaigns")} className="text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLocation("/app/campaigns")}
+              className="text-muted-foreground"
+            >
               <ArrowLeft className="h-4 w-4 mr-1" />Back
             </Button>
             <div>

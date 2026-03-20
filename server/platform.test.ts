@@ -4,6 +4,14 @@ import type { TrpcContext } from "./_core/context";
 
 // ─── Mock the DB module ────────────────────────────────────────────────────────
 vi.mock("./db", () => ({
+  getDb: vi.fn().mockResolvedValue(null),
+  abandonLatestUnusedLoginChallenge: vi.fn().mockResolvedValue(undefined),
+  createLoginChallenge: vi.fn(),
+  createOrganizationRecord: vi.fn().mockResolvedValue(1),
+  verifyLoginChallenge: vi.fn(),
+  getUserByEmail: vi.fn().mockResolvedValue(undefined),
+  getOrganizationById: vi.fn().mockResolvedValue({ id: 1, name: "Test Org", createdAt: new Date() }),
+  listOrganizationMembers: vi.fn().mockResolvedValue([]),
   getContacts: vi.fn().mockResolvedValue({ contacts: [], total: 0 }),
   getContactById: vi.fn().mockResolvedValue(null),
   createContact: vi.fn().mockResolvedValue({ insertId: 1 }),
@@ -70,7 +78,11 @@ function makeCtx(): TrpcContext {
       email: "admin@behberg.com",
       name: "Admin",
       loginMethod: "manus",
+      passwordSalt: null,
+      passwordHash: null,
       role: "admin",
+      organizationId: null,
+      orgMemberRole: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
@@ -93,6 +105,26 @@ describe("auth", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.auth.logout();
     expect(result.success).toBe(true);
+  });
+});
+
+describe("organization", () => {
+  it("returns no organization for platform user without org", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    const r = await caller.organization.mine();
+    expect(r.organization).toBeNull();
+    expect(r.role).toBeNull();
+  });
+
+  it("lists members for organization owner", async () => {
+    const base = makeCtx();
+    const ctx: TrpcContext = {
+      ...base,
+      user: { ...base.user!, organizationId: 1, orgMemberRole: "owner" },
+    };
+    const caller = appRouter.createCaller(ctx);
+    const r = await caller.organization.members();
+    expect(Array.isArray(r)).toBe(true);
   });
 });
 
@@ -134,6 +166,54 @@ describe("contacts", () => {
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
 describe("campaigns", () => {
+  beforeEach(async () => {
+    const db = await import("./db");
+    vi.mocked(db.getCampaignById).mockResolvedValue({
+      id: 1,
+      name: "Test Campaign",
+      description: null,
+      status: "draft",
+      fromName: "Behberg",
+      fromEmail: "outreach@behberg.com",
+      replyTo: null,
+      totalContacts: 0,
+      sentCount: 0,
+      openCount: 0,
+      replyCount: 0,
+      bounceCount: 0,
+      notifiedAt100Sent: false,
+      notifiedHighReply: false,
+      notifiedBounce: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      organizationId: null,
+    } as any);
+    vi.mocked(db.getContactById).mockImplementation(async (id: number) => ({
+      id,
+      firstName: "Jane",
+      lastName: "Doe",
+      fullName: "Jane Doe",
+      email: "jane@example.com",
+      emailConfidence: null,
+      emailStatus: "unknown",
+      title: null,
+      company: null,
+      industry: null,
+      companySize: null,
+      companyWebsite: null,
+      linkedinUrl: null,
+      location: null,
+      stage: "new",
+      notes: null,
+      tags: null,
+      source: "csv_import",
+      importBatchId: null,
+      organizationId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any));
+  });
+
   it("returns campaign list", async () => {
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.campaigns.list();
@@ -232,6 +312,7 @@ describe("email", () => {
       tags: null,
       source: "apollo",
       importBatchId: null,
+      organizationId: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

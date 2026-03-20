@@ -155,7 +155,19 @@ class SDKServer {
   }
 
   private getSessionSecret() {
-    const secret = ENV.cookieSecret;
+    let secret = ENV.cookieSecret.trim();
+    if (!secret) {
+      if (ENV.isProduction) {
+        throw new Error(
+          "[Auth] JWT_SECRET is required in production. Set JWT_SECRET in the environment.",
+        );
+      }
+      // Dev fallback: empty secret makes jose SignJWT fail; sessions never issue.
+      secret = "behberg-dev-jwt-secret-not-for-production";
+      console.warn(
+        "[Auth] JWT_SECRET is empty; using insecure development default. Set JWT_SECRET for stable sessions across restarts.",
+      );
+    }
     return new TextEncoder().encode(secret);
   }
 
@@ -187,10 +199,20 @@ class SDKServer {
     const expirationSeconds = Math.floor((issuedAt + expiresInMs) / 1000);
     const secretKey = this.getSessionSecret();
 
+    // verifySession rejects empty appId/name; VITE_APP_ID is often unset locally.
+    const appId =
+      typeof payload.appId === "string" && payload.appId.trim().length > 0
+        ? payload.appId.trim()
+        : "local";
+    const name =
+      typeof payload.name === "string" && payload.name.trim().length > 0
+        ? payload.name.trim()
+        : (typeof payload.openId === "string" && payload.openId.trim()) || "user";
+
     return new SignJWT({
       openId: payload.openId,
-      appId: payload.appId,
-      name: payload.name,
+      appId,
+      name,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setExpirationTime(expirationSeconds)
