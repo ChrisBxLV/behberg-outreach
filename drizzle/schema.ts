@@ -207,3 +207,70 @@ export const trackingEvents = mysqlTable("tracking_events", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+// ─── Signals ──────────────────────────────────────────────────────────────────
+export const signalProfiles = mysqlTable("signal_profiles", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: int("organizationId").notNull().unique(),
+  businessType: varchar("businessType", { length: 64 }).notNull(),
+  selectedTags: json("selectedTags").$type<string[]>().notNull(),
+  selectedSignalTypes: json("selectedSignalTypes").$type<string[]>().notNull(),
+  sourcesEnabled: json("sourcesEnabled").$type<string[]>().notNull(),
+  refreshCadenceMinutes: int("refreshCadenceMinutes").default(30).notNull(),
+  isEnabled: boolean("isEnabled").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SignalProfile = typeof signalProfiles.$inferSelect;
+export type InsertSignalProfile = typeof signalProfiles.$inferInsert;
+
+export const signals = mysqlTable("signals", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: int("organizationId").notNull(),
+  source: varchar("source", { length: 120 }).notNull(),
+  externalId: varchar("externalId", { length: 512 }).notNull().unique(),
+  signalType: varchar("signalType", { length: 64 }).notNull(),
+  companyName: varchar("companyName", { length: 256 }).notNull(),
+  headline: text("headline").notNull(),
+  url: varchar("url", { length: 1024 }).notNull(),
+  tags: json("tags").$type<string[]>().notNull(),
+  occurredAt: timestamp("occurredAt").notNull(),
+  ingestedAt: timestamp("ingestedAt").defaultNow().notNull(),
+  rawPayload: json("rawPayload").$type<Record<string, unknown>>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Signal = typeof signals.$inferSelect;
+export type InsertSignal = typeof signals.$inferInsert;
+
+export const signalInsights = mysqlTable("signal_insights", {
+  id: int("id").autoincrement().primaryKey(),
+  signalId: int("signalId").notNull().unique(),
+  summaryShort: varchar("summaryShort", { length: 512 }).notNull(),
+  actionSuggestion: text("actionSuggestion").notNull(),
+  reasoning: text("reasoning"),
+  relevanceScore: float("relevanceScore").default(0).notNull(),
+  vertical: varchar("vertical", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SignalInsight = typeof signalInsights.$inferSelect;
+export type InsertSignalInsight = typeof signalInsights.$inferInsert;
+
+export const signalIngestionRuns = mysqlTable("signal_ingestion_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: int("organizationId").notNull(),
+  source: varchar("source", { length: 120 }).notNull(),
+  status: mysqlEnum("status", ["started", "completed", "failed"]).default("started").notNull(),
+  fetchedCount: int("fetchedCount").default(0).notNull(),
+  insertedCount: int("insertedCount").default(0).notNull(),
+  summarizedCount: int("summarizedCount").default(0).notNull(),
+  errorMessage: text("errorMessage"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  finishedAt: timestamp("finishedAt"),
+});
+
+export type SignalIngestionRun = typeof signalIngestionRuns.$inferSelect;
+export type InsertSignalIngestionRun = typeof signalIngestionRuns.$inferInsert;
+

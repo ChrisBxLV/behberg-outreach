@@ -4,8 +4,10 @@ import { TRPCError } from "@trpc/server";
 import {
   users, organizations, contacts, importBatches, campaigns, sequenceSteps,
   campaignContacts, emailLogs, trackingEvents, loginChallenges,
+  signalProfiles, signals, signalInsights, signalIngestionRuns,
   type InsertUser, type InsertContact, type InsertCampaign,
   type InsertSequenceStep, type InsertEmailLog, type InsertLoginChallenge,
+  type InsertSignalProfile, type InsertSignal, type InsertSignalInsight,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { agentDebugLog } from "./_core/agentDebugLog";
@@ -20,6 +22,18 @@ import {
   devUpsertUser,
   devVerifyLoginChallenge,
 } from "./devLocalAuthStore";
+import {
+  devCompleteSignalIngestionRun,
+  devCreateSignalIngestionRun,
+  devGetEnabledSignalProfiles,
+  devGetSignalProfile,
+  devListSignalFacets,
+  devListSignals,
+  devResetSignalsForOrganization,
+  devUpsertSignalInsight,
+  devUpsertSignalItem,
+  devUpsertSignalProfile,
+} from "./devLocalSignalsStore";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -772,4 +786,311 @@ export async function unsubscribeByTrackingId(trackingId: string): Promise<boole
   await db.insert(trackingEvents).values({ trackingId, eventType: "click" });
 
   return true;
+}
+
+// ─── Signals ──────────────────────────────────────────────────────────────────
+export async function getSignalProfile(organizationId: number) {
+  if (ENV.useDevFileAuth) {
+    return devGetSignalProfile(organizationId);
+  }
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(signalProfiles)
+    .where(eq(signalProfiles.organizationId, organizationId))
+    .limit(1);
+  return rows[0];
+}
+
+export async function upsertSignalProfile(
+  organizationId: number,
+  data: Omit<InsertSignalProfile, "organizationId">,
+) {
+  if (ENV.useDevFileAuth) {
+    await devUpsertSignalProfile(organizationId, data);
+    return;
+  }
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .insert(signalProfiles)
+    .values({
+      organizationId,
+      businessType: data.businessType,
+      selectedTags: data.selectedTags ?? [],
+      selectedSignalTypes: data.selectedSignalTypes ?? [],
+      sourcesEnabled: data.sourcesEnabled ?? [],
+      refreshCadenceMinutes: data.refreshCadenceMinutes ?? 30,
+      isEnabled: data.isEnabled ?? false,
+    })
+    .onDuplicateKeyUpdate({
+      set: {
+        businessType: data.businessType,
+        selectedTags: data.selectedTags ?? [],
+        selectedSignalTypes: data.selectedSignalTypes ?? [],
+        sourcesEnabled: data.sourcesEnabled ?? [],
+        refreshCadenceMinutes: data.refreshCadenceMinutes ?? 30,
+        isEnabled: data.isEnabled ?? false,
+      },
+    });
+}
+
+export async function getEnabledSignalProfiles() {
+  if (ENV.useDevFileAuth) {
+    return devGetEnabledSignalProfiles();
+  }
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(signalProfiles)
+    .where(eq(signalProfiles.isEnabled, true))
+    .orderBy(asc(signalProfiles.updatedAt));
+}
+
+export async function createSignalIngestionRun(input: {
+  organizationId: number;
+  source: string;
+}) {
+  if (ENV.useDevFileAuth) {
+    return devCreateSignalIngestionRun(input);
+  }
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const res = await db
+    .insert(signalIngestionRuns)
+    .values({
+      organizationId: input.organizationId,
+      source: input.source,
+      status: "started",
+      startedAt: new Date(),
+    });
+  return Number((res as any).insertId ?? 0);
+}
+
+export async function completeSignalIngestionRun(input: {
+  id: number;
+  status: "completed" | "failed";
+  fetchedCount?: number;
+  insertedCount?: number;
+  summarizedCount?: number;
+  errorMessage?: string;
+}) {
+  if (ENV.useDevFileAuth) {
+    await devCompleteSignalIngestionRun(input);
+    return;
+  }
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(signalIngestionRuns)
+    .set({
+      status: input.status,
+      fetchedCount: input.fetchedCount ?? 0,
+      insertedCount: input.insertedCount ?? 0,
+      summarizedCount: input.summarizedCount ?? 0,
+      errorMessage: input.errorMessage,
+      finishedAt: new Date(),
+    })
+    .where(eq(signalIngestionRuns.id, input.id));
+}
+
+export async function upsertSignalItem(
+  data: InsertSignal,
+): Promise<{ inserted: boolean; id: number | null }> {
+  if (ENV.useDevFileAuth) {
+    return devUpsertSignalItem(data);
+  }
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db
+    .select({ id: signals.id })
+    .from(signals)
+    .where(eq(signals.externalId, data.externalId))
+    .limit(1);
+  if (existing[0]?.id) {
+    await db
+      .update(signals)
+      .set({
+        headline: data.headline,
+        url: data.url,
+        tags: data.tags ?? [],
+        rawPayload: data.rawPayload ?? null,
+        occurredAt: data.occurredAt,
+      })
+      .where(eq(signals.id, existing[0].id));
+    return { inserted: false, id: existing[0].id };
+  }
+  const res = await db.insert(signals).values(data);
+  return { inserted: true, id: Number((res as any).insertId ?? 0) };
+}
+
+export async function upsertSignalInsight(
+  signalId: number,
+  data: Omit<InsertSignalInsight, "signalId">,
+) {
+  if (ENV.useDevFileAuth) {
+    await devUpsertSignalInsight(signalId, data);
+    return;
+  }
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .insert(signalInsights)
+    .values({
+      signalId,
+      summaryShort: data.summaryShort,
+      actionSuggestion: data.actionSuggestion,
+      reasoning: data.reasoning,
+      relevanceScore: data.relevanceScore ?? 0,
+      vertical: data.vertical,
+    })
+    .onDuplicateKeyUpdate({
+      set: {
+        summaryShort: data.summaryShort,
+        actionSuggestion: data.actionSuggestion,
+        reasoning: data.reasoning,
+        relevanceScore: data.relevanceScore ?? 0,
+        vertical: data.vertical,
+      },
+    });
+}
+
+export async function listSignals(opts: {
+  organizationId: number;
+  limit?: number;
+  offset?: number;
+  search?: string;
+  source?: string;
+  tag?: string;
+  signalType?: string;
+}) {
+  if (ENV.useDevFileAuth) {
+    return devListSignals(opts);
+  }
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const conditions = [eq(signals.organizationId, opts.organizationId)];
+  if (opts.search?.trim()) {
+    conditions.push(
+      sql`(${signals.companyName} LIKE ${`%${opts.search}%`} OR ${signals.headline} LIKE ${`%${opts.search}%`})`,
+    );
+  }
+  if (opts.source) conditions.push(eq(signals.source, opts.source));
+  if (opts.signalType) conditions.push(eq(signals.signalType, opts.signalType));
+  if (opts.tag) {
+    conditions.push(sql`JSON_CONTAINS(${signals.tags}, JSON_QUOTE(${opts.tag}))`);
+  }
+  const where = and(...conditions);
+  const limit = opts.limit ?? 30;
+  const offset = opts.offset ?? 0;
+
+  const [rows, countRows] = await Promise.all([
+    db
+      .select({
+        id: signals.id,
+        companyName: signals.companyName,
+        signalType: signals.signalType,
+        source: signals.source,
+        occurredAt: signals.occurredAt,
+        url: signals.url,
+        rawPayload: signals.rawPayload,
+        tags: signals.tags,
+        summaryShort: signalInsights.summaryShort,
+        summaryDetail: signalInsights.reasoning,
+        actionSuggestion: signalInsights.actionSuggestion,
+      })
+      .from(signals)
+      .leftJoin(signalInsights, eq(signalInsights.signalId, signals.id))
+      .where(where)
+      .orderBy(desc(signals.occurredAt))
+      .limit(limit)
+      .offset(offset),
+    db.select({ count: sql<number>`count(*)` }).from(signals).where(where),
+  ]);
+
+  const mapped = rows.map(row => ({
+      ...row,
+      tags: row.tags ?? [],
+      summaryShort: row.summaryShort ?? row.companyName,
+      summaryDetail: row.summaryDetail ?? row.companyName,
+      companyWebsite:
+        (row.rawPayload as { companyWebsite?: string } | null)?.companyWebsite ?? row.url,
+      actionSuggestion: row.actionSuggestion ?? "No suggested action generated yet.",
+    }));
+
+  const dedupeKey = (item: { companyName: string; signalType: string; summaryShort: string }) =>
+    `${item.companyName}|${item.signalType}|${item.summaryShort}`
+      .toLowerCase()
+      .replace(/[^a-z0-9|]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const deduped: typeof mapped = [];
+  const seen = new Set<string>();
+  for (const item of mapped) {
+    const key = dedupeKey(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(item);
+  }
+
+  return {
+    items: deduped,
+    total: countRows[0]?.count ?? 0,
+  };
+}
+
+export async function listSignalFacets(organizationId: number) {
+  if (ENV.useDevFileAuth) {
+    return devListSignalFacets(organizationId);
+  }
+  const db = await getDb();
+  if (!db) return { sources: [], signalTypes: [], tags: [] };
+  const rows = await db
+    .select({
+      source: signals.source,
+      signalType: signals.signalType,
+      tags: signals.tags,
+    })
+    .from(signals)
+    .where(eq(signals.organizationId, organizationId))
+    .orderBy(desc(signals.occurredAt))
+    .limit(400);
+
+  const sourceSet = new Set<string>();
+  const signalTypeSet = new Set<string>();
+  const tagSet = new Set<string>();
+  for (const row of rows) {
+    if (row.source) sourceSet.add(row.source);
+    if (row.signalType) signalTypeSet.add(row.signalType);
+    for (const tag of row.tags ?? []) tagSet.add(tag);
+  }
+  return {
+    sources: Array.from(sourceSet).sort((a, b) => a.localeCompare(b)),
+    signalTypes: Array.from(signalTypeSet).sort((a, b) => a.localeCompare(b)),
+    tags: Array.from(tagSet).sort((a, b) => a.localeCompare(b)),
+  };
+}
+
+export async function resetSignalsForOrganization(organizationId: number) {
+  if (ENV.useDevFileAuth) {
+    await devResetSignalsForOrganization(organizationId);
+    return;
+  }
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const signalIdsRows = await db
+    .select({ id: signals.id })
+    .from(signals)
+    .where(eq(signals.organizationId, organizationId));
+  const signalIds = signalIdsRows.map(row => row.id);
+
+  if (signalIds.length > 0) {
+    await db.delete(signalInsights).where(inArray(signalInsights.signalId, signalIds));
+  }
+  await db.delete(signals).where(eq(signals.organizationId, organizationId));
+  await db.delete(signalIngestionRuns).where(eq(signalIngestionRuns.organizationId, organizationId));
+  await db.delete(signalProfiles).where(eq(signalProfiles.organizationId, organizationId));
 }

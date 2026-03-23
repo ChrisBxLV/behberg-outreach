@@ -23,6 +23,7 @@ import { campaignsRouter } from "./routers/campaigns";
 import { emailRouter } from "./routers/email";
 import { organizationRouter } from "./routers/organization";
 import { settingsRouter } from "./routers/settings";
+import { signalsRouter } from "./routers/signals";
 
 export const appRouter = router({
   system: systemRouter,
@@ -500,6 +501,7 @@ export const appRouter = router({
   email: emailRouter,
   organization: organizationRouter,
   settings: settingsRouter,
+  signals: signalsRouter,
 });
 
 export type AppRouter = typeof appRouter;

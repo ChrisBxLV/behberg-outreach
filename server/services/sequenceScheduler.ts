@@ -6,6 +6,7 @@ import {
 } from "../db";
 import { sendEmail, interpolateTemplate } from "./emailService";
 import { generatePersonalizedEmail } from "./llmPersonalization";
+import { runSignalsSchedulerTick } from "./signalsService";
 import type { Contact, Campaign, SequenceStep } from "../../drizzle/schema";
 
 let schedulerRunning = false;
@@ -28,6 +29,26 @@ export function startScheduler() {
   cron.schedule("*/5 * * * *", async () => {
     await processEmailQueue();
   });
+
+  const disableSignalsRaw = process.env.DISABLE_SIGNALS_SCHEDULER ?? "";
+  const disableSignals = disableSignalsRaw.trim().toLowerCase();
+  const signalsDisabled =
+    disableSignals === "1" || disableSignals === "true" || disableSignals === "yes";
+  if (!signalsDisabled) {
+    // Signals updates run on a lower-frequency cadence than email queue.
+    cron.schedule("*/10 * * * *", async () => {
+      try {
+        await runSignalsSchedulerTick();
+      } catch (err: any) {
+        console.error("[Scheduler] Signals tick error:", err?.message ?? "unknown");
+      }
+    });
+    console.log("[Scheduler] Signals scheduler started (every 10 minutes)");
+  } else {
+    console.log(
+      `[Scheduler] Signals scheduler disabled via DISABLE_SIGNALS_SCHEDULER=${JSON.stringify(disableSignalsRaw)}`,
+    );
+  }
 
   console.log("[Scheduler] Email sequence scheduler started (every 5 minutes)");
 }

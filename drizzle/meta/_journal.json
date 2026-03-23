@@ -36,6 +36,13 @@
       "when": 1774048000000,
       "tag": "0004_organizations_org_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1774291800000,
+      "tag": "0005_signals_feature",
+      "breakpoints": true
     }
   ]
 }
