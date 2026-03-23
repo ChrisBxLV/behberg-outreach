@@ -22,7 +22,9 @@ export const organizationRouter = router({
     };
   }),
 
-  members: orgOwnerProcedure.query(async ({ ctx }) => {
+  // Any authenticated org member can list org members.
+  // Managing/adding members stays `orgOwnerProcedure`-protected.
+  members: protectedProcedure.query(async ({ ctx }) => {
     const oid = ctx.user.organizationId;
     if (oid == null) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "No organization" });

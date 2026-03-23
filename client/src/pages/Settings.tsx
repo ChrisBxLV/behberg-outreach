@@ -10,17 +10,19 @@ import {
   Mail, CheckCircle2, XCircle, RefreshCw,
   Settings2, Play, AlertCircle, Users,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Settings() {
   const utils = trpc.useUtils();
 
   const { data: smtpConfig } = trpc.settings.getSmtpConfig.useQuery();
   const { data: appConfig } = trpc.settings.getAppConfig.useQuery();
-  const { data: orgMine } = trpc.organization.mine.useQuery();
+  const { data: orgMine, isLoading: isOrgMineLoading } = trpc.organization.mine.useQuery();
   const isOrgOwner = orgMine?.role === "owner";
+  const canSeeMembers = Boolean(orgMine?.organization?.id);
 
   const { data: members, refetch: refetchMembers } = trpc.organization.members.useQuery(undefined, {
-    enabled: Boolean(isOrgOwner),
+    enabled: canSeeMembers,
   });
 
   const [memberLoginId, setMemberLoginId] = useState("");
@@ -55,6 +57,9 @@ export default function Settings() {
     onError: (e) => toast.error(e.message),
   });
 
+  const membersBranch =
+    isOrgMineLoading ? "loading" : canSeeMembers ? "card" : "no_org_or_role";
+
   return (
     <DashboardLayout>
       <div className="space-y-6 p-2 max-w-3xl">
@@ -63,8 +68,18 @@ export default function Settings() {
           <p className="text-muted-foreground text-sm mt-0.5">Configure your integrations and platform settings</p>
         </div>
 
-        {isOrgOwner && orgMine?.organization ? (
-          <Card className="border-border/50 bg-card/80">
+        <Tabs defaultValue="members">
+          <TabsList className="bg-muted/30 border border-border/50">
+            <TabsTrigger value="members">Members</TabsTrigger>
+            <TabsTrigger value="smtp">Outlook SMTP</TabsTrigger>
+            <TabsTrigger value="platform">Platform Info</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="members" className="mt-4">
+            {membersBranch === "loading" ? (
+              <p className="text-sm text-muted-foreground">Loading organization…</p>
+            ) : membersBranch === "card" ? (
+              <Card className="border-border/50 bg-card/80">
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-violet-500/20">
@@ -73,7 +88,7 @@ export default function Settings() {
                 <div>
                   <CardTitle className="text-base">Organization members</CardTitle>
                   <CardDescription className="text-xs">
-                    {orgMine.organization.name} — add people who can sign in and use this workspace.
+                    {orgMine?.organization?.name ?? "This workspace"} — add people who can sign in and use this workspace.
                   </CardDescription>
                 </div>
               </div>
@@ -96,49 +111,59 @@ export default function Settings() {
                   ))
                 )}
               </div>
-              <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-border/30">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add member</p>
-                <Input
-                  placeholder="Sign-in email or username"
-                  value={memberLoginId}
-                  onChange={e => setMemberLoginId(e.target.value)}
-                  autoComplete="off"
-                />
-                <Input
-                  placeholder="Display name"
-                  value={memberName}
-                  onChange={e => setMemberName(e.target.value)}
-                  autoComplete="off"
-                />
-                <Input
-                  type="password"
-                  placeholder="Temporary password (min 8 chars)"
-                  value={memberPassword}
-                  onChange={e => setMemberPassword(e.target.value)}
-                  autoComplete="new-password"
-                />
-                <Button
-                  size="sm"
-                  disabled={addMemberMutation.isPending || memberPassword.length < 8}
-                  onClick={() =>
-                    addMemberMutation.mutate({
-                      loginId: memberLoginId.trim().toLowerCase(),
-                      displayName: memberName.trim(),
-                      password: memberPassword,
-                    })
-                  }
-                >
-                  {addMemberMutation.isPending ? "Adding…" : "Add member"}
-                </Button>
-                <p className="text-[11px] text-muted-foreground">
-                  Share the sign-in id and password securely. They use the same Sign in page as you.
-                </p>
-              </div>
+              {isOrgOwner ? (
+                <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-border/30">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add member</p>
+                  <Input
+                    placeholder="Sign-in email or username"
+                    value={memberLoginId}
+                    onChange={e => setMemberLoginId(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <Input
+                    placeholder="Display name"
+                    value={memberName}
+                    onChange={e => setMemberName(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Temporary password (min 8 chars)"
+                    value={memberPassword}
+                    onChange={e => setMemberPassword(e.target.value)}
+                    autoComplete="new-password"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={addMemberMutation.isPending || memberPassword.length < 8}
+                    onClick={() =>
+                      addMemberMutation.mutate({
+                        loginId: memberLoginId.trim().toLowerCase(),
+                        displayName: memberName.trim(),
+                        password: memberPassword,
+                      })
+                    }
+                  >
+                    {addMemberMutation.isPending ? "Adding…" : "Add member"}
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    Share the sign-in id and password securely. They use the same Sign in page as you.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Only organization owners can add members.</p>
+              )}
             </CardContent>
-          </Card>
-        ) : null}
+              </Card>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No organization found for this account. Create an organization, or sign out and sign back in.
+              </p>
+            )}
+          </TabsContent>
 
-        {/* SMTP Configuration */}
+          <TabsContent value="smtp" className="mt-4">
+            {/* SMTP Configuration */}
         <Card className="border-border/50 bg-card/80">
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -203,7 +228,10 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* Platform Info */}
+          </TabsContent>
+
+          <TabsContent value="platform" className="mt-4">
+            {/* Platform Info */}
         <Card className="border-border/50 bg-card/80">
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -236,6 +264,8 @@ export default function Settings() {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );

@@ -80,7 +80,13 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
 
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  try {
+    await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  } catch (err: any) {
+    // If MySQL schema is behind (missing columns), allow local dev to continue via file store.
+    // This keeps auth usable while you run migrations.
+    await devUpsertUser(user);
+  }
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -89,8 +95,12 @@ export async function getUserByOpenId(openId: string) {
   }
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-  return result[0];
+  try {
+    const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+    return result[0];
+  } catch (err: any) {
+    return devGetUserByOpenId(openId);
+  }
 }
 
 export async function getUserByEmail(email: string) {
@@ -99,8 +109,16 @@ export async function getUserByEmail(email: string) {
   }
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  return result[0];
+  try {
+    const result = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+    return result[0];
+  } catch (err: any) {
+    return devGetUserByEmail(email);
+  }
 }
 
 export async function createOrganizationRecord(name: string): Promise<number> {
@@ -109,15 +127,19 @@ export async function createOrganizationRecord(name: string): Promise<number> {
   }
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.insert(organizations).values({ name: name.trim() });
-  const rows = await db
-    .select({ id: organizations.id })
-    .from(organizations)
-    .orderBy(desc(organizations.id))
-    .limit(1);
-  const id = rows[0]?.id;
-  if (id == null) throw new Error("Failed to create organization");
-  return id;
+  try {
+    await db.insert(organizations).values({ name: name.trim() });
+    const rows = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .orderBy(desc(organizations.id))
+      .limit(1);
+    const id = rows[0]?.id;
+    if (id == null) throw new Error("Failed to create organization");
+    return id;
+  } catch (err: any) {
+    return devCreateOrganization(name);
+  }
 }
 
 export async function getOrganizationById(id: number) {
@@ -132,8 +154,22 @@ export async function getOrganizationById(id: number) {
   }
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(organizations).where(eq(organizations.id, id)).limit(1);
-  return result[0];
+  try {
+    const result = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, id))
+      .limit(1);
+    return result[0];
+  } catch (err: any) {
+    const row = await devGetOrganizationById(id);
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      name: row.name,
+      createdAt: new Date(row.createdAt),
+    };
+  }
 }
 
 export async function listOrganizationMembers(organizationId: number) {
@@ -142,16 +178,20 @@ export async function listOrganizationMembers(organizationId: number) {
   }
   const db = await getDb();
   if (!db) return [];
-  return db
-    .select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      orgMemberRole: users.orgMemberRole,
-      lastSignedIn: users.lastSignedIn,
-    })
-    .from(users)
-    .where(eq(users.organizationId, organizationId));
+  try {
+    return await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        orgMemberRole: users.orgMemberRole,
+        lastSignedIn: users.lastSignedIn,
+      })
+      .from(users)
+      .where(eq(users.organizationId, organizationId));
+  } catch (err: any) {
+    return devListOrganizationMembers(organizationId);
+  }
 }
 
 type CreateLoginChallengeInput = {

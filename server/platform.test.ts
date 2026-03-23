@@ -126,6 +126,34 @@ describe("organization", () => {
     const r = await caller.organization.members();
     expect(Array.isArray(r)).toBe(true);
   });
+
+  it("lists members for organization member (read-only)", async () => {
+    const base = makeCtx();
+    const ctx: TrpcContext = {
+      ...base,
+      user: { ...base.user!, organizationId: 1, orgMemberRole: "member" },
+    };
+    const caller = appRouter.createCaller(ctx);
+    const r = await caller.organization.members();
+    expect(Array.isArray(r)).toBe(true);
+  });
+
+  it("blocks addMember for non-owner", async () => {
+    const base = makeCtx();
+    const ctx: TrpcContext = {
+      ...base,
+      user: { ...base.user!, organizationId: 1, orgMemberRole: "member" },
+    };
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.organization.addMember({
+        loginId: "new.member@example.com",
+        displayName: "New Member",
+        password: "password123",
+      }),
+    ).rejects.toMatchObject({ message: "Only the organization owner can do this." });
+  });
 });
 
 // ─── Contacts ─────────────────────────────────────────────────────────────────

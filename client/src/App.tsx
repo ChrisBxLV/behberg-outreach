@@ -20,12 +20,9 @@ function Router() {
     <Switch>
       <Route path="/" component={InsideSoftwareLanding} />
       <Route path="/home" component={MarketingLanding} />
-<<<<<<< HEAD
       <Route path="/login" component={Login} />
       <Route path="/signup" component={SignUp} />
       <Route path="/login/verify" component={LoginVerify} />
-=======
->>>>>>> 0d57970c52692c8257ac696d2e0c83dab0463695
       <Route path="/app" component={Home} />
       <Route path="/app/contacts" component={Contacts} />
       <Route path="/app/campaigns" component={Campaigns} />
