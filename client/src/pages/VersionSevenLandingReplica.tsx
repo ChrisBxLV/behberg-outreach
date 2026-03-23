@@ -23,10 +23,13 @@ import {
 
 type LandingReplicaProps = {
   primaryCtaHref: string;
+<<<<<<< HEAD
   /** Admin / app sign-in (keep low-profile on the public site). */
   signInHref?: string;
   /** Public workspace/org creation entrypoint. */
   signUpHref?: string;
+=======
+>>>>>>> 0d57970c52692c8257ac696d2e0c83dab0463695
 };
 
 function LandingContainer({
@@ -152,8 +155,11 @@ function TimelineStep({
 
 export default function VersionSevenLandingReplica({
   primaryCtaHref,
+<<<<<<< HEAD
   signInHref = "/login",
   signUpHref = "/signup",
+=======
+>>>>>>> 0d57970c52692c8257ac696d2e0c83dab0463695
 }: LandingReplicaProps) {
   const ctaHref = primaryCtaHref;
 
@@ -166,6 +172,7 @@ export default function VersionSevenLandingReplica({
             <div className="font-semibold">
               Krot: B2B intelligence + signal-driven outbound from connected inboxes.
             </div>
+<<<<<<< HEAD
             <div className="flex items-center gap-2">
               <a
                 href={signUpHref}
@@ -180,6 +187,14 @@ export default function VersionSevenLandingReplica({
                 Sign in
               </a>
             </div>
+=======
+            <a
+              href="/app"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
+            >
+              Open workspace <ArrowRight className="h-4 w-4" />
+            </a>
+>>>>>>> 0d57970c52692c8257ac696d2e0c83dab0463695
           </div>
         </LandingContainer>
       </div>
@@ -221,6 +236,7 @@ export default function VersionSevenLandingReplica({
                 </SecondaryCtaLink>
               </div>
 
+<<<<<<< HEAD
               <p className="mt-4 text-sm text-muted-foreground">
                 Workspace:{" "}
                 <a
@@ -239,6 +255,8 @@ export default function VersionSevenLandingReplica({
                 .
               </p>
 
+=======
+>>>>>>> 0d57970c52692c8257ac696d2e0c83dab0463695
               <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-semibold text-muted-foreground">
                 <span>Lead generation built in</span>
                 <span>Connected inbox sequencing</span>
@@ -347,7 +365,11 @@ export default function VersionSevenLandingReplica({
               >
                 <div className="text-muted-foreground text-sm font-semibold">Testimonial</div>
                 <div className="mt-3 text-xl leading-relaxed font-semibold text-foreground">
+<<<<<<< HEAD
                   "{t.quote}"
+=======
+                  “{t.quote}”
+>>>>>>> 0d57970c52692c8257ac696d2e0c83dab0463695
                 </div>
                 <div className="mt-6">
                   <div className="text-sm font-bold text-foreground">{t.name}</div>
@@ -578,7 +600,11 @@ export default function VersionSevenLandingReplica({
                   >
                     Schedule a guided tour
                   </a>{" "}
+<<<<<<< HEAD
                   {"->"}
+=======
+                  →
+>>>>>>> 0d57970c52692c8257ac696d2e0c83dab0463695
                 </div>
 
                 <div className="mt-6 text-xs text-muted-foreground font-semibold">
