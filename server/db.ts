@@ -83,6 +83,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   try {
     await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
   } catch (err: any) {
+    // SECURITY: Only allow dev-file fallback outside of production.
+    if (ENV.isProduction) throw err;
     // If MySQL schema is behind (missing columns), allow local dev to continue via file store.
     // This keeps auth usable while you run migrations.
     await devUpsertUser(user);
@@ -99,6 +101,8 @@ export async function getUserByOpenId(openId: string) {
     const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
     return result[0];
   } catch (err: any) {
+    // SECURITY: Only allow dev-file fallback outside of production.
+    if (ENV.isProduction) throw err;
     return devGetUserByOpenId(openId);
   }
 }
@@ -117,6 +121,8 @@ export async function getUserByEmail(email: string) {
       .limit(1);
     return result[0];
   } catch (err: any) {
+    // SECURITY: Only allow dev-file fallback outside of production.
+    if (ENV.isProduction) throw err;
     return devGetUserByEmail(email);
   }
 }
@@ -138,6 +144,8 @@ export async function createOrganizationRecord(name: string): Promise<number> {
     if (id == null) throw new Error("Failed to create organization");
     return id;
   } catch (err: any) {
+    // SECURITY: Only allow dev-file fallback outside of production.
+    if (ENV.isProduction) throw err;
     return devCreateOrganization(name);
   }
 }
@@ -162,6 +170,8 @@ export async function getOrganizationById(id: number) {
       .limit(1);
     return result[0];
   } catch (err: any) {
+    // SECURITY: Only allow dev-file fallback outside of production.
+    if (ENV.isProduction) throw err;
     const row = await devGetOrganizationById(id);
     if (!row) return undefined;
     return {
@@ -190,6 +200,8 @@ export async function listOrganizationMembers(organizationId: number) {
       .from(users)
       .where(eq(users.organizationId, organizationId));
   } catch (err: any) {
+    // SECURITY: Only allow dev-file fallback outside of production.
+    if (ENV.isProduction) throw err;
     return devListOrganizationMembers(organizationId);
   }
 }
