@@ -322,6 +322,11 @@ export async function devListSignals(opts: {
 
     const items = page.map(row => {
       const insight = store.signalInsights.find(i => i.signalId === row.id);
+      const rawTitle = row.rawPayload?.title;
+      const preferredHeadline =
+        typeof rawTitle === "string" && rawTitle.trim().length > 0
+          ? rawTitle.trim()
+          : insight?.summaryShort ?? row.companyName;
       return {
         id: row.id,
         companyName: row.companyName,
@@ -330,9 +335,10 @@ export async function devListSignals(opts: {
         occurredAt: new Date(row.occurredAt),
         url: row.url,
         tags: row.tags,
-        summaryShort: insight?.summaryShort ?? row.companyName,
+        summaryShort: preferredHeadline,
         summaryDetail: insight?.reasoning ?? row.headline,
         companyWebsite: (row.rawPayload?.companyWebsite as string | undefined) ?? row.url,
+        website_url: (row.rawPayload?.extraction as { website_url?: string | null } | undefined)?.website_url ?? null,
         actionSuggestion: insight?.actionSuggestion ?? "No suggested action generated yet.",
       };
     });
@@ -375,6 +381,63 @@ export async function devListSignalFacets(organizationId: number) {
   });
 }
 
+export async function devListSignalsForDedupe(opts: {
+  organizationId: number;
+  companyName: string;
+  signalType: string;
+  since: Date;
+  limit?: number;
+}): Promise<
+  Array<{
+    id: number;
+    occurredAt: Date;
+    summaryText: string;
+    confidence: number;
+  }>
+> {
+  return serialized(async () => {
+    const store = await loadStore();
+    const sinceMs = opts.since.getTime();
+    const rows = store.signals
+      .filter(
+        s =>
+          s.organizationId === opts.organizationId &&
+          s.companyName === opts.companyName &&
+          s.signalType === opts.signalType &&
+          new Date(s.occurredAt).getTime() >= sinceMs,
+      )
+      .slice(0, opts.limit ?? 100);
+
+    return rows.map(s => {
+      const insight = store.signalInsights.find(i => i.signalId === s.id);
+      const extraction = (s.rawPayload?.extraction ?? null) as
+        | { summary?: unknown; confidence?: unknown }
+        | null;
+      const summaryText =
+        typeof extraction?.summary === "string" && extraction.summary.trim().length > 0
+          ? extraction.summary
+          : insight?.summaryShort ?? s.headline;
+      const confidenceNum = Number(extraction?.confidence ?? 0);
+      const confidence = Number.isFinite(confidenceNum) ? confidenceNum : 0;
+      return {
+        id: s.id,
+        occurredAt: new Date(s.occurredAt),
+        summaryText: String(summaryText),
+        confidence,
+      };
+    });
+  });
+}
+
+export async function devDeleteSignalAndInsight(signalId: number): Promise<void> {
+  return serialized(async () => {
+    const store = await loadStore();
+    store.signalInsights = store.signalInsights.filter(i => i.signalId !== signalId);
+    store.signals = store.signals.filter(s => s.id !== signalId);
+    await saveStore(store);
+  });
+}
+
 export async function devResetSignalsForOrganization(organizationId: number): Promise<void> {
   return serialized(async () => {
     const store = await loadStore();
@@ -388,5 +451,51 @@ export async function devResetSignalsForOrganization(organizationId: number): Pr
       r => r.organizationId !== organizationId,
     );
     await saveStore(store);
+  });
+}
+
+export async function devBackfillSignalHeadlinesFromRawTitle(
+  organizationId?: number,
+): Promise<{ updated: number }> {
+  return serialized(async () => {
+    const store = await loadStore();
+    const targets = store.signals.filter(s =>
+      organizationId == null ? true : s.organizationId === organizationId,
+    );
+
+    let updated = 0;
+    const now = nowIso();
+    for (const signal of targets) {
+      const rawTitle = signal.rawPayload?.title;
+      const title =
+        typeof rawTitle === "string" && rawTitle.trim().length > 0
+          ? rawTitle.trim()
+          : signal.headline;
+      const idx = store.signalInsights.findIndex(i => i.signalId === signal.id);
+      if (idx >= 0) {
+        store.signalInsights[idx] = {
+          ...store.signalInsights[idx],
+          summaryShort: title,
+          actionSuggestion: "",
+          updatedAt: now,
+        };
+      } else {
+        store.signalInsights.push({
+          id: store.nextSignalInsightId++,
+          signalId: signal.id,
+          summaryShort: title,
+          actionSuggestion: "",
+          reasoning: null,
+          relevanceScore: 0,
+          vertical: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      updated += 1;
+    }
+
+    await saveStore(store);
+    return { updated };
   });
 }

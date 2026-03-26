@@ -30,42 +30,39 @@ export type FaqItem = {
 };
 
 export const versionSevenMetrics: Metric[] = [
-  { label: "Tracked Accounts", value: "3,420", delta: "+18%" },
-  { label: "New Signals Today", value: "187", delta: "+11%" },
+  { label: "Qualified Leads", value: "3,420", delta: "+18%" },
   { label: "Sequence Reply Rate", value: "21%", delta: "+4%" },
+  { label: "Positive Reply Rate", value: "11.4%", delta: "+2.1%" },
   { label: "Inbox Deliverability", value: "97.8%", delta: "+1.2%" },
-  { label: "Leads Enriched", value: "12,940" },
-  { label: "Meetings Influenced", value: "46 this week" },
+  { label: "Leads Enriched", value: "12,940", delta: "+9%" },
+  { label: "Meetings Booked", value: "46 this week" },
 ];
 
 export const versionSevenCaseStudies: CaseStudy[] = [
   {
-    title: "Northbridge Capital",
-    subtitle: "Private Equity Research",
-    outcome: "2 priority deals discovered in 30 days",
-    metrics: ["Signal-to-meeting in 9 days", "High-intent shortlist generated"],
-    href: "https://www.versionseven.ai/case-studies/summit-growth",
+    title: "TalentForge Recruiting",
+    subtitle: "Recruitment Agency",
+    outcome: "31% higher meeting rate from sequenced outreach",
+    metrics: ["Faster candidate-client matching", "Higher recruiter response quality"],
   },
   {
-    title: "ScaleOps",
-    subtitle: "B2B SaaS Growth Team",
+    title: "Launchlane Marketing",
+    subtitle: "Marketing Agency",
     outcome: "Pipeline coverage increased by 41%",
-    metrics: ["Reply quality improved", "Faster ICP account activation"],
-    href: "https://www.versionseven.ai/case-studies/automatio",
+    metrics: ["Reply quality improved", "Better lead prioritization"],
   },
   {
-    title: "Bluegate Advisory",
-    subtitle: "M&A Advisory",
-    outcome: "News-triggered outreach running daily",
-    metrics: ["Funding and acquisition alerts", "One workspace for signals + outbound"],
-    href: "https://www.versionseven.ai/case-studies/victoria-ai",
+    title: "OutboundPilot",
+    subtitle: "B2B Sales Team",
+    outcome: "Lead-to-sequence activation under 10 minutes",
+    metrics: ["Cleaner lead qualification", "Signals used as supportive context"],
   },
 ];
 
 export const versionSevenTestimonials: Testimonial[] = [
   {
     quote:
-      "Krot gives us one place for lead generation, news signals, and outbound execution. We go from signal to personalized sequence in minutes, using our own connected inboxes.",
+      "Krot gives us one place for lead generation quality checks and outbound execution. The signals addon is a massive advantage for timing and personalization.",
     name: "Head of Revenue Ops",
     title: "Revenue Operations",
     company: "Mid-market B2B SaaS",
@@ -74,24 +71,21 @@ export const versionSevenTestimonials: Testimonial[] = [
 
 export const versionSevenAddOns = [
   {
-    title: "Signal Workflows",
+    title: "Lead Quality Guardrails",
     description:
-      "Route acquisition, funding, and market-change signals directly into account lists and sequence triggers.",
-    href: "https://www.versionseven.ai/sales-copilot",
+      "Score and validate contacts before launch so teams prioritize high-intent, high-fit prospects.",
     cta: "Learn more",
   },
   {
-    title: "Lead Intelligence",
+    title: "Signals Layer (Addon)",
     description:
-      "Discover and enrich ICP contacts, then push ready-to-work leads into outbound automatically.",
-    href: "https://www.versionseven.ai/sales-database",
+      "Use funding, hiring, and product signals as a high-impact addon that improves timing, relevance, and conversion quality.",
     cta: "Learn more",
   },
   {
     title: "Inbox Orchestration",
     description:
       "Run multi-step email sequences from connected user inboxes with centralized governance and analytics.",
-    href: "https://www.versionseven.ai/pipeline-accelerator",
     cta: "Learn more",
   },
 ];
@@ -108,9 +102,9 @@ export const versionSevenFeatures: Feature[] = [
       "Build and maintain ICP lead pools with enrichment and segmentation designed for outbound teams.",
   },
   {
-    title: "News Signal Monitoring",
+    title: "Signals Context Addon",
     description:
-      "Track M&A, funding rounds, leadership moves, and market news to time outreach when intent is highest.",
+      "Track major account events as a powerful context layer that sharpens messaging and increases sequence performance.",
   },
   {
     title: "AI Message Personalization",
@@ -120,7 +114,7 @@ export const versionSevenFeatures: Feature[] = [
   {
     title: "Signal-to-Sequence Automation",
     description:
-      "Move from detected trigger to active outreach sequence in minutes through workflow automation.",
+      "Move from qualified lead to active outreach sequence in minutes through workflow automation.",
   },
   {
     title: "Unified Analytics",
@@ -133,7 +127,7 @@ export const versionSevenWhyItems = [
   {
     title: "Timing Advantage",
     description:
-      "Reach accounts when important events happen, not weeks later after momentum fades.",
+      "Reach qualified accounts quickly with consistent sequencing and faster lead activation.",
   },
   {
     title: "Higher Reply Quality",
@@ -171,9 +165,9 @@ export const versionSevenFaq: { title: string; items: FaqItem[] } = {
         "Krot is a B2B intelligence and outbound execution platform. It combines lead generation, news signal monitoring, and inbox-native email sequencing in one workflow.",
     },
     {
-      question: "What types of news signals can Krot track?",
+      question: "Are signals the core feature?",
       answer:
-        "Krot can track events such as acquisitions, funding rounds, strategic announcements, and other account-level news that indicate potential buying momentum.",
+        "Krot is built around lead quality and sequencing, and the signals addon is a major performance layer for timing outreach and improving personalization.",
     },
     {
       question: "Can Krot run sequences from our team inboxes?",
@@ -186,14 +180,14 @@ export const versionSevenFaq: { title: string; items: FaqItem[] } = {
         "Yes. Krot includes lead generation and enrichment workflows so teams can continuously build and refresh target account lists.",
     },
     {
-      question: "How quickly can teams move from signal to outreach?",
+      question: "How quickly can teams move from lead qualification to outreach?",
       answer:
-        "Krot is built to reduce response time from days to minutes by turning high-intent account signals into ready-to-launch sequence actions.",
+        "Krot is built to reduce response time from days to minutes by turning qualified leads into ready-to-launch sequence actions.",
     },
     {
       question: "Who is Krot best for?",
       answer:
-        "Krot is built for B2B revenue teams, outbound teams, and GTM operators that need better account intelligence and more timely outreach execution.",
+        "Krot is built for recruitment agencies, marketing agencies, and B2B sales teams that need better account intelligence and more timely outreach execution.",
     },
   ],
 };

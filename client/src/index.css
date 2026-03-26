@@ -82,6 +82,9 @@
 /* Dark mode inherits root — already dark by default */
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   * {
     @apply border-border outline-ring/50;
   }
@@ -141,5 +144,41 @@
       padding-right: 2rem;
       max-width: 1280px; /* Standard content width */
     }
+  }
+}
+
+.data-particles-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.data-grid-overlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0.2;
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(circle at center, black 30%, transparent 85%);
+}
+
+.data-particles-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.data-particles-canvas > canvas {
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 0.95;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .data-particles-canvas > canvas {
+    opacity: 0.45;
   }
 }

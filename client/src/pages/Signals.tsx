@@ -4,7 +4,6 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,6 +15,14 @@ type SignalFilters = {
   search?: string;
   tag?: string;
   signalType?: string;
+};
+type RefreshBreakdown = {
+  total_articles: number;
+  after_keyword_filter: number;
+  classified_as_signal: number;
+  passed_extraction: number;
+  passed_validation: number;
+  final_signals_saved: number;
 };
 
 function cleanSignalText(value: string | null | undefined): string {
@@ -37,12 +44,19 @@ function companyWebsiteSearchUrl(companyName: string): string {
   return `https://www.google.com/search?btnI=1&q=${encodeURIComponent(`${companyName} official website`)}`;
 }
 
+function sourceHeadlineFromItem(item: unknown): string | null {
+  if (!item || typeof item !== "object") return null;
+  const maybeRawPayload = (item as { rawPayload?: unknown }).rawPayload;
+  if (!maybeRawPayload || typeof maybeRawPayload !== "object") return null;
+  const title = (maybeRawPayload as { title?: unknown }).title;
+  if (typeof title !== "string" || title.trim().length === 0) return null;
+  return cleanSignalText(title);
+}
+
 export default function Signals() {
   const utils = trpc.useUtils();
   const [filters, setFilters] = useState<SignalFilters>({});
-  const [isTagPickerOpen, setIsTagPickerOpen] = useState(false);
   const [profileForm, setProfileForm] = useState({
-    businessType: "marketing_agency",
     selectedTags: [] as string[],
     selectedSignalTypes: [] as string[],
     refreshCadenceMinutes: 30,
@@ -52,7 +66,7 @@ export default function Signals() {
   const { data: taxonomy } = trpc.signals.taxonomy.useQuery();
   const { data: profile, isLoading: profileLoading } = trpc.signals.getProfile.useQuery();
   const { data: facets } = trpc.signals.listFacets.useQuery(undefined, {
-    enabled: Boolean(profile?.isEnabled),
+    enabled: true,
   });
   const { data: feed, isLoading: feedLoading } = trpc.signals.listSignals.useQuery(
     {
@@ -61,7 +75,7 @@ export default function Signals() {
       tag: filters.tag,
       signalType: filters.signalType,
     },
-    { enabled: Boolean(profile?.isEnabled) },
+    { enabled: true },
   );
 
   const saveProfileMutation = trpc.signals.saveProfile.useMutation({
@@ -77,7 +91,7 @@ export default function Signals() {
   const refreshMutation = trpc.signals.triggerRefresh.useMutation({
     onSuccess: result => {
       toast.success(
-        `Signals refreshed. Pulled ${result.fetchedCount} source items, added ${result.insertedCount} new signals.`,
+        `Refreshed: ${result.stageCounters.total_articles} -> ${result.stageCounters.after_keyword_filter} -> ${result.stageCounters.classified_as_signal} -> ${result.stageCounters.passed_extraction} -> ${result.stageCounters.passed_validation} -> ${result.stageCounters.final_signals_saved}`,
       );
       void utils.signals.listSignals.invalidate();
       void utils.signals.listFacets.invalidate();
@@ -111,7 +125,7 @@ export default function Signals() {
     return profileForm.selectedSignalTypes;
   }, [profile?.selectedSignalTypes, profileForm.selectedSignalTypes]);
 
-  const configured = Boolean(profile?.isEnabled);
+  const configured = true;
 
   return (
     <DashboardLayout>
@@ -163,26 +177,6 @@ export default function Signals() {
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label>Business type</Label>
-                  <Select
-                    value={profileForm.businessType}
-                    onValueChange={businessType =>
-                      setProfileForm(v => ({ ...v, businessType }))
-                    }
-                  >
-                    <SelectTrigger className="bg-muted/30 border-border/50">
-                      <SelectValue placeholder="Select business type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(taxonomy?.businessTypes ?? []).map(type => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
                   <Label>Refresh cadence</Label>
                   <Select
                     value={String(profileForm.refreshCadenceMinutes)}
@@ -206,37 +200,28 @@ export default function Signals() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label>Industry tags</Label>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsTagPickerOpen(v => !v)}
-                  >
-                    {isTagPickerOpen ? "Hide tags" : "Pick tags"}
-                  </Button>
                 </div>
-                {isTagPickerOpen && (
-                  <div className="max-h-56 overflow-auto rounded-md border border-border/40 p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {(taxonomy?.industryTags ?? []).map(tag => {
-                      const checked = profileForm.selectedTags.includes(tag);
-                      return (
-                        <label key={tag} className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={value =>
-                              setProfileForm(v => ({
-                                ...v,
-                                selectedTags: value
-                                  ? [...v.selectedTags, tag]
-                                  : v.selectedTags.filter(x => x !== tag),
-                              }))
-                            }
-                          />
-                          <span>{tag}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
+                <div className="rounded-md border border-border/40 p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {(taxonomy?.industryTags ?? []).map(tag => {
+                    const checked = profileForm.selectedTags.includes(tag);
+                    return (
+                      <label key={tag} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={value =>
+                            setProfileForm(v => ({
+                              ...v,
+                              selectedTags: value
+                                ? [...v.selectedTags, tag]
+                                : v.selectedTags.filter(x => x !== tag),
+                            }))
+                          }
+                        />
+                        <span>{tag}</span>
+                      </label>
+                    );
+                  })}
+                </div>
                 {profileForm.selectedTags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {profileForm.selectedTags.map(tag => (
@@ -276,7 +261,7 @@ export default function Signals() {
               <Button
                 onClick={() =>
                   saveProfileMutation.mutate({
-                    businessType: profileForm.businessType,
+                    businessType: "other",
                     selectedTags: profileForm.selectedTags,
                     selectedSignalTypes: profileForm.selectedSignalTypes,
                     refreshCadenceMinutes: profileForm.refreshCadenceMinutes,
@@ -306,29 +291,6 @@ export default function Signals() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <Input
-                    placeholder="Search company or event..."
-                    value={filters.search ?? ""}
-                    onChange={e => setFilters(v => ({ ...v, search: e.target.value }))}
-                  />
-                  <Select
-                    value={filters.tag ?? "__all__"}
-                    onValueChange={tag =>
-                      setFilters(v => ({ ...v, tag: tag === "__all__" ? undefined : tag }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="All tags" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all__">All tags</SelectItem>
-                      {(facets?.tags ?? selectedTags).map(tag => (
-                        <SelectItem key={tag} value={tag}>
-                          {tag}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                   <Select
                     value={filters.signalType ?? "__all__"}
                     onValueChange={signalType =>
@@ -336,15 +298,13 @@ export default function Signals() {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="All signal types" />
+                      <SelectValue placeholder="Signal type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__all__">All signal types</SelectItem>
-                      {(facets?.signalTypes ?? selectedSignalTypes).map(type => (
-                        <SelectItem key={type} value={type}>
-                          {type.replaceAll("_", " ")}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="__all__">All</SelectItem>
+                      <SelectItem value="funding">Funding</SelectItem>
+                      <SelectItem value="product_launch">Product launch</SelectItem>
+                      <SelectItem value="hiring_spike">Hiring</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -372,10 +332,7 @@ export default function Signals() {
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <CardTitle className="text-base">{item.summaryShort}</CardTitle>
-                        <CardDescription className="text-xs mt-1">
-                          {cleanSignalText(item.summaryDetail)}
-                        </CardDescription>
+                        <CardTitle className="text-base">{sourceHeadlineFromItem(item) ?? item.summaryShort}</CardTitle>
                       </div>
                       <div className="text-xs text-muted-foreground whitespace-nowrap">
                         {new Date(item.occurredAt).toLocaleDateString()}
@@ -392,15 +349,25 @@ export default function Signals() {
                       ))}
                     </div>
                     <Separator />
-                    <p className="text-sm">{item.actionSuggestion}</p>
                     <div>
+                      {item.website_url ? (
+                        <Button size="sm" variant="outline" asChild>
+                          <a
+                            href={item.website_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            View Company
+                          </a>
+                        </Button>
+                      ) : null}
                       <Button size="sm" variant="outline" asChild>
                         <a
-                          href={item.companyWebsite || companyWebsiteSearchUrl(item.companyName)}
+                          href={item.url}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          Pitch to them?
+                          View Source
                         </a>
                       </Button>
                     </div>

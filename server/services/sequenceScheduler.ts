@@ -35,15 +35,15 @@ export function startScheduler() {
   const signalsDisabled =
     disableSignals === "1" || disableSignals === "true" || disableSignals === "yes";
   if (!signalsDisabled) {
-    // Signals updates run on a lower-frequency cadence than email queue.
-    cron.schedule("*/10 * * * *", async () => {
+    // Signals updates run every 30 minutes.
+    cron.schedule("*/30 * * * *", async () => {
       try {
         await runSignalsSchedulerTick();
       } catch (err: any) {
         console.error("[Scheduler] Signals tick error:", err?.message ?? "unknown");
       }
     });
-    console.log("[Scheduler] Signals scheduler started (every 10 minutes)");
+    console.log("[Scheduler] Signals scheduler started (every 30 minutes)");
   } else {
     console.log(
       `[Scheduler] Signals scheduler disabled via DISABLE_SIGNALS_SCHEDULER=${JSON.stringify(disableSignalsRaw)}`,

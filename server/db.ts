@@ -28,11 +28,14 @@ import {
   devGetEnabledSignalProfiles,
   devGetSignalProfile,
   devListSignalFacets,
+  devListSignalsForDedupe,
   devListSignals,
   devResetSignalsForOrganization,
   devUpsertSignalInsight,
   devUpsertSignalItem,
   devUpsertSignalProfile,
+  devDeleteSignalAndInsight,
+  devBackfillSignalHeadlinesFromRawTitle,
 } from "./devLocalSignalsStore";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -1010,15 +1013,25 @@ export async function listSignals(opts: {
     db.select({ count: sql<number>`count(*)` }).from(signals).where(where),
   ]);
 
-  const mapped = rows.map(row => ({
-      ...row,
-      tags: row.tags ?? [],
-      summaryShort: row.summaryShort ?? row.companyName,
-      summaryDetail: row.summaryDetail ?? row.companyName,
-      companyWebsite:
-        (row.rawPayload as { companyWebsite?: string } | null)?.companyWebsite ?? row.url,
-      actionSuggestion: row.actionSuggestion ?? "No suggested action generated yet.",
-    }));
+  const mapped = rows.map(row => {
+      const rawTitle = (row.rawPayload as { title?: unknown } | null)?.title;
+      const preferredHeadline =
+        typeof rawTitle === "string" && rawTitle.trim().length > 0
+          ? rawTitle.trim()
+          : row.summaryShort ?? row.companyName;
+      return {
+        ...row,
+        tags: row.tags ?? [],
+        summaryShort: preferredHeadline,
+        summaryDetail: row.summaryDetail ?? row.companyName,
+        companyWebsite:
+          (row.rawPayload as { companyWebsite?: string } | null)?.companyWebsite ?? row.url,
+        website_url:
+          (row.rawPayload as { extraction?: { website_url?: string | null } } | null)?.extraction
+            ?.website_url ?? null,
+        actionSuggestion: row.actionSuggestion ?? "No suggested action generated yet.",
+      };
+    });
 
   const dedupeKey = (item: { companyName: string; signalType: string; summaryShort: string }) =>
     `${item.companyName}|${item.signalType}|${item.summaryShort}`
@@ -1093,4 +1106,139 @@ export async function resetSignalsForOrganization(organizationId: number) {
   await db.delete(signals).where(eq(signals.organizationId, organizationId));
   await db.delete(signalIngestionRuns).where(eq(signalIngestionRuns.organizationId, organizationId));
   await db.delete(signalProfiles).where(eq(signalProfiles.organizationId, organizationId));
+}
+
+export async function listSignalsForDedupe(opts: {
+  organizationId: number;
+  companyName: string;
+  signalType: string;
+  since: Date;
+  limit?: number;
+}): Promise<
+  Array<{
+    id: number;
+    occurredAt: Date;
+    summaryText: string;
+    confidence: number;
+  }>
+> {
+  if (ENV.useDevFileAuth) {
+    return devListSignalsForDedupe(opts);
+  }
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db
+    .select({
+      id: signals.id,
+      occurredAt: signals.occurredAt,
+      rawPayload: signals.rawPayload,
+      summaryShort: signalInsights.summaryShort,
+    })
+    .from(signals)
+    .innerJoin(signalInsights, eq(signalInsights.signalId, signals.id))
+    .where(
+      and(
+        eq(signals.organizationId, opts.organizationId),
+        eq(signals.companyName, opts.companyName),
+        eq(signals.signalType, opts.signalType),
+        gt(signals.occurredAt, opts.since),
+      ),
+    )
+    .orderBy(desc(signals.occurredAt))
+    .limit(opts.limit ?? 100);
+
+  return rows.map(row => {
+    const extraction = (row.rawPayload?.extraction ?? null) as
+      | { summary?: unknown; confidence?: unknown }
+      | null;
+    const summaryText =
+      typeof extraction?.summary === "string" && extraction.summary.trim().length > 0
+        ? extraction.summary
+        : row.summaryShort;
+    const confidenceNum = Number(extraction?.confidence ?? 0);
+    const confidence = Number.isFinite(confidenceNum) ? confidenceNum : 0;
+    return {
+      id: row.id,
+      occurredAt: row.occurredAt,
+      summaryText: String(summaryText),
+      confidence,
+    };
+  });
+}
+
+export async function deleteSignalAndInsight(signalId: number): Promise<void> {
+  if (ENV.useDevFileAuth) {
+    await devDeleteSignalAndInsight(signalId);
+    return;
+  }
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(signalInsights).where(eq(signalInsights.signalId, signalId));
+  await db.delete(signals).where(eq(signals.id, signalId));
+}
+
+export async function backfillSignalHeadlinesFromRawTitle(
+  organizationId?: number,
+): Promise<{ updated: number }> {
+  if (ENV.useDevFileAuth) {
+    return devBackfillSignalHeadlinesFromRawTitle(organizationId);
+  }
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const signalRows = await db
+    .select({
+      id: signals.id,
+      organizationId: signals.organizationId,
+      headline: signals.headline,
+      rawPayload: signals.rawPayload,
+    })
+    .from(signals)
+    .where(organizationId == null ? undefined : eq(signals.organizationId, organizationId));
+
+  if (signalRows.length === 0) return { updated: 0 };
+
+  const signalIds = signalRows.map(r => r.id);
+  const insightRows = await db
+    .select({
+      id: signalInsights.id,
+      signalId: signalInsights.signalId,
+      reasoning: signalInsights.reasoning,
+      relevanceScore: signalInsights.relevanceScore,
+      vertical: signalInsights.vertical,
+    })
+    .from(signalInsights)
+    .where(inArray(signalInsights.signalId, signalIds));
+  const insightBySignalId = new Map(insightRows.map(r => [r.signalId, r]));
+
+  let updated = 0;
+  for (const row of signalRows) {
+    const rawTitle = (row.rawPayload as { title?: unknown } | null)?.title;
+    const title =
+      typeof rawTitle === "string" && rawTitle.trim().length > 0
+        ? rawTitle.trim()
+        : row.headline;
+    const existing = insightBySignalId.get(row.id);
+    if (existing) {
+      await db
+        .update(signalInsights)
+        .set({
+          summaryShort: title,
+          actionSuggestion: "",
+        })
+        .where(eq(signalInsights.signalId, row.id));
+    } else {
+      await db.insert(signalInsights).values({
+        signalId: row.id,
+        summaryShort: title,
+        actionSuggestion: "",
+        reasoning: null,
+        relevanceScore: 0,
+        vertical: null,
+      });
+    }
+    updated += 1;
+  }
+  return { updated };
 }

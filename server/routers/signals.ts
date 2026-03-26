@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { dataScopeOrganizationId } from "../_core/orgScope";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
+  backfillSignalHeadlinesFromRawTitle,
   getSignalProfile,
   listSignalFacets,
   resetSignalsForOrganization,
@@ -13,6 +14,7 @@ import {
   INDUSTRY_TAGS,
   SIGNAL_TYPES,
 } from "../services/signalsCatalog";
+import { SIGNAL_SOURCE_DEFINITIONS } from "../services/signalsSources";
 import { getSignalsForOrganization, refreshSignalsForOrganization } from "../services/signalsService";
 
 export const signalsRouter = router({
@@ -20,12 +22,7 @@ export const signalsRouter = router({
     businessTypes: BUSINESS_TYPES,
     industryTags: [...INDUSTRY_TAGS],
     signalTypes: [...SIGNAL_TYPES],
-    sourceOptions: [
-      "google_news_business",
-      "google_news_technology",
-      "reuters_business",
-      "ycombinator_hn",
-    ],
+    sourceOptions: SIGNAL_SOURCE_DEFINITIONS.map(s => s.source),
   })),
 
   getProfile: protectedProcedure.query(async ({ ctx }) => {
@@ -100,19 +97,6 @@ export const signalsRouter = router({
       if (orgId == null) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
       }
-      const profile = await getSignalProfile(orgId);
-      if (!profile?.isEnabled) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Signals setup is not enabled yet.",
-        });
-      }
-      if ((profile.selectedTags?.length ?? 0) === 0 || (profile.selectedSignalTypes?.length ?? 0) === 0) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Complete setup with at least one industry tag and one signal type first.",
-        });
-      }
       return refreshSignalsForOrganization(orgId);
     }),
 
@@ -125,5 +109,15 @@ export const signalsRouter = router({
       }
       await resetSignalsForOrganization(orgId);
       return { success: true } as const;
+    }),
+
+  backfillHeadlines: protectedProcedure
+    .input(z.object({}).optional())
+    .mutation(async ({ ctx }) => {
+      const orgId = dataScopeOrganizationId(ctx.user);
+      if (orgId == null) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+      }
+      return backfillSignalHeadlinesFromRawTitle(orgId);
     }),
 });

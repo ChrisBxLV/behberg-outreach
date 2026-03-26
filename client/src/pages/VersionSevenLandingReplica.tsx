@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
+  ChevronUp,
   CheckCircle2,
-  Play,
 } from "lucide-react";
 import {
   Accordion,
@@ -11,6 +11,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
+import DataParticlesBackground from "@/components/DataParticlesBackground";
 import {
   versionSevenAddOns,
   versionSevenCaseStudies,
@@ -23,10 +24,6 @@ import {
 
 type LandingReplicaProps = {
   primaryCtaHref: string;
-  /** Admin / app sign-in (keep low-profile on the public site). */
-  signInHref?: string;
-  /** Public workspace/org creation entrypoint. */
-  signUpHref?: string;
 };
 
 function LandingContainer({
@@ -100,21 +97,16 @@ function CaseStudyCard({
   subtitle,
   outcome,
   metrics,
-  href,
 }: {
   title: string;
   subtitle: string;
   outcome: string;
   metrics: string[];
-  href?: string;
 }) {
   const metricsText = useMemo(() => metrics.slice(0, 2), [metrics]);
 
   return (
-    <a
-      href={href}
-      className="group block rounded-xl border border-border bg-card/70 p-6 hover:shadow-sm hover:border-primary/40 transition-shadow"
-    >
+    <div className="group block rounded-xl border border-border bg-card/70 p-6 hover:shadow-sm hover:border-primary/40 transition-shadow">
       <div className="text-xs text-muted-foreground font-medium">{subtitle}</div>
       <div className="mt-2 text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
         {title}
@@ -127,23 +119,24 @@ function CaseStudyCard({
           </div>
         ))}
       </div>
-      <div className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
-        Read case study <ArrowRight className="h-4 w-4" />
-      </div>
-    </a>
+    </div>
   );
 }
 
 function TimelineStep({
+  step,
   title,
   subtitle,
 }: {
+  step: string;
   title: string;
   subtitle?: string;
 }) {
   return (
-    <div className="relative pl-6">
-      <div className="absolute left-0 top-1.5 h-3 w-3 rounded-full bg-primary ring-4 ring-primary/20" />
+    <div className="relative pl-10 py-1">
+      <div className="absolute left-0 top-1 h-6 min-w-6 rounded-md bg-primary/20 border border-primary/45 text-[11px] font-bold text-primary flex items-center justify-center px-1">
+        {step}
+      </div>
       <div className="text-sm font-semibold text-foreground">{title}</div>
       {subtitle ? <div className="text-xs text-muted-foreground mt-1">{subtitle}</div> : null}
     </div>
@@ -152,140 +145,129 @@ function TimelineStep({
 
 export default function VersionSevenLandingReplica({
   primaryCtaHref,
-  signInHref = "/login",
-  signUpHref = "/signup",
 }: LandingReplicaProps) {
   const ctaHref = primaryCtaHref;
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 320);
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div id="top" className="min-h-screen bg-background text-foreground relative isolate overflow-hidden">
+      <DataParticlesBackground />
+      <div className="relative z-10">
       {/* Top offer bar */}
-      <div className="border-b border-border bg-card/70 backdrop-blur">
+      <div className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card/70 backdrop-blur">
         <LandingContainer>
-          <div className="py-3 text-sm flex items-center justify-between gap-3 flex-wrap">
-            <div className="font-semibold">
-              Krot: B2B intelligence + signal-driven outbound from connected inboxes.
+          <div className="py-3 text-sm flex items-center justify-between gap-3 flex-wrap max-sm:py-2 max-sm:text-xs max-sm:gap-2 max-[380px]:gap-1.5">
+            <div className="flex items-center max-[380px]:w-full max-[380px]:justify-center">
+              <img
+                src="/logoipsum-294.svg"
+                alt="Krot"
+                className="h-8 w-auto select-none pointer-events-none max-[380px]:h-7"
+              />
+              <span className="ml-2 text-sm font-bold tracking-wide text-primary max-sm:text-xs">krot.io</span>
             </div>
-            <div className="flex items-center gap-2">
-              <a
-                href={signUpHref}
-                className="inline-flex items-center rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition-colors"
-              >
-                Sign up
-              </a>
-              <a
-                href={signInHref}
-                className="inline-flex items-center rounded-md border border-border/80 bg-background/60 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-              >
-                Sign in
-              </a>
+            <div className="flex items-center gap-4 max-sm:w-full max-sm:justify-between max-sm:gap-2 max-[380px]:justify-center max-[380px]:flex-wrap max-[380px]:gap-x-3 max-[380px]:gap-y-1.5">
+              <a href="#features" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Features</a>
+              <a href="#workflow" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Workflow</a>
+              <a href="#pricing" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Pricing</a>
+              <a href="#faq" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">FAQ</a>
+              <a href="/auth" className="ml-1 inline-flex items-center rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition-colors max-sm:px-2.5 max-sm:py-1 max-[380px]:ml-0 max-[380px]:px-2 max-[380px]:text-[11px]">Log In</a>
             </div>
           </div>
         </LandingContainer>
       </div>
 
       {/* Hero */}
-      <section className="py-16">
+      <section className="pt-24 pb-16 max-sm:pt-28 max-sm:pb-12">
         <LandingContainer>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center max-sm:gap-8">
             <div className="lg:col-span-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-4 py-2 text-sm font-semibold">
-                <span className="text-primary">Krot</span>
-                <span>Revenue Intelligence Platform</span>
-                <span className="text-muted-foreground font-medium">
-                  built for B2B teams
-                </span>
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-4 py-2 text-sm font-semibold max-sm:text-xs max-sm:px-3 max-sm:py-1.5">
+                <span>Sales Intelligence Engine</span>
+                <span className="text-muted-foreground font-medium">built for B2B teams</span>
               </div>
 
-              <h1 className="mt-6 text-4xl sm:text-5xl font-extrabold tracking-tight text-foreground leading-[1.05]">
-                Turn B2B Signals Into Qualified Pipeline With Krot
+              <h1 className="mt-6 text-4xl sm:text-5xl font-extrabold tracking-tight text-foreground leading-[1.05] max-sm:text-3xl">
+                Turn Qualified Leads Into Meetings With Sequenced Outbound
               </h1>
 
-              <p className="mt-5 text-lg leading-relaxed text-muted-foreground max-w-xl">
-                Krot combines lead generation, news signals, and inbox-native email
-                sequencing in one operating system. Spot opportunity early, launch
-                personalized outreach fast, and keep your team focused on high-intent
-                accounts.
+              <p className="mt-5 text-lg leading-relaxed text-muted-foreground max-w-xl max-sm:text-base">
+                Krot is built around lead quality and inbox-native email sequencing.
+                Find better-fit contacts, prioritize the right accounts, and launch
+                structured outreach fast. Signals are included as supportive context,
+                not the main workflow.
               </p>
 
-              <div className="mt-7 flex flex-col sm:flex-row gap-3">
-                <PrimaryCtaLink href={ctaHref}>
-                  <span className="flex items-center gap-2">
-                    Start Your Trial <ArrowRight className="h-4 w-4" />
+              <div className="mt-7 flex flex-col sm:flex-row gap-3 max-sm:gap-2.5">
+                <PrimaryCtaLink href="/signup">
+                  <span className="flex items-center gap-2 justify-center w-full">
+                    Register for Free <ArrowRight className="h-4 w-4" />
                   </span>
                 </PrimaryCtaLink>
-                <SecondaryCtaLink href="#">
-                  <span className="flex items-center gap-2">
-                    Watch Platform Overview <Play className="h-4 w-4" />
+                <SecondaryCtaLink href="#workflow">
+                  <span className="flex items-center gap-2 justify-center w-full">
+                    See How It Works <ArrowRight className="h-4 w-4" />
                   </span>
                 </SecondaryCtaLink>
-              </div>
-
-              <p className="mt-4 text-sm text-muted-foreground">
-                Workspace:{" "}
-                <a
-                  href={signUpHref}
-                  className="font-semibold text-foreground underline-offset-4 hover:underline"
-                >
-                  Sign up
-                </a>{" "}
-                (new organization) or{" "}
-                <a
-                  href={signInHref}
-                  className="font-semibold text-foreground underline-offset-4 hover:underline"
-                >
-                  Sign in
-                </a>
-                .
-              </p>
-              <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-semibold text-muted-foreground">
-                <span>Lead generation built in</span>
-                <span>Connected inbox sequencing</span>
-                <span>News signal monitoring</span>
               </div>
             </div>
 
             <div className="lg:col-span-6">
-              <div className="rounded-2xl border border-border bg-card/70 p-6">
-                <div className="aspect-[16/10] rounded-xl border border-border bg-background flex items-center justify-center relative overflow-hidden">
+              <div className="rounded-2xl border border-border bg-card/70 p-6 max-sm:p-4">
+                <div className="aspect-[16/10] rounded-xl border border-border bg-background relative overflow-hidden p-4 max-sm:aspect-auto max-sm:min-h-[320px] max-sm:p-3">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(196,160,66,0.18),transparent_55%)]" />
-                  <div className="relative text-center px-6">
-                    <div className="text-sm font-semibold text-muted-foreground">
-                      Workspace preview
-                    </div>
-                    <div className="mt-2 text-lg font-bold text-foreground">
-                      Signal feed, lead generation, and sequencing in one screen.
-                    </div>
-                    <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary/15 border border-primary/35 px-5 py-3 text-sm font-semibold text-foreground">
-                      View product flow <ArrowRight className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Watch demo"
-                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-14 w-14 rounded-full bg-card border border-border shadow-sm flex items-center justify-center hover:shadow-md transition-shadow"
-                  >
-                    <Play className="h-6 w-6 text-foreground" />
-                  </button>
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  {["Total Leads", "Meetings Booked"].map((k) => (
-                    <div
-                      key={k}
-                      className="rounded-xl bg-card/80 border border-border p-3 text-left"
-                    >
-                      <div className="text-xs text-muted-foreground font-medium">{k}</div>
-                      <div className="mt-1 text-base font-bold text-foreground">
-                        {k === "Total Leads" ? "889" : "+13"}
+                  <div className="relative h-full grid grid-cols-2 grid-rows-3 gap-3 max-sm:grid-cols-1 max-sm:grid-rows-none max-sm:gap-2.5">
+                    <div className="col-span-2 rounded-lg border border-primary/35 bg-primary/10 p-4 transition-transform duration-300 hover:-translate-y-0.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs font-semibold text-primary">Email Sequencing Engine</div>
+                        <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                          Active
+                        </span>
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-foreground">
+                        Launch structured multi-step campaigns from connected inboxes.
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
 
-              <div className="mt-4 text-xs text-muted-foreground">
-                Note: this repo replica uses a placeholder demo panel. Replace with your real screenshot/video for pixel-perfect matching.
+                    <div className="rounded-lg border border-border/80 bg-card/80 p-3 transition-transform duration-300 hover:-translate-y-0.5">
+                      <div className="text-[11px] font-semibold text-muted-foreground">Lead Quality</div>
+                      <div className="mt-2 text-sm font-semibold text-foreground">
+                        Score fit before outreach starts.
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border/80 bg-card/80 p-3 transition-transform duration-300 hover:-translate-y-0.5">
+                      <div className="text-[11px] font-semibold text-muted-foreground">Signals Addon</div>
+                      <div className="mt-2 text-sm font-semibold text-foreground">
+                        Use market context to time messaging.
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border/80 bg-card/80 p-3 transition-transform duration-300 hover:-translate-y-0.5">
+                      <div className="text-[11px] font-semibold text-muted-foreground">Enrichment</div>
+                      <div className="mt-2 text-sm font-semibold text-foreground">
+                        Build clean contact lists instantly.
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border/80 bg-card/80 p-3 transition-transform duration-300 hover:-translate-y-0.5">
+                      <div className="text-[11px] font-semibold text-muted-foreground">Automations</div>
+                      <div className="mt-2 text-sm font-semibold text-foreground">
+                        Sync with CRMs and workflow tools.
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -304,14 +286,14 @@ export default function VersionSevenLandingReplica({
       </section>
 
       {/* Real Results */}
-      <section className="py-16 bg-card/30 border-y border-border">
+      <section id="features" className="py-16 bg-card/30 border-y border-border">
         <LandingContainer>
           <h2 className="text-3xl font-extrabold tracking-tight text-foreground">
             See How Teams Use Krot
           </h2>
           <p className="mt-3 text-muted-foreground max-w-2xl">
-            From intelligence-led account prioritization to faster outbound execution,
-            here is how teams operationalize Krot.
+            From better lead quality to faster sequenced execution, here is how teams
+            operationalize Krot.
           </p>
 
           <div className="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -320,14 +302,6 @@ export default function VersionSevenLandingReplica({
             ))}
           </div>
 
-          <div className="mt-8 text-center">
-            <a
-              href="https://www.versionseven.ai/case-studies"
-              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card/70 px-6 py-3 font-semibold hover:bg-card transition-colors"
-            >
-              View All Case Studies <ArrowRight className="h-4 w-4" />
-            </a>
-          </div>
         </LandingContainer>
       </section>
 
@@ -362,18 +336,19 @@ export default function VersionSevenLandingReplica({
                 How Krot Works
               </div>
               <div className="mt-3 text-2xl font-extrabold tracking-tight text-foreground">
-                From Signal Detection to Sequenced Outreach
+                From Qualified Leads to Sequenced Outreach
               </div>
               <div className="mt-4 text-muted-foreground leading-relaxed">
-                Monitor market events, identify matched accounts, enrich contacts,
-                and launch inbox-native sequences with AI-assisted personalization.
+                Qualify leads, identify matched accounts, enrich contacts,
+                and launch inbox-native sequences with structured personalization,
+                enhanced by real-time signals context.
               </div>
 
               <div className="mt-6 space-y-3">
                 {[
-                  "Track funding, M&A, and other account-level intent signals.",
-                  "Generate and enrich leads directly from your ICP.",
-                  "Activate personalized sequences from connected user inboxes.",
+                  "Score and prioritize leads directly from your ICP.",
+                  "Generate and enrich contacts with quality checks.",
+                  "Use the signals addon to time outreach and personalize at the right moment.",
                 ].map((x) => (
                   <div key={x} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
@@ -383,17 +358,11 @@ export default function VersionSevenLandingReplica({
               </div>
 
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <PrimaryCtaLink href={ctaHref}>
+                <PrimaryCtaLink href="#final-cta">
                   <span className="flex items-center gap-2">
                     Start Your Trial <ArrowRight className="h-4 w-4" />
                   </span>
                 </PrimaryCtaLink>
-                <a
-                  href="https://www.versionseven.ai/pipeline-accelerator"
-                    className="inline-flex items-center justify-center rounded-lg border border-border bg-card/70 text-foreground font-semibold px-5 py-3 hover:bg-card transition-colors"
-                >
-                    Explore Signal Workflows
-                </a>
               </div>
             </div>
           </div>
@@ -407,15 +376,14 @@ export default function VersionSevenLandingReplica({
             Expand Your Intelligence Stack
           </h2>
           <p className="mt-3 text-muted-foreground max-w-2xl">
-            Layer in specialized workflows for signal routing, lead intelligence, and
-            inbox orchestration as your motion scales.
+            Layer in specialized workflows for lead quality, sequencing governance,
+            and optional signals context as your motion scales.
           </p>
 
           <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-4">
             {versionSevenAddOns.map((a) => (
-              <a
+              <div
                 key={a.title}
-                href={a.href}
                 className="block rounded-2xl border border-border bg-card/70 p-7 hover:shadow-sm hover:border-primary/40 transition-shadow"
               >
                 <div className="text-lg font-extrabold text-foreground">{a.title}</div>
@@ -423,21 +391,21 @@ export default function VersionSevenLandingReplica({
                 <div className="mt-6 inline-flex items-center gap-2 font-semibold text-foreground">
                   {a.cta} <ArrowRight className="h-4 w-4" />
                 </div>
-              </a>
+              </div>
             ))}
           </div>
         </LandingContainer>
       </section>
 
       {/* Features + timeline */}
-      <section className="py-16">
+      <section id="workflow" className="py-16">
         <LandingContainer>
           <h2 className="text-3xl font-extrabold tracking-tight text-foreground">
             How Krot Turns Intelligence Into Pipeline
           </h2>
           <p className="mt-3 text-muted-foreground max-w-2xl">
-            Lead generation, news signal detection, sequence automation, and analytics
-            designed to help B2B teams prioritize and execute with precision.
+            Lead quality operations, sequence automation, and analytics designed to
+            help B2B teams prioritize and execute with precision.
           </p>
 
           <div className="mt-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -456,23 +424,47 @@ export default function VersionSevenLandingReplica({
 
             <div className="lg:col-span-5">
               <div className="rounded-2xl border border-border bg-card/60 p-6">
-                <div className="text-sm font-semibold text-muted-foreground">Signal Workflow</div>
+                <div className="text-sm font-semibold text-muted-foreground">Execution Roadmap</div>
                 <div className="mt-2 text-xl font-extrabold tracking-tight text-foreground">
-                  Intelligence-to-outbound automation
+                  Lead-to-outbound in 5 visual steps
                 </div>
 
-                <div className="mt-6 space-y-5">
-                  <TimelineStep title="Signal captured" subtitle="Funding, M&A, leadership, or market event detected" />
-                  <TimelineStep title="Account matched" subtitle="Krot maps signal to your ICP and account book" />
-                  <TimelineStep title="Leads enriched" subtitle="Contact list generated and validated for execution" />
-                  <TimelineStep title="Sequence launched" subtitle="Personalized email sequence starts from connected inboxes" />
-                  <TimelineStep title="Responses tracked" subtitle="Reply, meeting, and conversion signals feed analytics" />
+                <div className="mt-6 space-y-4">
+                  <TimelineStep
+                    step="01"
+                    title="Lead qualified"
+                    subtitle="Quality checks score fit and readiness for outreach"
+                  />
+                  <div className="ml-3 h-4 w-px bg-border/70" />
+                  <TimelineStep
+                    step="02"
+                    title="Account matched"
+                    subtitle="Krot maps qualified leads to your ICP and account book"
+                  />
+                  <div className="ml-3 h-4 w-px bg-border/70" />
+                  <TimelineStep
+                    step="03"
+                    title="Leads enriched"
+                    subtitle="Contact list generated and validated for execution"
+                  />
+                  <div className="ml-3 h-4 w-px bg-border/70" />
+                  <TimelineStep
+                    step="04"
+                    title="Sequence launched"
+                    subtitle="Personalized email sequence starts from connected inboxes"
+                  />
+                  <div className="ml-3 h-4 w-px bg-border/70" />
+                  <TimelineStep
+                    step="05"
+                    title="Responses tracked"
+                    subtitle="Reply, meeting, and conversion signals feed analytics"
+                  />
                 </div>
 
                 <div className="mt-6 rounded-xl border border-border bg-background/70 p-4">
-                  <div className="text-xs text-muted-foreground font-medium">Execution outcome</div>
+                  <div className="text-xs text-muted-foreground font-medium">Roadmap outcome</div>
                   <div className="mt-1 text-sm font-semibold text-foreground">
-                    Faster time-to-first-touch on high-intent accounts with clearer pipeline attribution.
+                    Faster time-to-first-touch on high-intent accounts with clear pipeline attribution.
                   </div>
                 </div>
               </div>
@@ -482,7 +474,7 @@ export default function VersionSevenLandingReplica({
       </section>
 
       {/* Why */}
-      <section className="py-16 bg-card/30 border-t border-border">
+      <section id="faq" className="py-16 bg-card/30 border-t border-border">
         <LandingContainer>
           <h2 className="text-3xl font-extrabold tracking-tight text-foreground">
             Why Teams Choose Krot
@@ -506,6 +498,118 @@ export default function VersionSevenLandingReplica({
                 </div>
               </div>
             ))}
+          </div>
+        </LandingContainer>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="py-16 border-t border-border">
+        <LandingContainer>
+          <div className="max-w-2xl">
+            <h2 className="text-3xl font-extrabold tracking-tight text-foreground">
+              Pricing
+            </h2>
+            <p className="mt-3 text-muted-foreground">
+              Choose the plan that fits your team. Add extra connected email licenses anytime from inside the app.
+            </p>
+          </div>
+
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="rounded-2xl border border-border bg-card/70 p-6 flex flex-col h-full">
+              <div className="text-sm font-semibold text-muted-foreground">Free</div>
+              <div className="mt-2 text-3xl font-extrabold">$0</div>
+              <div className="text-xs text-muted-foreground">per month</div>
+              <ul className="mt-5 space-y-2 text-sm text-muted-foreground flex-1">
+                <li>- Limited email sequencing</li>
+                <li>- CSV uploads</li>
+                <li>- Signals access</li>
+              </ul>
+              <a
+                href="/signup"
+                className="mt-4 inline-flex w-full items-center justify-center text-center rounded-md border border-border bg-card/80 px-4 py-2 text-sm font-semibold leading-none text-foreground hover:bg-card transition-colors"
+              >
+                Get started
+              </a>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card/70 p-6 flex flex-col h-full">
+              <div className="text-sm font-semibold text-muted-foreground">Basic</div>
+              <div className="mt-2 text-3xl font-extrabold">$49</div>
+              <div className="text-xs text-muted-foreground">per month</div>
+              <ul className="mt-5 space-y-2 text-sm text-muted-foreground flex-1">
+                <li>- 1 connected email</li>
+                <li>- Full email sequencing</li>
+                <li>- CSV uploads</li>
+                <li>- Lead generation and enrichment (limited)</li>
+                <li>- Signals</li>
+                <li>- Add extra email licenses in-app</li>
+              </ul>
+              <a
+                href="/signup"
+                className="mt-4 inline-flex w-full items-center justify-center text-center rounded-md border border-border bg-card/80 px-4 py-2 text-sm font-semibold leading-none text-foreground hover:bg-card transition-colors"
+              >
+                Get started
+              </a>
+            </div>
+
+            <div className="rounded-2xl border border-primary bg-card/80 p-6 shadow-[0_0_0_1px_rgba(196,160,66,0.25)] flex flex-col h-full">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold text-primary">Business Standard</div>
+                <span className="rounded-full border border-primary/45 bg-primary/12 px-3 py-1 text-[10px] font-semibold tracking-wide text-primary/95">
+                  Best value
+                </span>
+              </div>
+              <div className="mt-2 text-3xl font-extrabold">$129</div>
+              <div className="text-xs text-muted-foreground">per month</div>
+              <ul className="mt-5 space-y-2 text-sm text-muted-foreground flex-1">
+                <li>- 3 connected emails</li>
+                <li>- Full email sequencing</li>
+                <li>- CSV uploads</li>
+                <li>- Lead generation and enrichment (extensive limits)</li>
+                <li>- Premium Signals</li>
+                <li>- Automations (Zapier, CRMs, other tools)</li>
+                <li>- Add extra email licenses in-app</li>
+              </ul>
+              <a
+                href="/signup"
+                className="mt-4 inline-flex w-full items-center justify-center text-center rounded-md border border-primary/45 bg-primary/15 px-4 py-2 text-sm font-semibold leading-none text-primary hover:bg-primary/20 transition-colors"
+              >
+                Get started
+              </a>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card/70 p-6 flex flex-col h-full">
+              <div className="text-sm font-semibold text-muted-foreground">Pro</div>
+              <div className="mt-2 text-3xl font-extrabold">$249</div>
+              <div className="text-xs text-muted-foreground">per month</div>
+              <ul className="mt-5 space-y-2 text-sm text-muted-foreground flex-1">
+                <li>- 5 connected emails</li>
+                <li>- Full email sequencing</li>
+                <li>- CSV uploads</li>
+                <li>- Unlimited lead generation and enrichment</li>
+                <li>- Premium Signals</li>
+                <li>- Early access to beta tools</li>
+                <li>- Automations (Zapier, CRMs, other tools)</li>
+                <li>- Add extra email licenses in-app</li>
+              </ul>
+              <a
+                href="/signup"
+                className="mt-4 inline-flex w-full items-center justify-center text-center rounded-md border border-border bg-card/80 px-4 py-2 text-sm font-semibold leading-none text-foreground hover:bg-card transition-colors"
+              >
+                Get started
+              </a>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-xl border border-border bg-card/60 p-4 text-sm text-muted-foreground">
+            Need custom requirements or integrations? Contact{" "}
+            <a
+              href="mailto:sales@krot.io"
+              className="font-semibold text-foreground underline underline-offset-4"
+            >
+              sales@krot.io
+            </a>
+            .
           </div>
         </LandingContainer>
       </section>
@@ -540,44 +644,27 @@ export default function VersionSevenLandingReplica({
       </section>
 
       {/* Final CTA */}
-      <section className="py-16">
+      <section id="final-cta" className="py-16">
         <LandingContainer>
           <div className="rounded-3xl border border-border bg-card/70 p-10">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               <div className="lg:col-span-7">
                 <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
-                  Ready to Run Signal-Driven Outbound With Krot?
+                  Ready to Run High-Quality Sequenced Outbound With Krot?
                 </h2>
                 <p className="mt-3 text-muted-foreground leading-relaxed">
-                  Bring your ICP, connect your inboxes, and turn live market signals
-                  into personalized outbound execution from one workspace.
+                  Bring your ICP, connect your inboxes, and turn qualified leads into
+                  personalized outbound execution from one workspace.
                 </p>
               </div>
 
               <div className="lg:col-span-5">
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <PrimaryCtaLink href={ctaHref}>
+                  <PrimaryCtaLink href="/signup">
                     <span className="flex items-center gap-2">
-                      Start Your Trial <ArrowRight className="h-4 w-4" />
+                      Register for Free <ArrowRight className="h-4 w-4" />
                     </span>
                   </PrimaryCtaLink>
-                  <a
-                    href="https://www.versionseven.ai/pipeline-accelerator"
-                    className="inline-flex items-center justify-center rounded-lg border border-border bg-card/70 text-foreground font-semibold px-5 py-3 hover:bg-card transition-colors"
-                  >
-                    Book Product Walkthrough
-                  </a>
-                </div>
-
-                <div className="mt-4 text-sm text-muted-foreground">
-                  Need a deeper dive?{" "}
-                  <a
-                    href="https://calendly.com/alexleischow/victoria-ai-onboarding-call"
-                    className="font-semibold underline underline-offset-4 hover:text-foreground"
-                  >
-                    Schedule a guided tour
-                  </a>{" "}
-                  {"->"}
                 </div>
 
                 <div className="mt-6 text-xs text-muted-foreground font-semibold">
@@ -591,11 +678,41 @@ export default function VersionSevenLandingReplica({
 
       <footer className="py-10 border-t border-border bg-card/60">
         <LandingContainer>
+          <div className="mb-5 flex flex-wrap items-center justify-center gap-2">
+            {[
+              "ISO 27001 aligned",
+              "GDPR compliant",
+              "Data encryption in transit and at rest",
+              "Role-based access controls",
+            ].map((item) => (
+              <span
+                key={item}
+                className="inline-flex items-center rounded-full border border-border bg-background/60 px-3 py-1 text-[11px] font-semibold text-muted-foreground"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
           <div className="text-center text-sm text-muted-foreground font-semibold">
             Krot - B2B intelligence and outbound execution platform.
           </div>
         </LandingContainer>
       </footer>
+      <button
+        type="button"
+        aria-label="Back to top"
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        className={cn(
+          "fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full border border-border bg-card/90 px-4 py-2 text-sm font-semibold text-foreground shadow-md backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:bg-card",
+          showBackToTop
+            ? "translate-y-0 opacity-100 pointer-events-auto"
+            : "translate-y-2 opacity-0 pointer-events-none",
+        )}
+      >
+        <ChevronUp className="h-4 w-4" />
+        Back to Top
+      </button>
+      </div>
     </div>
   );
 }

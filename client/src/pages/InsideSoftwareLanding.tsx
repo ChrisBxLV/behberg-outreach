@@ -1,10 +1,10 @@
 import VersionSevenLandingReplica from "./VersionSevenLandingReplica";
 
 /**
- * Public marketing homepage. Admin console is reached only via "Sign in" -> /login -> /app.
+ * Public marketing homepage.
  */
 export default function InsideSoftwareLanding() {
   return (
-    <VersionSevenLandingReplica primaryCtaHref="/home" signInHref="/login" signUpHref="/signup" />
+    <VersionSevenLandingReplica primaryCtaHref="/home" />
   );
 }
