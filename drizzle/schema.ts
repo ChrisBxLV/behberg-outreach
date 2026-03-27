@@ -32,8 +32,14 @@ export const users = mysqlTable("users", {
   passwordSalt: varchar("passwordSalt", { length: 128 }),
   passwordHash: varchar("passwordHash", { length: 128 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  /** Workspace this user belongs to (null = platform / legacy users). */
-  organizationId: int("organizationId"),
+  /**
+   * Workspace this user belongs to (null = platform / legacy users).
+   * Nullable by design; non-null values are enforced by FK `users_organization_id_fk` (migration 0006).
+   */
+  organizationId: int("organizationId").references(() => organizations.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
   /** owner = org admin who signed up; member = invited by owner. */
   orgMemberRole: mysqlEnum("orgMemberRole", ["owner", "member"]),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -87,8 +93,14 @@ export const contacts = mysqlTable("contacts", {
   // Timestamps
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  /** Row-level scope: same id as organizations.id; null = legacy unscoped rows. */
-  organizationId: int("organizationId"),
+  /**
+   * Row-level scope: same id as organizations.id; null = legacy unscoped rows.
+   * Nullable by design; non-null values are enforced by FK `contacts_organization_id_fk` (migration 0006).
+   */
+  organizationId: int("organizationId").references(() => organizations.id, {
+    onDelete: "cascade",
+    onUpdate: "cascade",
+  }),
 });
 
 export type Contact = typeof contacts.$inferSelect;
@@ -130,7 +142,13 @@ export const campaigns = mysqlTable("campaigns", {
   notifiedBounce: boolean("notifiedBounce").default(false),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  organizationId: int("organizationId"),
+  /**
+   * Nullable for legacy rows; non-null values are enforced by FK `campaigns_organization_id_fk` (migration 0006).
+   */
+  organizationId: int("organizationId").references(() => organizations.id, {
+    onDelete: "cascade",
+    onUpdate: "cascade",
+  }),
 });
 
 export type Campaign = typeof campaigns.$inferSelect;
@@ -210,7 +228,10 @@ export const trackingEvents = mysqlTable("tracking_events", {
 // ─── Signals ──────────────────────────────────────────────────────────────────
 export const signalProfiles = mysqlTable("signal_profiles", {
   id: int("id").autoincrement().primaryKey(),
-  organizationId: int("organizationId").notNull().unique(),
+  organizationId: int("organizationId")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" })
+    .unique(),
   businessType: varchar("businessType", { length: 64 }).notNull(),
   selectedTags: json("selectedTags").$type<string[]>().notNull(),
   selectedSignalTypes: json("selectedSignalTypes").$type<string[]>().notNull(),
@@ -226,7 +247,9 @@ export type InsertSignalProfile = typeof signalProfiles.$inferInsert;
 
 export const signals = mysqlTable("signals", {
   id: int("id").autoincrement().primaryKey(),
-  organizationId: int("organizationId").notNull(),
+  organizationId: int("organizationId")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
   source: varchar("source", { length: 120 }).notNull(),
   externalId: varchar("externalId", { length: 512 }).notNull().unique(),
   signalType: varchar("signalType", { length: 64 }).notNull(),
@@ -245,7 +268,10 @@ export type InsertSignal = typeof signals.$inferInsert;
 
 export const signalInsights = mysqlTable("signal_insights", {
   id: int("id").autoincrement().primaryKey(),
-  signalId: int("signalId").notNull().unique(),
+  signalId: int("signalId")
+    .notNull()
+    .references(() => signals.id, { onDelete: "cascade", onUpdate: "cascade" })
+    .unique(),
   summaryShort: varchar("summaryShort", { length: 512 }).notNull(),
   actionSuggestion: text("actionSuggestion").notNull(),
   reasoning: text("reasoning"),
@@ -260,7 +286,9 @@ export type InsertSignalInsight = typeof signalInsights.$inferInsert;
 
 export const signalIngestionRuns = mysqlTable("signal_ingestion_runs", {
   id: int("id").autoincrement().primaryKey(),
-  organizationId: int("organizationId").notNull(),
+  organizationId: int("organizationId")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
   source: varchar("source", { length: 120 }).notNull(),
   status: mysqlEnum("status", ["started", "completed", "failed"]).default("started").notNull(),
   fetchedCount: int("fetchedCount").default(0).notNull(),

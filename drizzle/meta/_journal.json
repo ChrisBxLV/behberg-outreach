@@ -43,6 +43,13 @@
       "when": 1774291800000,
       "tag": "0005_signals_feature",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1774292400000,
+      "tag": "0006_organization_signal_foreign_keys",
+      "breakpoints": true
     }
   ]
 }
