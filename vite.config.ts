@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
+import { agentDebugLog } from "./server/_core/agentDebugLog";
 
 // =============================================================================
 // Manus Debug Collector - Vite Plugin
@@ -75,13 +76,46 @@ function writeToLogFile(source: LogSource, entries: unknown[]) {
  * - Auto-trimmed when exceeding 1MB (keeps newest entries)
  */
 function vitePluginManusDebugCollector(): Plugin {
+  let isProductionBuild = false;
+
   return {
     name: "manus-debug-collector",
 
+    configResolved(config) {
+      isProductionBuild = config.mode === "production";
+      if (isProductionBuild) return;
+      // #region agent log
+      agentDebugLog({
+        runId: "baseline",
+        hypothesisId: "H_BUILD_CTX",
+        location: "vite.config.ts:configResolved",
+        message: "Vite config resolved",
+        data: {
+          mode: config.mode,
+          command: config.command,
+          rootEndsWithClient: config.root.endsWith("client"),
+        },
+      });
+      // #endregion
+    },
+
     transformIndexHtml(html) {
-      if (process.env.NODE_ENV === "production") {
+      if (isProductionBuild) {
         return html;
       }
+      // #region agent log
+      agentDebugLog({
+        runId: "baseline",
+        hypothesisId: "H_IMPORT_META_HTML",
+        location: "vite.config.ts:transformIndexHtml",
+        message: "Inspecting index.html before transform",
+        data: {
+          hasInlineModuleScript: html.includes('<script type="module">'),
+          hasImportMetaEnv: html.includes("import.meta.env"),
+          hasAnalyticsEndpointRef: html.includes("VITE_ANALYTICS_ENDPOINT"),
+        },
+      });
+      // #endregion
       return {
         html,
         tags: [
