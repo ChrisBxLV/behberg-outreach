@@ -11,6 +11,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
+import { getPublicHomeUrl } from "@/const";
 import DataParticlesBackground from "@/components/DataParticlesBackground";
 import {
   versionSevenAddOns,
@@ -21,10 +22,6 @@ import {
   versionSevenTestimonials,
   versionSevenWhyItems,
 } from "./versionSevenLandingData";
-
-type LandingReplicaProps = {
-  primaryCtaHref: string;
-};
 
 function LandingContainer({
   className,
@@ -143,10 +140,14 @@ function TimelineStep({
   );
 }
 
+type VersionSevenLandingReplicaProps = {
+  /** Header logo + brand tap target; should match the marketing route hosting this page (`/` vs `/home`). */
+  brandHomeHref?: string;
+};
+
 export default function VersionSevenLandingReplica({
-  primaryCtaHref,
-}: LandingReplicaProps) {
-  const ctaHref = primaryCtaHref;
+  brandHomeHref = getPublicHomeUrl(),
+}: VersionSevenLandingReplicaProps) {
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   useEffect(() => {
@@ -167,20 +168,20 @@ export default function VersionSevenLandingReplica({
       <div className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card/70 backdrop-blur">
         <LandingContainer>
           <div className="py-3 text-sm flex items-center justify-between gap-3 flex-wrap max-sm:py-2 max-sm:text-xs max-sm:gap-2 max-[380px]:gap-1.5">
-            <div className="flex items-center max-[380px]:w-full max-[380px]:justify-center">
+            <a href={brandHomeHref} className="flex items-center max-[380px]:w-full max-[380px]:justify-center">
               <img
                 src="/logoipsum-294.svg"
                 alt="Krot"
                 className="h-8 w-auto select-none pointer-events-none max-[380px]:h-7"
               />
               <span className="ml-2 text-sm font-bold tracking-wide text-primary max-sm:text-xs">krot.io</span>
-            </div>
+            </a>
             <div className="flex items-center gap-4 max-sm:w-full max-sm:justify-between max-sm:gap-2 max-[380px]:justify-center max-[380px]:flex-wrap max-[380px]:gap-x-3 max-[380px]:gap-y-1.5">
               <a href="#features" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Features</a>
               <a href="#workflow" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Workflow</a>
               <a href="#pricing" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Pricing</a>
               <a href="#faq" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">FAQ</a>
-              <a href="/auth" className="ml-1 inline-flex items-center rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition-colors max-sm:px-2.5 max-sm:py-1 max-[380px]:ml-0 max-[380px]:px-2 max-[380px]:text-[11px]">Log In</a>
+              <a href="/login" className="ml-1 inline-flex items-center rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition-colors max-sm:px-2.5 max-sm:py-1 max-[380px]:ml-0 max-[380px]:px-2 max-[380px]:text-[11px]">Log In</a>
             </div>
           </div>
         </LandingContainer>
@@ -224,9 +225,9 @@ export default function VersionSevenLandingReplica({
             <div className="lg:col-span-6">
               <div className="rounded-2xl border border-border bg-card/70 p-6 max-sm:p-4">
                 <div className="aspect-[16/10] rounded-xl border border-border bg-background relative overflow-hidden p-4 max-sm:aspect-auto max-sm:min-h-[320px] max-sm:p-3">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(196,160,66,0.18),transparent_55%)]" />
-                  <div className="relative h-full grid grid-cols-2 grid-rows-3 gap-3 max-sm:grid-cols-1 max-sm:grid-rows-none max-sm:gap-2.5">
-                    <div className="col-span-2 rounded-lg border border-primary/35 bg-primary/10 p-4 transition-transform duration-300 hover:-translate-y-0.5">
+                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(196,160,66,0.18),transparent_55%)] max-sm:pointer-events-none" />
+                  <div className="relative z-10 grid h-full min-h-0 grid-cols-1 grid-rows-none gap-2.5 sm:grid-cols-2 sm:grid-rows-3 sm:gap-3">
+                    <div className="rounded-lg border border-primary/35 bg-primary/10 p-4 transition-transform duration-300 hover:-translate-y-0.5 sm:col-span-2">
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-xs font-semibold text-primary">Email Sequencing Engine</div>
                         <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 px-2 py-0.5 text-[10px] font-semibold text-primary">

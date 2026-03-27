@@ -4,9 +4,13 @@ CREATE TABLE `organizations` (
 	`createdAt` timestamp NOT NULL DEFAULT (now()),
 	CONSTRAINT `organizations_id` PRIMARY KEY(`id`)
 );
+--> statement-breakpoint
 
 ALTER TABLE `users` ADD `organizationId` int;
+--> statement-breakpoint
 ALTER TABLE `users` ADD `orgMemberRole` enum('owner','member');
+--> statement-breakpoint
 
 ALTER TABLE `contacts` ADD `organizationId` int;
+--> statement-breakpoint
 ALTER TABLE `campaigns` ADD `organizationId` int;

@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { getPublicHomeUrl, getPublicMarketingAltUrl } from "@/const";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle, Home } from "lucide-react";
 import { useLocation } from "wouter";
@@ -9,7 +10,8 @@ export default function NotFound() {
   const { loading, user } = useAuth();
 
   const handleGoHome = () => {
-    setLocation(user ? "/" : "/home");
+    // `/` and `/home` are both public marketing pages (`App.tsx`); `/app` is the dashboard.
+    setLocation(user ? getPublicHomeUrl() : getPublicMarketingAltUrl());
   };
 
   return (

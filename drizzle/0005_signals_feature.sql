@@ -12,6 +12,7 @@ CREATE TABLE `signal_profiles` (
 	CONSTRAINT `signal_profiles_id` PRIMARY KEY(`id`),
 	CONSTRAINT `signal_profiles_organizationId_unique` UNIQUE(`organizationId`)
 );
+--> statement-breakpoint
 
 CREATE TABLE `signals` (
 	`id` int AUTO_INCREMENT NOT NULL,
@@ -30,6 +31,7 @@ CREATE TABLE `signals` (
 	CONSTRAINT `signals_id` PRIMARY KEY(`id`),
 	CONSTRAINT `signals_externalId_unique` UNIQUE(`externalId`)
 );
+--> statement-breakpoint
 
 CREATE TABLE `signal_insights` (
 	`id` int AUTO_INCREMENT NOT NULL,
@@ -44,6 +46,7 @@ CREATE TABLE `signal_insights` (
 	CONSTRAINT `signal_insights_id` PRIMARY KEY(`id`),
 	CONSTRAINT `signal_insights_signalId_unique` UNIQUE(`signalId`)
 );
+--> statement-breakpoint
 
 CREATE TABLE `signal_ingestion_runs` (
 	`id` int AUTO_INCREMENT NOT NULL,

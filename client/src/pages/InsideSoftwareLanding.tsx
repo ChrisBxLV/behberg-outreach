@@ -1,3 +1,4 @@
+import { getPublicHomeUrl } from "@/const";
 import VersionSevenLandingReplica from "./VersionSevenLandingReplica";
 
 /**
@@ -5,6 +6,6 @@ import VersionSevenLandingReplica from "./VersionSevenLandingReplica";
  */
 export default function InsideSoftwareLanding() {
   return (
-    <VersionSevenLandingReplica primaryCtaHref="/home" />
+    <VersionSevenLandingReplica brandHomeHref={getPublicHomeUrl()} />
   );
 }

@@ -19,7 +19,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl, getPublicHomeUrl } from "@/const";
+import { getAppHomeUrl, getLoginUrl, getPublicHomeUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard,
@@ -194,12 +194,17 @@ function DashboardLayoutContent({
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
               {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setLocation(getAppHomeUrl())}
+                  className="flex items-center gap-2 min-w-0 text-left rounded-md px-1 py-0.5 -mx-1 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Go to dashboard home"
+                >
                   <div className="flex flex-col min-w-0">
                     <span className="font-bold tracking-tight truncate text-foreground">Behberg</span>
                     <span className="text-xs text-primary truncate font-medium">Outreach Platform</span>
                   </div>
-                </div>
+                </button>
               ) : null}
             </div>
           </SidebarHeader>
