@@ -12,7 +12,8 @@
     "test": "vitest run",
     "db:baseline-hint": "node scripts/print-drizzle-baseline.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/mysql-migrate.mjs",
+    "db:migrate:kit": "drizzle-kit migrate",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
   "dependencies": {

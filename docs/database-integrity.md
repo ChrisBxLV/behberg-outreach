@@ -91,19 +91,21 @@ Prefer a dedicated app user so the application does not use the superuser accoun
 
 ## 8. Database stuck or “table already exists”
 
-**Easiest fix (OK if you do not need the data in that database):**
+This project’s **`pnpm run db:migrate`** uses a small MySQL-specific runner (`scripts/mysql-migrate.mjs`). The stock `drizzle-kit migrate` path can break on MySQL because **DDL commits immediately** while Drizzle’s migration log may not get saved the same way, which leads to “table already exists” even after a fresh-looking DB.
 
-1. In MySQL, reset the app database (change the name if yours is different):
+**Fix (one time, wipes that database):**
+
+1. MySQL:
 
 ```sql
 DROP DATABASE IF EXISTS behberg_outreach;
 CREATE DATABASE behberg_outreach CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-2. On the server: `git pull`, then `pnpm run db:migrate`.
+2. Server: `git pull`, then **`pnpm run db:migrate`**.
 
-3. Keep `DATABASE_URL` in `.env` pointed at that database.
+3. `.env` → `DATABASE_URL` must use **that** database name (same as in the URL path).
 
-**After that, day to day:** pull code, then `pnpm run db:migrate`. Do not run `drizzle-kit generate` on the server.
+**Check:** In MySQL, `SELECT DATABASE();` as the app user should show the DB you think. A wrong name in `DATABASE_URL` means you dropped one database while migrating another.
 
-**Rare case — you must keep existing data** and still see the error: run `pnpm run db:baseline-hint`, paste the SQL it prints into MySQL, then `pnpm run db:migrate` again.
+**Later deploys:** `git pull` → `pnpm run db:migrate`. Avoid `drizzle-kit generate` on the server. The old CLI migrate is still available as `pnpm run db:migrate:kit` if you need it for debugging.
