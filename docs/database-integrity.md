@@ -89,42 +89,21 @@ FLUSH PRIVILEGES;
 
 Prefer a dedicated app user so the application does not use the superuser account.
 
-## 8. `Table '…' already exists` (errno 1050) when running migrations
+## 8. Database stuck or “table already exists”
 
-Drizzle records applied SQL files in **`__drizzle_migrations`**. If your database **already has the tables** (from an earlier run, manual SQL, or a restore) but that table is **empty or behind**, `drizzle-kit migrate` starts over from the first migration and MySQL errors on `CREATE TABLE`.
+**Easiest fix (OK if you do not need the data in that database):**
 
-### What to do next
-
-**A. Empty / throwaway database (simplest)**  
-If you do not need the data: drop the app schema and re-run migrations.
+1. In MySQL, reset the app database (change the name if yours is different):
 
 ```sql
--- In MySQL, for your database (e.g. behberg_outreach):
-SET FOREIGN_KEY_CHECKS = 0;
--- Drop application tables (or drop database and recreate empty DB).
-SET FOREIGN_KEY_CHECKS = 1;
-DROP TABLE IF EXISTS __drizzle_migrations;
+DROP DATABASE IF EXISTS behberg_outreach;
+CREATE DATABASE behberg_outreach CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-Then from the app directory:
+2. On the server: `git pull`, then `pnpm run db:migrate`.
 
-```bash
-pnpm run db:migrate
-```
+3. Keep `DATABASE_URL` in `.env` pointed at that database.
 
-**B. Keep existing data (baseline migration history)**  
-If the live schema already matches **all committed migrations** in `drizzle/meta/_journal.json` through the latest tag (e.g. `0006_organization_signal_foreign_keys`), tell Drizzle the chain is applied by inserting **one row** whose `created_at` is the `when` value of that last journal entry (Drizzle skips any migration whose `folderMillis` is not greater than the latest stored `created_at`).
+**After that, day to day:** pull code, then `pnpm run db:migrate`. Do not run `drizzle-kit generate` on the server.
 
-Example for this repo when the DB is fully up to date through `0006` (`when` is `1774292400000` in `_journal.json`—confirm on your branch):
-
-```sql
-INSERT INTO __drizzle_migrations (`hash`, `created_at`)
-VALUES ('baseline', 1774292400000);
-```
-
-Use any non-empty `hash`; only `created_at` drives the skip logic. If you add a **new** migration later (`0007`, …), Drizzle will still apply only migrations newer than that timestamp.
-
-**C. Production deploy workflow**  
-Run **`pnpm run db:migrate`** on the server after pulling code. **Do not** run `drizzle-kit generate` on the server: new migrations should be generated in development, committed under `drizzle/*.sql`, then applied with `db:migrate`. The `db:push` script runs generate and migrate together and is mainly for local iteration.
-
-If you previously generated an extra migration on the server (e.g. `0007_*.sql`) that duplicates older steps, remove that file and fix `drizzle/meta/_journal.json` to match the repo, or reset the database per (A).
+**Rare case — you must keep existing data** and still see the error: run `pnpm run db:baseline-hint`, paste the SQL it prints into MySQL, then `pnpm run db:migrate` again.
