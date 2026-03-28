@@ -161,7 +161,7 @@ export default function VersionSevenLandingReplica({
   }, []);
 
   return (
-    <div id="top" className="min-h-screen bg-background text-foreground relative isolate overflow-hidden">
+    <div id="top" className="min-h-screen bg-background text-foreground relative isolate overflow-x-clip">
       <DataParticlesBackground />
       <div className="relative z-10">
       {/* Top offer bar */}
@@ -190,18 +190,18 @@ export default function VersionSevenLandingReplica({
       {/* Hero */}
       <section className="pt-24 pb-16 max-sm:pt-28 max-sm:pb-12">
         <LandingContainer>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center max-sm:gap-8">
-            <div className="lg:col-span-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start lg:items-center max-sm:gap-8">
+            <div className="min-w-0 lg:col-span-6">
               <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-4 py-2 text-sm font-semibold max-sm:text-xs max-sm:px-3 max-sm:py-1.5">
                 <span>Sales Intelligence Engine</span>
                 <span className="text-muted-foreground font-medium">built for B2B teams</span>
               </div>
 
-              <h1 className="mt-6 text-4xl sm:text-5xl font-extrabold tracking-tight text-foreground leading-[1.05] max-sm:text-3xl">
+              <h1 className="mt-6 text-4xl sm:text-5xl font-extrabold tracking-tight text-foreground leading-[1.08] max-sm:text-3xl text-balance break-words">
                 Turn Qualified Leads Into Meetings With Sequenced Outbound
               </h1>
 
-              <p className="mt-5 text-lg leading-relaxed text-muted-foreground max-w-xl max-sm:text-base">
+              <p className="mt-5 text-lg leading-relaxed text-muted-foreground max-w-xl max-sm:text-base text-pretty break-words">
                 Krot is built around lead quality and inbox-native email sequencing.
                 Find better-fit contacts, prioritize the right accounts, and launch
                 structured outreach fast. Signals are included as supportive context,
@@ -222,48 +222,63 @@ export default function VersionSevenLandingReplica({
               </div>
             </div>
 
-            <div className="lg:col-span-6">
+            <div className="min-w-0 lg:col-span-6">
               <div className="rounded-2xl border border-border bg-card/70 p-6 max-sm:p-4">
-                <div className="aspect-[16/10] rounded-xl border border-border bg-background relative overflow-hidden p-4 max-sm:aspect-auto max-sm:min-h-[320px] max-sm:p-3">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(196,160,66,0.18),transparent_55%)] max-sm:pointer-events-none" />
-                  <div className="relative z-10 grid h-full min-h-0 grid-cols-1 grid-rows-none gap-2.5 sm:grid-cols-2 sm:grid-rows-3 sm:gap-3">
-                    <div className="rounded-lg border border-primary/35 bg-primary/10 p-4 transition-transform duration-300 hover:-translate-y-0.5 sm:col-span-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-xs font-semibold text-primary">Email Sequencing Engine</div>
-                        <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                <div className="relative w-full rounded-xl border border-border bg-background p-4 sm:p-5 max-sm:p-3">
+                  <div
+                    className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+                    aria-hidden
+                  >
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(196,160,66,0.18),transparent_55%)]" />
+                  </div>
+                  <div className="relative z-10 grid grid-cols-1 auto-rows-auto gap-2.5 sm:grid-cols-2 sm:gap-3 sm:items-stretch">
+                    <div className="flex min-h-0 flex-col gap-2 rounded-lg border border-primary/35 bg-primary/10 p-3.5 sm:p-4 transition-transform duration-300 hover:-translate-y-0.5 sm:col-span-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0 text-xs font-semibold text-primary">
+                          Email Sequencing Engine
+                        </div>
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/40 px-2 py-0.5 text-[10px] font-semibold text-primary">
                           <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
                           Active
                         </span>
                       </div>
-                      <div className="mt-2 text-sm font-semibold text-foreground">
+                      <div className="text-sm font-semibold leading-snug text-foreground text-balance break-words">
                         Launch structured multi-step campaigns from connected inboxes.
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-border/80 bg-card/80 p-3 transition-transform duration-300 hover:-translate-y-0.5">
-                      <div className="text-[11px] font-semibold text-muted-foreground">Lead Quality</div>
-                      <div className="mt-2 text-sm font-semibold text-foreground">
+                    <div className="flex min-h-0 flex-col rounded-lg border border-border/80 bg-card/80 p-3.5 transition-transform duration-300 hover:-translate-y-0.5 sm:min-h-[5.5rem]">
+                      <div className="text-[11px] font-semibold text-muted-foreground">
+                        Lead Quality
+                      </div>
+                      <div className="mt-2 text-sm font-semibold leading-snug text-foreground text-balance break-words">
                         Score fit before outreach starts.
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-border/80 bg-card/80 p-3 transition-transform duration-300 hover:-translate-y-0.5">
-                      <div className="text-[11px] font-semibold text-muted-foreground">Signals Addon</div>
-                      <div className="mt-2 text-sm font-semibold text-foreground">
+                    <div className="flex min-h-0 flex-col rounded-lg border border-border/80 bg-card/80 p-3.5 transition-transform duration-300 hover:-translate-y-0.5 sm:min-h-[5.5rem]">
+                      <div className="text-[11px] font-semibold text-muted-foreground">
+                        Signals Addon
+                      </div>
+                      <div className="mt-2 text-sm font-semibold leading-snug text-foreground text-balance break-words">
                         Use market context to time messaging.
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-border/80 bg-card/80 p-3 transition-transform duration-300 hover:-translate-y-0.5">
-                      <div className="text-[11px] font-semibold text-muted-foreground">Enrichment</div>
-                      <div className="mt-2 text-sm font-semibold text-foreground">
+                    <div className="flex min-h-0 flex-col rounded-lg border border-border/80 bg-card/80 p-3.5 transition-transform duration-300 hover:-translate-y-0.5 sm:min-h-[5.5rem]">
+                      <div className="text-[11px] font-semibold text-muted-foreground">
+                        Enrichment
+                      </div>
+                      <div className="mt-2 text-sm font-semibold leading-snug text-foreground text-balance break-words">
                         Build clean contact lists instantly.
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-border/80 bg-card/80 p-3 transition-transform duration-300 hover:-translate-y-0.5">
-                      <div className="text-[11px] font-semibold text-muted-foreground">Automations</div>
-                      <div className="mt-2 text-sm font-semibold text-foreground">
+                    <div className="flex min-h-0 flex-col rounded-lg border border-border/80 bg-card/80 p-3.5 transition-transform duration-300 hover:-translate-y-0.5 sm:min-h-[5.5rem]">
+                      <div className="text-[11px] font-semibold text-muted-foreground">
+                        Automations
+                      </div>
+                      <div className="mt-2 text-sm font-semibold leading-snug text-foreground text-balance break-words">
                         Sync with CRMs and workflow tools.
                       </div>
                     </div>
