@@ -57,6 +57,9 @@ export default function Contacts() {
   const [search, setSearch] = useState("");
   const [stage, setStage] = useState("all");
   const [emailStatus, setEmailStatus] = useState("all");
+  const [country, setCountry] = useState("all");
+  const [industry, setIndustry] = useState("all");
+  const [keywords, setKeywords] = useState("");
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [isImporting, setIsImporting] = useState(false);
@@ -71,9 +74,13 @@ export default function Contacts() {
     search: search || undefined,
     stage: stage !== "all" ? stage : undefined,
     emailStatus: emailStatus !== "all" ? emailStatus : undefined,
+    country: country !== "all" ? country : undefined,
+    industry: industry !== "all" ? industry : undefined,
+    keywords: keywords.trim() || undefined,
     limit: LIMIT,
     offset: page * LIMIT,
   });
+  const { data: filterOptions } = trpc.contacts.filterOptions.useQuery();
 
   const deleteMutation = trpc.contacts.delete.useMutation({
     onSuccess: () => {
@@ -188,6 +195,36 @@ export default function Contacts() {
                   {EMAIL_STATUS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Select value={country} onValueChange={v => { setCountry(v); setPage(0); }}>
+                <SelectTrigger className="w-44 bg-muted/30 border-border/50">
+                  <SelectValue placeholder="Country" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Countries</SelectItem>
+                  {(filterOptions?.countries ?? []).map((item) => (
+                    <SelectItem key={item} value={item}>{item}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={industry} onValueChange={v => { setIndustry(v); setPage(0); }}>
+                <SelectTrigger className="w-44 bg-muted/30 border-border/50">
+                  <SelectValue placeholder="Industry" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Industries</SelectItem>
+                  {(filterOptions?.industries ?? []).map((item) => (
+                    <SelectItem key={item} value={item}>{item}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="relative min-w-56">
+                <Input
+                  placeholder="Keywords (custom)"
+                  value={keywords}
+                  onChange={e => { setKeywords(e.target.value); setPage(0); }}
+                  className="bg-muted/30 border-border/50"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -222,6 +259,7 @@ export default function Contacts() {
                   </th>
                   <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Contact</th>
                   <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Company</th>
+                  <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Title</th>
                   <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</th>
                   <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Stage</th>
                   <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Location</th>
@@ -231,7 +269,7 @@ export default function Contacts() {
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={i} className="border-b border-border/30">
-                      {Array.from({ length: 6 }).map((_, j) => (
+                      {Array.from({ length: 7 }).map((_, j) => (
                         <td key={j} className="p-4">
                           <div className="h-4 bg-muted/40 rounded animate-pulse" />
                         </td>
@@ -240,7 +278,7 @@ export default function Contacts() {
                   ))
                 ) : contacts.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-12 text-center text-muted-foreground">
+                    <td colSpan={7} className="p-12 text-center text-muted-foreground">
                       <Users className="h-10 w-10 mx-auto mb-3 opacity-30" />
                       <p className="font-medium">No contacts found</p>
                       <p className="text-sm mt-1">Import a CSV from Apollo or LinkedIn to get started</p>
@@ -266,6 +304,9 @@ export default function Contacts() {
                           <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
                           <span className="text-sm truncate max-w-32">{contact.company ?? "—"}</span>
                         </div>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-sm truncate max-w-40 block">{contact.title ?? "—"}</span>
                       </td>
                       <td className="p-4">
                         <div className="space-y-1">
@@ -350,9 +391,38 @@ export default function Contacts() {
 }
 
 function AddContactDialog({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
-  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", title: "", company: "", industry: "", location: "", linkedinUrl: "", notes: "" });
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    title: "",
+    company: "",
+    industry: "",
+    country: "",
+    location: "",
+    keywords: "",
+    linkedinUrl: "",
+    notes: "",
+  });
   const createMutation = trpc.contacts.create.useMutation({
-    onSuccess: () => { toast.success("Contact added"); onClose(); onSuccess(); setForm({ firstName: "", lastName: "", email: "", title: "", company: "", industry: "", location: "", linkedinUrl: "", notes: "" }); },
+    onSuccess: () => {
+      toast.success("Contact added");
+      onClose();
+      onSuccess();
+      setForm({
+        firstName: "",
+        lastName: "",
+        email: "",
+        title: "",
+        company: "",
+        industry: "",
+        country: "",
+        location: "",
+        keywords: "",
+        linkedinUrl: "",
+        notes: "",
+      });
+    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -368,7 +438,9 @@ function AddContactDialog({ open, onClose, onSuccess }: { open: boolean; onClose
             { key: "title", label: "Job Title" },
             { key: "company", label: "Company" },
             { key: "industry", label: "Industry" },
+            { key: "country", label: "Country" },
             { key: "location", label: "Location" },
+            { key: "keywords", label: "Keywords (comma separated)", colSpan: true },
             { key: "linkedinUrl", label: "LinkedIn URL", colSpan: true },
           ].map(({ key, label, colSpan }) => (
             <div key={key} className={colSpan ? "col-span-2" : ""}>
@@ -383,7 +455,30 @@ function AddContactDialog({ open, onClose, onSuccess }: { open: boolean; onClose
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => createMutation.mutate(form as any)} disabled={createMutation.isPending}>Add Contact</Button>
+          <Button
+            onClick={() => {
+              const location = [form.location.trim(), form.country.trim()].filter(Boolean).join(", ");
+              const tags = form.keywords
+                .split(",")
+                .map((item) => item.trim())
+                .filter(Boolean);
+              createMutation.mutate({
+                firstName: form.firstName || undefined,
+                lastName: form.lastName || undefined,
+                email: form.email || undefined,
+                title: form.title || undefined,
+                company: form.company || undefined,
+                industry: form.industry || undefined,
+                location: location || undefined,
+                linkedinUrl: form.linkedinUrl || undefined,
+                notes: form.notes || undefined,
+                tags,
+              });
+            }}
+            disabled={createMutation.isPending}
+          >
+            Add Contact
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

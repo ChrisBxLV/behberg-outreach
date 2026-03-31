@@ -8,9 +8,36 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   Mail, CheckCircle2, XCircle, RefreshCw,
-  Settings2, Play, AlertCircle, Users,
+  Settings2, Play, AlertCircle, Users, CreditCard, MailPlus,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+const SUBSCRIPTION_PLANS = [
+  {
+    id: "free",
+    name: "Free",
+    priceEur: 0,
+    summary: "Limited email sequencing, CSV uploads, and signals access.",
+  },
+  {
+    id: "basic",
+    name: "Basic",
+    priceEur: 49,
+    summary: "1 connected email, full sequencing, and limited enrichment.",
+  },
+  {
+    id: "business_standard",
+    name: "Business Standard",
+    priceEur: 129,
+    summary: "3 connected emails, premium signals, and automations.",
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    priceEur: 249,
+    summary: "5 connected emails, unlimited enrichment, and beta access.",
+  },
+] as const;
 
 export default function Settings() {
   const utils = trpc.useUtils();
@@ -28,6 +55,8 @@ export default function Settings() {
   const [memberLoginId, setMemberLoginId] = useState("");
   const [memberName, setMemberName] = useState("");
   const [memberPassword, setMemberPassword] = useState("");
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("free");
+  const [additionalMailboxes, setAdditionalMailboxes] = useState(0);
 
   const addMemberMutation = trpc.organization.addMember.useMutation({
     onSuccess: (r) => {
@@ -59,6 +88,9 @@ export default function Settings() {
 
   const membersBranch =
     isOrgMineLoading ? "loading" : canSeeMembers ? "card" : "no_org_or_role";
+  const selectedPlan = SUBSCRIPTION_PLANS.find((plan) => plan.id === selectedPlanId) ?? SUBSCRIPTION_PLANS[0];
+  const mailboxAddonTotal = additionalMailboxes * 15;
+  const estimatedMonthlyTotal = selectedPlan.priceEur + mailboxAddonTotal;
 
   return (
     <DashboardLayout>
@@ -72,6 +104,7 @@ export default function Settings() {
           <TabsList className="bg-muted/30 border border-border/50">
             <TabsTrigger value="members">Members</TabsTrigger>
             <TabsTrigger value="smtp">Outlook SMTP</TabsTrigger>
+            <TabsTrigger value="subscription">Manage Subscription</TabsTrigger>
             <TabsTrigger value="platform">Platform Info</TabsTrigger>
           </TabsList>
 
@@ -228,6 +261,106 @@ export default function Settings() {
           </CardContent>
         </Card>
 
+          </TabsContent>
+
+          <TabsContent value="subscription" className="mt-4">
+            <Card className="border-border/50 bg-card/80">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-500/20">
+                    <CreditCard className="h-5 w-5 text-emerald-300" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Manage Subscription</CardTitle>
+                    <CardDescription className="text-xs">
+                      Select your plan and add extra mailboxes (€15/month each). Stripe checkout wiring comes next.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {SUBSCRIPTION_PLANS.map((plan) => {
+                    const isSelected = plan.id === selectedPlanId;
+                    return (
+                      <button
+                        key={plan.id}
+                        type="button"
+                        onClick={() => setSelectedPlanId(plan.id)}
+                        className={`text-left rounded-lg border p-4 transition-colors ${
+                          isSelected
+                            ? "border-primary bg-primary/10"
+                            : "border-border/40 bg-muted/10 hover:bg-muted/20"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold">{plan.name}</p>
+                          <Badge variant={isSelected ? "default" : "outline"}>
+                            EUR {plan.priceEur}/mo
+                          </Badge>
+                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">{plan.summary}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="rounded-lg border border-border/40 bg-muted/10 p-4">
+                  <div className="flex items-center gap-2">
+                    <MailPlus className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold">Additional mailboxes</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Each additional connected mailbox is billed at EUR 15/month.
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAdditionalMailboxes((prev) => Math.max(0, prev - 1))}
+                    >
+                      -
+                    </Button>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={additionalMailboxes}
+                      onChange={(e) => {
+                        const value = Number.parseInt(e.target.value || "0", 10);
+                        setAdditionalMailboxes(Number.isNaN(value) ? 0 : Math.max(0, value));
+                      }}
+                      className="w-24 bg-muted/20 border-border/50"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAdditionalMailboxes((prev) => prev + 1)}
+                    >
+                      +
+                    </Button>
+                    <p className="text-xs text-muted-foreground ml-2">
+                      Add-on total: EUR {mailboxAddonTotal}/mo
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border/40 bg-muted/10 p-4">
+                  <p className="text-xs text-muted-foreground">Estimated monthly total</p>
+                  <p className="text-xl font-bold mt-1">EUR {estimatedMonthlyTotal}/mo</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Plan: {selectedPlan.name} (EUR {selectedPlan.priceEur}/mo) + {additionalMailboxes} mailbox add-on(s).
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => toast.info("Stripe integration will be connected in this flow next.")}>
+                      Connect Stripe
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => toast.success("Selection saved locally for this session.")}>
+                      Save Selection
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="platform" className="mt-4">

@@ -346,6 +346,9 @@ export async function getContacts(opts: {
   search?: string;
   stage?: string;
   emailStatus?: string;
+  country?: string;
+  industry?: string;
+  keywords?: string;
   limit?: number;
   offset?: number;
   /** When set, only rows for this organization (tenant scope). */
@@ -365,6 +368,25 @@ export async function getContacts(opts: {
   }
   if (opts.stage) conditions.push(eq(contacts.stage, opts.stage as any));
   if (opts.emailStatus) conditions.push(eq(contacts.emailStatus, opts.emailStatus as any));
+  if (opts.country) {
+    conditions.push(like(contacts.location, `%${opts.country}%`));
+  }
+  if (opts.industry) {
+    conditions.push(eq(contacts.industry, opts.industry));
+  }
+  if (opts.keywords) {
+    const keywords = opts.keywords
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (keywords.length > 0) {
+      const keywordConditions = keywords.map(
+        (keyword) =>
+          sql`(${contacts.fullName} LIKE ${`%${keyword}%`} OR ${contacts.email} LIKE ${`%${keyword}%`} OR ${contacts.company} LIKE ${`%${keyword}%`} OR ${contacts.title} LIKE ${`%${keyword}%`} OR ${contacts.industry} LIKE ${`%${keyword}%`} OR ${contacts.location} LIKE ${`%${keyword}%`} OR ${contacts.notes} LIKE ${`%${keyword}%`} OR CAST(${contacts.tags} AS CHAR) LIKE ${`%${keyword}%`})`,
+      );
+      conditions.push(sql`(${sql.join(keywordConditions, sql` OR `)})`);
+    }
+  }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const limit = opts.limit ?? 50;
@@ -376,6 +398,49 @@ export async function getContacts(opts: {
   ]);
 
   return { contacts: rows, total: countResult[0]?.count ?? 0 };
+}
+
+export async function getContactFilterOptions(scopeOrganizationId?: number | null) {
+  const db = await getDb();
+  if (!db) return { industries: [], countries: [] };
+
+  const conditions = [];
+  if (scopeOrganizationId != null) {
+    conditions.push(eq(contacts.organizationId, scopeOrganizationId));
+  }
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [industryRows, locationRows] = await Promise.all([
+    db
+      .select({ industry: contacts.industry })
+      .from(contacts)
+      .where(where)
+      .orderBy(asc(contacts.industry)),
+    db
+      .select({ location: contacts.location })
+      .from(contacts)
+      .where(where)
+      .orderBy(asc(contacts.location)),
+  ]);
+
+  const industries = Array.from(
+    new Set(industryRows.map((row) => row.industry?.trim()).filter(Boolean) as string[]),
+  );
+
+  const countries = Array.from(
+    new Set(
+      locationRows
+        .map((row) => row.location?.trim())
+        .filter(Boolean)
+        .map((location) => {
+          const parts = location.split(",").map((part) => part.trim()).filter(Boolean);
+          return parts[parts.length - 1] ?? location;
+        })
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
+
+  return { industries, countries };
 }
 
 export async function getContactById(id: number, scopeOrganizationId?: number | null) {

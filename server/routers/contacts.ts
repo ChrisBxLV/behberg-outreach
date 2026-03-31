@@ -11,6 +11,7 @@ import {
   bulkUpdateContactStage,
   getImportBatches,
   getEmailLogsByContact,
+  getContactFilterOptions,
 } from "../db";
 
 export const contactsRouter = router({
@@ -20,6 +21,9 @@ export const contactsRouter = router({
         search: z.string().optional(),
         stage: z.string().optional(),
         emailStatus: z.string().optional(),
+        country: z.string().optional(),
+        industry: z.string().optional(),
+        keywords: z.string().optional(),
         limit: z.number().min(1).max(200).default(50),
         offset: z.number().min(0).default(0),
       }),
@@ -28,6 +32,11 @@ export const contactsRouter = router({
       const scope = dataScopeOrganizationId(ctx.user);
       return getContacts({ ...input, scopeOrganizationId: scope });
     }),
+
+  filterOptions: protectedProcedure.query(async ({ ctx }) => {
+    const scope = dataScopeOrganizationId(ctx.user);
+    return getContactFilterOptions(scope);
+  }),
 
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
@@ -53,6 +62,7 @@ export const contactsRouter = router({
         linkedinUrl: z.string().optional(),
         location: z.string().optional(),
         notes: z.string().optional(),
+        tags: z.array(z.string()).optional(),
         stage: z
           .enum(["new", "enriched", "in_sequence", "replied", "closed", "unsubscribed"])
           .default("new"),
@@ -87,6 +97,7 @@ export const contactsRouter = router({
         linkedinUrl: z.string().optional(),
         location: z.string().optional(),
         notes: z.string().optional(),
+        tags: z.array(z.string()).optional(),
         stage: z
           .enum(["new", "enriched", "in_sequence", "replied", "closed", "unsubscribed"])
           .optional(),

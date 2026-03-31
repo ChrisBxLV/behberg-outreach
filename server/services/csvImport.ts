@@ -3,8 +3,10 @@ import { v4 as uuidv4 } from "uuid";
 import { createContact, createImportBatch, updateImportBatch } from "../db";
 import type { InsertContact } from "../../drizzle/schema";
 
+type CsvMappedField = keyof InsertContact | "__country" | "__keywords";
+
 // Apollo CSV column name mappings (handles various export formats)
-const FIELD_MAP: Record<string, keyof InsertContact> = {
+const FIELD_MAP: Record<string, CsvMappedField> = {
   // Name variants
   "first name": "firstName",
   "firstname": "firstName",
@@ -40,7 +42,13 @@ const FIELD_MAP: Record<string, keyof InsertContact> = {
   // Location
   "location": "location",
   "city": "location",
-  "country": "location",
+  "country": "__country",
+  // Keywords / tags
+  "keyword": "__keywords",
+  "keywords": "__keywords",
+  "custom keyword": "__keywords",
+  "custom keywords": "__keywords",
+  "tags": "__keywords",
   // Apollo specific
   "email confidence": "emailConfidence",
   "email status": "emailStatus",
@@ -57,6 +65,13 @@ function mapEmailStatus(raw: string): InsertContact["emailStatus"] {
   if (v === "catch_all" || v === "catch all") return "catch_all";
   if (v === "risky" || v === "accept all") return "risky";
   return "unknown";
+}
+
+function splitKeywords(raw: string): string[] {
+  return raw
+    .split(/[;,|]/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 export interface ImportResult {
@@ -101,6 +116,7 @@ export async function importCsvContacts(
         emailStatus: "unknown",
         tags: [],
       };
+      let csvCountry = "";
 
       // Map columns
       for (const [rawKey, value] of Object.entries(row)) {
@@ -113,8 +129,23 @@ export async function importCsvContacts(
           if (!isNaN(num)) contact.emailConfidence = num > 1 ? num / 100 : num;
         } else if (field === "emailStatus") {
           contact.emailStatus = mapEmailStatus(value);
+        } else if (field === "__country") {
+          csvCountry = value.trim();
+        } else if (field === "__keywords") {
+          const parsed = splitKeywords(value);
+          const existing = contact.tags ?? [];
+          contact.tags = Array.from(new Set([...existing, ...parsed]));
         } else {
           (contact as any)[field] = value.trim();
+        }
+      }
+
+      if (csvCountry) {
+        const currentLocation = contact.location?.trim();
+        if (!currentLocation) {
+          contact.location = csvCountry;
+        } else if (!currentLocation.toLowerCase().includes(csvCountry.toLowerCase())) {
+          contact.location = `${currentLocation}, ${csvCountry}`;
         }
       }
 
