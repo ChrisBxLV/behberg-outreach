@@ -24,6 +24,7 @@ import { emailRouter } from "./routers/email";
 import { organizationRouter } from "./routers/organization";
 import { settingsRouter } from "./routers/settings";
 import { signalsRouter } from "./routers/signals";
+import { prospectingRouter } from "./routers/prospecting";
 
 export const appRouter = router({
   system: systemRouter,
@@ -502,6 +503,7 @@ export const appRouter = router({
   organization: organizationRouter,
   settings: settingsRouter,
   signals: signalsRouter,
+  prospecting: prospectingRouter,
 });
 
 export type AppRouter = typeof appRouter;

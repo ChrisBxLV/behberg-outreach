@@ -29,6 +29,7 @@ import {
   Mail,
   Settings,
   Radar,
+  Target,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -40,6 +41,7 @@ const menuItems = [
   { icon: Users, label: "Contacts", path: "/app/contacts" },
   { icon: Mail, label: "Campaigns", path: "/app/campaigns" },
   { icon: Radar, label: "Signals", path: "/app/signals" },
+  { icon: Target, label: "Prospecting", path: "/app/prospecting" },
   { icon: Settings, label: "Settings", path: "/app/settings" },
 ];
 

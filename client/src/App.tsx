@@ -15,6 +15,7 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import LoginVerify from "./pages/LoginVerify";
 import SignUp from "./pages/SignUp";
+import Prospecting from "./pages/Prospecting";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/app/contacts" component={Contacts} />
       <Route path="/app/campaigns" component={Campaigns} />
       <Route path="/app/signals" component={Signals} />
+      <Route path="/app/prospecting" component={Prospecting} />
       <Route path="/app/campaigns/:id" component={CampaignDetail} />
       <Route path="/app/settings" component={Settings} />
       <Route path="/404" component={NotFound} />
