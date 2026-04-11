@@ -1,3 +1,5 @@
+import { rootDomainOnly } from "./prospectingV1Utils";
+
 type ResolveInput = {
   company: string;
   article_html: string;
@@ -28,20 +30,6 @@ function normalizeHrefDomain(raw: string): string | null {
     // Ignore invalid URLs.
     return null;
   }
-}
-
-function rootDomainOnly(domain: string): string {
-  const d = domain.toLowerCase().replace(/^www\./i, "");
-  const labels = d.split(".").filter(Boolean);
-  if (labels.length <= 2) return d;
-
-  const publicSuffix3Labels = ["co.uk", "org.uk", "gov.uk", "ac.uk", "com.au", "org.au", "net.au", "co.jp"];
-  const last3 = labels.slice(-3).join(".");
-  if (publicSuffix3Labels.includes(last3)) {
-    return labels.slice(-3).join(".");
-  }
-
-  return labels.slice(-2).join(".");
 }
 
 function extractHrefDomainsFromArticleHtml(article_html: string): string[] {

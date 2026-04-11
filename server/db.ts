@@ -431,7 +431,7 @@ export async function getContactFilterOptions(scopeOrganizationId?: number | nul
     new Set(
       locationRows
         .map((row) => row.location?.trim())
-        .filter(Boolean)
+        .filter((location): location is string => Boolean(location))
         .map((location) => {
           const parts = location.split(",").map((part) => part.trim()).filter(Boolean);
           return parts[parts.length - 1] ?? location;

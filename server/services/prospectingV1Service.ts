@@ -79,13 +79,13 @@ const MAX_ACTIVE_RUNS_PER_ORG = Math.max(
 const runs = new Map<string, ProspectingV1Status>();
 
 function cleanupRuns(now = Date.now()) {
-  for (const [id, s] of runs.entries()) {
+  runs.forEach((s, id) => {
     if (s.state === "running") {
       if (now - s.startedAt > RUN_HARD_TIMEOUT_MS) runs.delete(id);
-      continue;
+      return;
     }
     if (now - s.finishedAt > RUN_TTL_MS) runs.delete(id);
-  }
+  });
 }
 
 function setRun(runId: string, status: ProspectingV1Status) {

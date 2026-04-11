@@ -2,9 +2,9 @@ export function rootDomainOnly(domain: string): string {
   const d = domain.toLowerCase().replace(/^www\./i, "");
   const labels = d.split(".").filter(Boolean);
   if (labels.length <= 2) return d;
-  const publicSuffix3Labels = ["co.uk", "org.uk", "gov.uk", "ac.uk", "com.au", "org.au", "net.au", "co.jp"];
-  const last3 = labels.slice(-3).join(".");
-  if (publicSuffix3Labels.includes(last3)) return labels.slice(-3).join(".");
+  const publicSuffix2Labels = ["co.uk", "org.uk", "gov.uk", "ac.uk", "com.au", "org.au", "net.au", "co.jp"];
+  const last2 = labels.slice(-2).join(".");
+  if (publicSuffix2Labels.includes(last2)) return labels.slice(-3).join(".");
   return labels.slice(-2).join(".");
 }
 
