@@ -53,7 +53,11 @@ export default function Prospecting() {
 
   const statusQuery = trpc.prospecting.statusV1.useQuery(
     { runId: runId ?? "00000000-0000-0000-0000-000000000000" },
-    { enabled: Boolean(runId), refetchInterval: runId ? 1500 : false },
+    {
+      enabled: Boolean(runId),
+      refetchInterval: query =>
+        query.state.data?.state === "running" ? 1500 : false,
+    },
   );
 
   const importMutation = trpc.prospecting.importSelectedV1.useMutation({

@@ -4,6 +4,13 @@ import { desc, eq } from "drizzle-orm";
 import { getDb, createContact } from "../db";
 import { signals } from "../../drizzle/schema";
 import { resolveCompanyDomainDeterministic } from "./companyDomainResolver";
+import {
+  guessEmailsFromName,
+  inferPatternFromPublicEmails,
+  matchesSignalNeedles,
+  rootDomainOnly,
+  splitName,
+} from "./prospectingV1Utils";
 
 type RunInput = {
   organizationId: number;
@@ -63,36 +70,36 @@ export type ProspectingV1Status =
     };
 
 const RUN_TTL_MS = 1000 * 60 * Math.max(5, Number(process.env.PROSPECTING_V1_RUN_TTL_MINUTES ?? "20") || 20);
+const RUN_HARD_TIMEOUT_MS =
+  1000 * 60 * Math.max(15, Number(process.env.PROSPECTING_V1_HARD_TIMEOUT_MINUTES ?? "60") || 60);
 const MAX_ACTIVE_RUNS_PER_ORG = Math.max(
   1,
   Math.min(5, Number(process.env.PROSPECTING_V1_MAX_ACTIVE_RUNS_PER_ORG ?? "2") || 2),
 );
 const runs = new Map<string, ProspectingV1Status>();
 
-function setRun(runId: string, status: ProspectingV1Status) {
-  runs.set(runId, status);
-  const now = Date.now();
+function cleanupRuns(now = Date.now()) {
   for (const [id, s] of runs.entries()) {
-    if (now - s.startedAt > RUN_TTL_MS) runs.delete(id);
+    if (s.state === "running") {
+      if (now - s.startedAt > RUN_HARD_TIMEOUT_MS) runs.delete(id);
+      continue;
+    }
+    if (now - s.finishedAt > RUN_TTL_MS) runs.delete(id);
   }
 }
 
+function setRun(runId: string, status: ProspectingV1Status) {
+  runs.set(runId, status);
+  cleanupRuns();
+}
+
 export function getProspectingV1Status(runId: string) {
+  cleanupRuns();
   return runs.get(runId);
 }
 
 function normalizeCompanyName(value: string) {
   return value.trim().replace(/\s+/g, " ");
-}
-
-function rootDomainOnly(domain: string): string {
-  const d = domain.toLowerCase().replace(/^www\./i, "");
-  const labels = d.split(".").filter(Boolean);
-  if (labels.length <= 2) return d;
-  const publicSuffix3Labels = ["co.uk", "org.uk", "gov.uk", "ac.uk", "com.au", "org.au", "net.au", "co.jp"];
-  const last3 = labels.slice(-3).join(".");
-  if (publicSuffix3Labels.includes(last3)) return labels.slice(-3).join(".");
-  return labels.slice(-2).join(".");
 }
 
 async function fetchText(url: string, timeoutMs: number): Promise<string | null> {
@@ -141,63 +148,6 @@ function extractEmailsFromText(text: string, domain: string): string[] {
   return Array.from(new Set(filtered));
 }
 
-function inferPatternFromPublicEmails(emails: string[], domain: string): "first.last" | "flast" | null {
-  const root = rootDomainOnly(domain);
-  const locals = emails
-    .map(e => e.toLowerCase())
-    .filter(e => e.endsWith(`@${root}`))
-    .map(e => e.split("@")[0] ?? "")
-    .filter(Boolean);
-  if (locals.length === 0) return null;
-  const dotCount = locals.filter(l => l.includes(".")).length;
-  if (dotCount / locals.length >= 0.6) return "first.last";
-  const shortCount = locals.filter(l => l.length <= 8).length;
-  if (shortCount / locals.length >= 0.6) return "flast";
-  return null;
-}
-
-function splitName(fullName: string | null): { first: string | null; last: string | null } {
-  const s = (fullName ?? "").trim();
-  if (!s) return { first: null, last: null };
-  const parts = s.split(/\s+/g).filter(Boolean);
-  if (parts.length === 1) return { first: parts[0] ?? null, last: null };
-  return { first: parts[0] ?? null, last: parts[parts.length - 1] ?? null };
-}
-
-function guessEmailsFromName(input: {
-  first: string | null;
-  last: string | null;
-  domain: string;
-  patternHint: "first.last" | "flast" | null;
-}): Array<{ email: string; confidence: number; reason: string }> {
-  const root = rootDomainOnly(input.domain);
-  const f = (input.first ?? "").toLowerCase().replace(/[^a-z]/g, "");
-  const l = (input.last ?? "").toLowerCase().replace(/[^a-z]/g, "");
-  if (!f && !l) return [];
-
-  const out: Array<{ email: string; confidence: number; reason: string }> = [];
-  const push = (local: string, confidence: number, reason: string) => {
-    if (!local) return;
-    out.push({ email: `${local}@${root}`, confidence, reason });
-  };
-
-  if (input.patternHint === "first.last") push(`${f}.${l}`, 0.74, "pattern_inferred:first.last");
-  if (input.patternHint === "flast") push(`${f.slice(0, 1)}${l}`, 0.72, "pattern_inferred:flast");
-
-  push(`${f}.${l}`, 0.60, "common:first.last");
-  push(`${f}${l}`, 0.56, "common:firstlast");
-  push(`${f.slice(0, 1)}${l}`, 0.54, "common:flast");
-  push(`${f}${l.slice(0, 1)}`, 0.52, "common:firstl");
-  push(`${f}`, 0.45, "common:first");
-
-  const dedup = new Map<string, { email: string; confidence: number; reason: string }>();
-  for (const e of out) {
-    const prev = dedup.get(e.email);
-    if (!prev || e.confidence > prev.confidence) dedup.set(e.email, e);
-  }
-  return Array.from(dedup.values()).sort((a, b) => b.confidence - a.confidence).slice(0, 4);
-}
-
 function extractDecisionMakersFromText(input: {
   text: string;
   titleNeedle: string;
@@ -224,11 +174,8 @@ function extractDecisionMakersFromText(input: {
   for (let i = 0; i < rawLines.length; i++) {
     const line = rawLines[i] ?? "";
     if (!titleRe.test(line)) continue;
-    if (countryRe && !countryRe.test(line)) {
-      // allow if country isn't in the same line; we’ll keep it simple and not enforce.
-    }
-
     const window = [rawLines[i - 1], rawLines[i], rawLines[i + 1]].filter(Boolean).join(" ");
+    if (countryRe && !countryRe.test(window)) continue;
     const name = guessNameFromSnippet(window);
     if (!name) continue;
     const key = name.toLowerCase();
@@ -283,9 +230,7 @@ async function seedCompaniesFromSignals(input: RunInput): Promise<string[]> {
     if (seen.has(key)) continue;
 
     const hay = `${r.headline ?? ""} ${(r.tags ?? []).join(" ")}`.toLowerCase();
-    const industryOk = !industryNeedle || hay.includes(industryNeedle);
-    const countryOk = !countryNeedle || hay.includes(countryNeedle);
-    if (!industryOk && !countryOk) continue;
+    if (!matchesSignalNeedles({ haystack: hay, industryNeedle, countryNeedle })) continue;
 
     seen.add(key);
     out.push(company);
@@ -320,15 +265,21 @@ async function runV1(input: RunInput, runId: string) {
   });
 
   const items: ProspectingV1Candidate[] = [];
+  const seenCandidates = new Set<string>();
   let companiesDone = 0;
 
   for (const company of companies) {
-    const resolved = await resolveCompanyDomainDeterministic({
+    const domainPromise = resolveCompanyDomainDeterministic({
       company,
       article_html: "",
       article_text: "",
-    });
-    const domain = resolved.domain;
+    })
+      .then(result => result.domain)
+      .catch(() => null);
+    const domain = await Promise.race([
+      domainPromise,
+      new Promise<null>(resolve => setTimeout(() => resolve(null), 10_000)),
+    ]);
     const root = domain ? rootDomainOnly(domain) : null;
 
     setRun(runId, {
@@ -382,6 +333,9 @@ async function runV1(input: RunInput, runId: string) {
         const guessed = root
           ? guessEmailsFromName({ first, last, domain: root, patternHint })
           : [];
+        const candidateKey = `${company.toLowerCase()}::${(dm.fullName ?? "").toLowerCase()}::${dm.matchedTitle.toLowerCase()}`;
+        if (seenCandidates.has(candidateKey)) continue;
+        seenCandidates.add(candidateKey);
         items.push({
           id,
           company,
@@ -417,6 +371,7 @@ async function runV1(input: RunInput, runId: string) {
 }
 
 export async function startProspectingV1Run(input: RunInput): Promise<string> {
+  cleanupRuns();
   const active = Array.from(runs.values()).filter(
     r => r.organizationId === input.organizationId && r.state === "running",
   );
@@ -468,7 +423,8 @@ export async function importProspectingV1Selected(input: {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Run not completed yet." });
   }
 
-  const selected = status.result.items.filter(i => input.candidateIds.includes(i.id));
+  const candidateIdSet = new Set(input.candidateIds);
+  const selected = status.result.items.filter(i => candidateIdSet.has(i.id));
   let imported = 0;
   for (const item of selected) {
     const best = item.guessedEmails[0];
