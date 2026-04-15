@@ -1,0 +1,23 @@
+[Unit]
+Description=Behberg Outreach server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/behberg-outreach
+Environment=NODE_ENV=production
+# Optional: load secrets/environment from a file on the server
+# EnvironmentFile=/var/www/behberg-outreach/.env
+ExecStart=/usr/bin/env pnpm run start
+Restart=always
+RestartSec=3
+KillSignal=SIGINT
+
+# Hardening (safe defaults; adjust if you need filesystem writes)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
