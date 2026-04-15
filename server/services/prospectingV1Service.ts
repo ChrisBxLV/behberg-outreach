@@ -72,7 +72,7 @@ const runs = new Map<string, ProspectingV1Status>();
 function setRun(runId: string, status: ProspectingV1Status) {
   runs.set(runId, status);
   const now = Date.now();
-  for (const [id, s] of runs.entries()) {
+  for (const [id, s] of Array.from(runs.entries())) {
     if (now - s.startedAt > RUN_TTL_MS) runs.delete(id);
   }
 }

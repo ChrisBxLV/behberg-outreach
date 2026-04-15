@@ -1,4 +1,4 @@
-import { eq, and, desc, asc, like, inArray, sql, isNull, isNotNull, gt } from "drizzle-orm";
+import { eq, and, desc, asc, like, inArray, sql, isNull, isNotNull, gt, count, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
 import {
@@ -10,6 +10,7 @@ import {
   type InsertSignalProfile, type InsertSignal, type InsertSignalInsight,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { matchesConfiguredDefaultOperatorLogin } from "./_core/orgScope";
 import { agentDebugLog } from "./_core/agentDebugLog";
 import {
   devAbandonLatestUnusedChallenge,
@@ -93,6 +94,10 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     values.orgMemberRole = user.orgMemberRole;
     updateSet.orgMemberRole = user.orgMemberRole;
   }
+  if (user.accountDisabled !== undefined) {
+    values.accountDisabled = user.accountDisabled;
+    updateSet.accountDisabled = user.accountDisabled;
+  }
 
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
@@ -144,6 +149,119 @@ export async function getUserByEmail(email: string) {
   }
 }
 
+export async function getUserById(id: number) {
+  if (ENV.useDevFileAuth) {
+    const { devGetUserById } = await import("./devLocalAuthStore");
+    return devGetUserById(id);
+  }
+  const db = await getDb();
+  if (!db) return undefined;
+  try {
+    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
+  } catch (err: any) {
+    if (ENV.isProduction) throw err;
+    const { devGetUserById } = await import("./devLocalAuthStore");
+    return devGetUserById(id);
+  }
+}
+
+export type PlatformUserRow = {
+  id: number;
+  openId: string;
+  email: string | null;
+  name: string | null;
+  role: (typeof users.$inferSelect)["role"];
+  organizationId: number | null;
+  organizationName: string | null;
+  accountDisabled: boolean;
+  isDefaultEnvOperator: boolean;
+};
+
+export async function listUsersForPlatform(): Promise<PlatformUserRow[]> {
+  if (ENV.useDevFileAuth) {
+    const { devListUsersForPlatform } = await import("./devLocalAuthStore");
+    return devListUsersForPlatform();
+  }
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const rows = await db
+      .select({
+        id: users.id,
+        openId: users.openId,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        organizationId: users.organizationId,
+        organizationName: organizations.name,
+        accountDisabled: users.accountDisabled,
+      })
+      .from(users)
+      .leftJoin(organizations, eq(users.organizationId, organizations.id))
+      .orderBy(desc(users.id));
+    return rows.map(r => ({
+      ...r,
+      organizationName: r.organizationName ?? null,
+      isDefaultEnvOperator: matchesConfiguredDefaultOperatorLogin(r.openId, r.email, r.name),
+    }));
+  } catch (err: any) {
+    if (ENV.isProduction) throw err;
+    const { devListUsersForPlatform } = await import("./devLocalAuthStore");
+    return devListUsersForPlatform();
+  }
+}
+
+/** Active platform superadmins: `role = superadmin`, not disabled, optionally excluding one user id. */
+export async function countActiveSuperadminUsersExcluding(excludeUserId: number): Promise<number> {
+  if (ENV.useDevFileAuth) {
+    const { devCountActiveSuperadminUsersExcluding } = await import("./devLocalAuthStore");
+    return devCountActiveSuperadminUsersExcluding(excludeUserId);
+  }
+  const db = await getDb();
+  if (!db) return 0;
+  try {
+    const [row] = await db
+      .select({ n: count() })
+      .from(users)
+      .where(
+        and(
+          eq(users.role, "superadmin"),
+          eq(users.accountDisabled, false),
+          ne(users.id, excludeUserId),
+        ),
+      );
+    return Number(row?.n ?? 0);
+  } catch (err: any) {
+    if (ENV.isProduction) throw err;
+    const { devCountActiveSuperadminUsersExcluding } = await import("./devLocalAuthStore");
+    return devCountActiveSuperadminUsersExcluding(excludeUserId);
+  }
+}
+
+export async function setOrganizationSubscriptionPlanId(
+  organizationId: number,
+  planId: string,
+): Promise<void> {
+  if (ENV.useDevFileAuth) {
+    const { devSetOrganizationSubscriptionPlanId } = await import("./devLocalAuthStore");
+    await devSetOrganizationSubscriptionPlanId(organizationId, planId);
+    return;
+  }
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    await db
+      .update(organizations)
+      .set({ subscriptionPlanId: planId })
+      .where(eq(organizations.id, organizationId));
+  } catch (err: any) {
+    if (ENV.isProduction) throw err;
+    const { devSetOrganizationSubscriptionPlanId } = await import("./devLocalAuthStore");
+    await devSetOrganizationSubscriptionPlanId(organizationId, planId);
+  }
+}
+
 export async function createOrganizationRecord(name: string): Promise<number> {
   if (ENV.useDevFileAuth) {
     return devCreateOrganization(name);
@@ -164,6 +282,83 @@ export async function createOrganizationRecord(name: string): Promise<number> {
     // SECURITY: Only allow dev-file fallback outside of production.
     if (ENV.isProduction) throw err;
     return devCreateOrganization(name);
+  }
+}
+
+export type PlatformOverviewOrg = {
+  id: number;
+  name: string;
+  subscriptionPlanId: string;
+  createdAt: Date;
+  memberCount: number;
+  contactCount: number;
+};
+
+export type PlatformOverview = {
+  organizations: PlatformOverviewOrg[];
+  totals: {
+    organizations: number;
+    users: number;
+    contacts: number;
+    campaigns: number;
+  };
+};
+
+function emptyPlatformOverview(): PlatformOverview {
+  return {
+    organizations: [],
+    totals: { organizations: 0, users: 0, contacts: 0, campaigns: 0 },
+  };
+}
+
+/** Cross-tenant summary for platform superadmin (requires MySQL or dev file store). */
+export async function getPlatformOverview(): Promise<PlatformOverview> {
+  if (ENV.useDevFileAuth) {
+    const { devGetPlatformOverview } = await import("./devLocalAuthStore");
+    return devGetPlatformOverview();
+  }
+  const db = await getDb();
+  if (!db) return emptyPlatformOverview();
+
+  try {
+    const orgList = await db.select().from(organizations).orderBy(desc(organizations.id));
+
+    const [[userTotal], [contactTotal], [campaignTotal]] = await Promise.all([
+      db.select({ n: count() }).from(users),
+      db.select({ n: count() }).from(contacts),
+      db.select({ n: count() }).from(campaigns),
+    ]);
+
+    const orgRows: PlatformOverviewOrg[] = await Promise.all(
+      orgList.map(async o => {
+        const [[mc], [cc]] = await Promise.all([
+          db.select({ n: count() }).from(users).where(eq(users.organizationId, o.id)),
+          db.select({ n: count() }).from(contacts).where(eq(contacts.organizationId, o.id)),
+        ]);
+        return {
+          id: o.id,
+          name: o.name,
+          subscriptionPlanId: o.subscriptionPlanId,
+          createdAt: o.createdAt,
+          memberCount: Number(mc?.n ?? 0),
+          contactCount: Number(cc?.n ?? 0),
+        };
+      }),
+    );
+
+    return {
+      organizations: orgRows,
+      totals: {
+        organizations: orgList.length,
+        users: Number(userTotal?.n ?? 0),
+        contacts: Number(contactTotal?.n ?? 0),
+        campaigns: Number(campaignTotal?.n ?? 0),
+      },
+    };
+  } catch (err: any) {
+    if (ENV.isProduction) throw err;
+    const { devGetPlatformOverview } = await import("./devLocalAuthStore");
+    return devGetPlatformOverview();
   }
 }
 
@@ -431,7 +626,7 @@ export async function getContactFilterOptions(scopeOrganizationId?: number | nul
     new Set(
       locationRows
         .map((row) => row.location?.trim())
-        .filter(Boolean)
+        .filter((loc): loc is string => Boolean(loc))
         .map((location) => {
           const parts = location.split(",").map((part) => part.trim()).filter(Boolean);
           return parts[parts.length - 1] ?? location;

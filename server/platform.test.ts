@@ -1,4 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import type { User } from "../drizzle/schema";
+import { getUserById, listUsersForPlatform, upsertUser } from "./db";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
@@ -38,6 +40,13 @@ vi.mock("./db", () => ({
   getCampaignStats: vi.fn().mockResolvedValue({ sentCount: 0, openCount: 0, replyCount: 0, bounceCount: 0 }),
   upsertUser: vi.fn().mockResolvedValue(undefined),
   getUserByOpenId: vi.fn().mockResolvedValue(undefined),
+  getUserById: vi.fn().mockResolvedValue(undefined),
+  listUsersForPlatform: vi.fn().mockResolvedValue([]),
+  countActiveSuperadminUsersExcluding: vi.fn().mockResolvedValue(0),
+  getPlatformOverview: vi.fn().mockResolvedValue({
+    organizations: [],
+    totals: { organizations: 0, users: 0, contacts: 0, campaigns: 0 },
+  }),
   createImportBatch: vi.fn().mockResolvedValue(undefined),
   updateImportBatch: vi.fn().mockResolvedValue(undefined),
   upsertContact: vi.fn().mockResolvedValue(undefined),
@@ -83,6 +92,7 @@ function makeCtx(): TrpcContext {
       role: "admin",
       organizationId: null,
       orgMemberRole: null,
+      accountDisabled: false,
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
@@ -98,6 +108,24 @@ describe("auth", () => {
     const caller = appRouter.createCaller(makeCtx());
     const user = await caller.auth.me();
     expect(user?.email).toBe("admin@behberg.com");
+    expect(user?.isPlatformOperator).toBe(false);
+    expect(user?.defaultOperatorLogin).toBe("behberg");
+  });
+
+  it("marks default Behberg operator on me", async () => {
+    const base = makeCtx();
+    const caller = appRouter.createCaller({
+      ...base,
+      user: {
+        ...base.user!,
+        role: "admin",
+        openId: "login:behberg",
+        email: "behberg",
+      },
+    });
+    const user = await caller.auth.me();
+    expect(user?.isPlatformOperator).toBe(true);
+    expect(user?.defaultOperatorLogin).toBe("behberg");
   });
 
   it("clears session cookie on logout", async () => {
@@ -105,6 +133,144 @@ describe("auth", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.auth.logout();
     expect(result.success).toBe(true);
+  });
+});
+
+describe("platform superadmin", () => {
+  it("overview rejects non-superadmin", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(caller.platform.overview()).rejects.toThrow(/Platform superadmin|FORBIDDEN/);
+  });
+
+  it("overview returns totals for superadmin", async () => {
+    const base = makeCtx();
+    const caller = appRouter.createCaller({
+      ...base,
+      user: { ...base.user!, role: "superadmin" },
+    });
+    const r = await caller.platform.overview();
+    expect(r.totals.organizations).toBeGreaterThanOrEqual(0);
+    expect(r.totals.users).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(r.organizations)).toBe(true);
+  });
+
+  it("overview allows default operator login even when DB role is still admin", async () => {
+    const base = makeCtx();
+    const caller = appRouter.createCaller({
+      ...base,
+      user: {
+        ...base.user!,
+        role: "admin",
+        openId: "login:behberg",
+        email: "behberg",
+      },
+    });
+    const r = await caller.platform.overview();
+    expect(r.totals.organizations).toBeGreaterThanOrEqual(0);
+  });
+
+  it("lists platform users for superadmin", async () => {
+    vi.mocked(listUsersForPlatform).mockResolvedValueOnce([
+      {
+        id: 2,
+        openId: "login:owner@x.com",
+        email: "owner@x.com",
+        name: "Owner",
+        role: "admin",
+        organizationId: 1,
+        organizationName: "Acme",
+        accountDisabled: false,
+        isDefaultEnvOperator: false,
+      },
+    ]);
+    const base = makeCtx();
+    const caller = appRouter.createCaller({
+      ...base,
+      user: { ...base.user!, role: "superadmin" },
+    });
+    const rows = await caller.platform.users();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.email).toBe("owner@x.com");
+  });
+
+  it("grantSuperadmin updates role", async () => {
+    vi.mocked(getUserById).mockResolvedValueOnce({
+      id: 2,
+      openId: "login:owner@x.com",
+      email: "owner@x.com",
+      name: "Owner",
+      loginMethod: "password",
+      passwordSalt: "s",
+      passwordHash: "h",
+      role: "admin",
+      organizationId: 1,
+      orgMemberRole: "owner",
+      accountDisabled: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    } as User);
+    const base = makeCtx();
+    const caller = appRouter.createCaller({
+      ...base,
+      user: { ...base.user!, role: "superadmin" },
+    });
+    await caller.platform.grantSuperadmin({ userId: 2 });
+    expect(vi.mocked(upsertUser)).toHaveBeenCalledWith(
+      expect.objectContaining({ openId: "login:owner@x.com", role: "superadmin" }),
+    );
+  });
+
+  it("runtimeInfo returns snapshot for superadmin", async () => {
+    const base = makeCtx();
+    const caller = appRouter.createCaller({
+      ...base,
+      user: { ...base.user!, role: "superadmin" },
+    });
+    const r = await caller.platform.runtimeInfo();
+    expect(typeof r.nodeEnv).toBe("string");
+    expect(typeof r.databaseUrlConfigured).toBe("boolean");
+    expect(typeof r.defaultAdminLogin).toBe("string");
+  });
+
+  it("updateUser persists changes", async () => {
+    vi.mocked(getUserById).mockResolvedValueOnce({
+      id: 3,
+      openId: "login:a@b.com",
+      email: "a@b.com",
+      name: "A",
+      loginMethod: "password",
+      passwordSalt: null,
+      passwordHash: null,
+      role: "admin",
+      organizationId: 1,
+      orgMemberRole: "owner",
+      accountDisabled: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    } as User);
+    const base = makeCtx();
+    const caller = appRouter.createCaller({
+      ...base,
+      user: { ...base.user!, role: "superadmin" },
+    });
+    await caller.platform.updateUser({
+      userId: 3,
+      name: "Alice",
+      email: "alice@b.com",
+      role: "admin",
+      accountDisabled: false,
+    });
+    expect(vi.mocked(upsertUser)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        openId: "login:a@b.com",
+        name: "Alice",
+        email: "alice@b.com",
+        role: "admin",
+        accountDisabled: false,
+      }),
+    );
   });
 });
 

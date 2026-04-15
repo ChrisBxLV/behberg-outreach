@@ -16,6 +16,7 @@ import Login from "./pages/Login";
 import LoginVerify from "./pages/LoginVerify";
 import SignUp from "./pages/SignUp";
 import Prospecting from "./pages/Prospecting";
+import SuperadminDashboard from "./pages/SuperadminDashboard";
 
 function Router() {
   return (
@@ -32,6 +33,7 @@ function Router() {
       <Route path="/app/prospecting" component={Prospecting} />
       <Route path="/app/campaigns/:id" component={CampaignDetail} />
       <Route path="/app/settings" component={Settings} />
+      <Route path="/app/superadmin" component={SuperadminDashboard} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

@@ -231,3 +231,36 @@ export async function sendLoginCodeEmail(opts: {
     html,
   });
 }
+
+export async function sendPasswordResetEmail(opts: {
+  toEmail: string;
+  code: string;
+  expiresInMinutes: number;
+  accountLoginHint?: string;
+}) {
+  const transporter = getTransporter();
+  const fromEmail = process.env.SMTP_USER ?? "outreach@behberg.com";
+  const subject = "Reset your Behberg password";
+  const hintLine =
+    opts.accountLoginHint && opts.accountLoginHint.toLowerCase() !== opts.toEmail.toLowerCase()
+      ? ` This reset is for account: ${opts.accountLoginHint}.`
+      : "";
+  const text = `Use this code to set a new Behberg password: ${opts.code}. It expires in ${opts.expiresInMinutes} minutes.${hintLine} If you did not request a reset, ignore this email.`;
+  const html = `<!DOCTYPE html>
+<html>
+<body style="font-family:Segoe UI,Arial,sans-serif;color:#111;line-height:1.6;">
+  <p>Your password reset code is:</p>
+  <p style="font-size:28px;letter-spacing:6px;font-weight:700;margin:8px 0;">${opts.code}</p>
+  <p>This code expires in ${opts.expiresInMinutes} minutes.${hintLine ? `<br/><span style="font-size:13px;color:#444">${hintLine.trim()}</span>` : ""}</p>
+  <p style="font-size:13px;color:#666">If you did not request a password reset, you can ignore this message.</p>
+</body>
+</html>`;
+
+  await transporter.sendMail({
+    from: `"Behberg Admin" <${fromEmail}>`,
+    to: opts.toEmail,
+    subject,
+    text,
+    html,
+  });
+}

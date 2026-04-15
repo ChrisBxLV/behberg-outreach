@@ -314,6 +314,10 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
+    if (user.accountDisabled) {
+      throw ForbiddenError("Account is disabled.");
+    }
+
     await db.upsertUser({
       openId: user.openId,
       lastSignedIn: signedInAt,

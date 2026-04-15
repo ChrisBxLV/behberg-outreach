@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { InsertUser, User } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { matchesConfiguredDefaultOperatorLogin } from "./_core/orgScope";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DATA_DIR = join(REPO_ROOT, ".data");
@@ -27,6 +28,7 @@ type ChallengeRow = {
 type OrgRow = {
   id: number;
   name: string;
+  subscriptionPlanId?: string;
   createdAt: string;
 };
 
@@ -95,6 +97,7 @@ function normalizeUser(raw: User): User {
     ...u,
     organizationId: u.organizationId ?? null,
     orgMemberRole: u.orgMemberRole ?? null,
+    accountDisabled: Boolean((u as { accountDisabled?: boolean }).accountDisabled),
     createdAt: u.createdAt instanceof Date ? u.createdAt : new Date(String(u.createdAt)),
     updatedAt: u.updatedAt instanceof Date ? u.updatedAt : new Date(String(u.updatedAt)),
     lastSignedIn:
@@ -106,7 +109,12 @@ export async function devCreateOrganization(name: string): Promise<number> {
   return serialized(async () => {
     const store = await loadStore();
     const id = store.nextOrgId++;
-    store.organizations.push({ id, name: name.trim(), createdAt: nowIso() });
+    store.organizations.push({
+      id,
+      name: name.trim(),
+      subscriptionPlanId: "free",
+      createdAt: nowIso(),
+    });
     await saveStore(store);
     return id;
   });
@@ -116,6 +124,56 @@ export async function devGetOrganizationById(id: number) {
   return serialized(async () => {
     const store = await loadStore();
     return store.organizations.find(o => o.id === id) ?? null;
+  });
+}
+
+export async function devSetOrganizationSubscriptionPlanId(
+  organizationId: number,
+  planId: string,
+): Promise<void> {
+  return serialized(async () => {
+    const store = await loadStore();
+    const o = store.organizations.find(x => x.id === organizationId);
+    if (!o) throw new Error("Organization not found");
+    o.subscriptionPlanId = planId;
+    await saveStore(store);
+  });
+}
+
+/** Dev-file auth: org list + counts from local-auth.json only (contacts/campaigns not in file → 0). */
+export async function devGetPlatformOverview(): Promise<{
+  organizations: {
+    id: number;
+    name: string;
+    subscriptionPlanId: string;
+    createdAt: Date;
+    memberCount: number;
+    contactCount: number;
+  }[];
+  totals: { organizations: number; users: number; contacts: number; campaigns: number };
+}> {
+  return serialized(async () => {
+    const store = await loadStore();
+    const organizations = store.organizations
+      .slice()
+      .sort((a, b) => b.id - a.id)
+      .map(o => ({
+        id: o.id,
+        name: o.name,
+        subscriptionPlanId: o.subscriptionPlanId ?? "free",
+        createdAt: new Date(o.createdAt),
+        memberCount: store.users.filter(u => (u.organizationId ?? null) === o.id).length,
+        contactCount: 0,
+      }));
+    return {
+      organizations,
+      totals: {
+        organizations: store.organizations.length,
+        users: store.users.length,
+        contacts: 0,
+        campaigns: 0,
+      },
+    };
   });
 }
 
@@ -162,7 +220,7 @@ export async function devUpsertUser(user: InsertUser): Promise<void> {
     const existing = idx >= 0 ? store.users[idx] : undefined;
 
     const existingNorm = existing ? normalizeUser(existing) : undefined;
-    const resolvedRole: "user" | "admin" =
+    const resolvedRole: User["role"] =
       user.role !== undefined
         ? user.role
         : user.openId === ENV.ownerOpenId
@@ -191,6 +249,10 @@ export async function devUpsertUser(user: InsertUser): Promise<void> {
       updatedAt: new Date(),
       lastSignedIn:
         user.lastSignedIn !== undefined ? user.lastSignedIn : existingNorm?.lastSignedIn ?? new Date(),
+      accountDisabled:
+        user.accountDisabled !== undefined
+          ? user.accountDisabled
+          : (existingNorm?.accountDisabled ?? false),
     };
 
     if (idx >= 0) store.users[idx] = merged;
@@ -291,5 +353,62 @@ export async function devVerifyLoginChallenge(
     challenge.usedAt = nowIso();
     await saveStore(store);
     return { ok: true as const };
+  });
+}
+
+export async function devGetUserById(id: number): Promise<User | undefined> {
+  return serialized(async () => {
+    const store = await loadStore();
+    const u = store.users.find(x => x.id === id);
+    return u ? normalizeUser(u) : undefined;
+  });
+}
+
+export async function devListUsersForPlatform(): Promise<
+  Array<{
+    id: number;
+    openId: string;
+    email: string | null;
+    name: string | null;
+    role: User["role"];
+    organizationId: number | null;
+    organizationName: string | null;
+    accountDisabled: boolean;
+    isDefaultEnvOperator: boolean;
+  }>
+> {
+  return serialized(async () => {
+    const store = await loadStore();
+    return store.users
+      .slice()
+      .sort((a, b) => b.id - a.id)
+      .map(raw => {
+        const u = normalizeUser(raw);
+        const org =
+          u.organizationId != null
+            ? store.organizations.find(o => o.id === u.organizationId)
+            : undefined;
+        return {
+          id: u.id,
+          openId: u.openId,
+          email: u.email,
+          name: u.name,
+          role: u.role,
+          organizationId: u.organizationId ?? null,
+          organizationName: org?.name ?? null,
+          accountDisabled: u.accountDisabled,
+          isDefaultEnvOperator: matchesConfiguredDefaultOperatorLogin(u.openId, u.email, u.name),
+        };
+      });
+  });
+}
+
+export async function devCountActiveSuperadminUsersExcluding(excludeUserId: number): Promise<number> {
+  return serialized(async () => {
+    const store = await loadStore();
+    return store.users.filter(u => {
+      const n = normalizeUser(u);
+      return n.role === "superadmin" && !n.accountDisabled && n.id !== excludeUserId;
+    }).length;
   });
 }

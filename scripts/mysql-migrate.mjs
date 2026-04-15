@@ -12,7 +12,8 @@ import "dotenv/config";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import mysql from "mysql2/promise";
-import { readMigrationFiles } from "drizzle-orm/migrator.js";
+const migrator = await import("drizzle-orm/migrator");
+const readMigrationFiles = migrator.readMigrationFiles;
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const migrationsFolder = path.join(root, "drizzle");
@@ -26,7 +27,33 @@ if (!url?.trim()) {
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
 async function main() {
-  const conn = await mysql.createConnection(url);
+  if (typeof readMigrationFiles !== "function") {
+    throw new Error(
+      "[db:migrate] drizzle-orm does not export readMigrationFiles from drizzle-orm/migrator. " +
+        "Make sure you are importing from drizzle-orm/migrator (not drizzle-orm/mysql2/migrator) " +
+        "and that node_modules are up to date.",
+    );
+  }
+  let conn;
+  try {
+    conn = await mysql.createConnection(url);
+  } catch (err) {
+    let target = "(unknown)";
+    try {
+      const u = new URL(url);
+      const db = (u.pathname || "/").replace(/^\//, "") || "(none)";
+      target = `${u.hostname || "localhost"}:${u.port || "3306"}/${db}`;
+    } catch {
+      // ignore URL parsing errors
+    }
+    const e = err;
+    const code = e && typeof e === "object" && "code" in e ? e.code : undefined;
+    throw new Error(
+      `[db:migrate] Could not connect to MySQL at ${target}` +
+        (code ? ` (code=${code})` : "") +
+        `. Check that MySQL is running and that DATABASE_URL is correct.`,
+    );
+  }
   try {
     const [[dbRow]] = await conn.query("SELECT DATABASE() AS db");
     const dbName = dbRow?.db;

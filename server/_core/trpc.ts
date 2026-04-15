@@ -2,7 +2,7 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
-import { isOrganizationOwner } from "./orgScope";
+import { isOrganizationOwner, isPlatformOperatorUser } from "./orgScope";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -32,8 +32,29 @@ export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
 
-    if (!ctx.user || ctx.user.role !== 'admin') {
+    if (!ctx.user || (ctx.user.role !== "admin" && ctx.user.role !== "superadmin")) {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user,
+      },
+    });
+  }),
+);
+
+/** Behberg platform operator only (cross-tenant). */
+export const superadminProcedure = t.procedure.use(
+  t.middleware(async opts => {
+    const { ctx, next } = opts;
+
+    if (!ctx.user || !isPlatformOperatorUser(ctx.user)) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Platform superadmin access required.",
+      });
     }
 
     return next({

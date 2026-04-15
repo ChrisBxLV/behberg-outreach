@@ -15,6 +15,8 @@ import {
 export const organizations = mysqlTable("organizations", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 256 }).notNull(),
+  /** Billing / plan id (mirrors Settings subscription tab). Superadmin can change instance-wide. */
+  subscriptionPlanId: varchar("subscriptionPlanId", { length: 64 }).default("free").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -31,7 +33,10 @@ export const users = mysqlTable("users", {
   // Password login (PBKDF2 derived hash). Nullable to support existing OAuth-only users.
   passwordSalt: varchar("passwordSalt", { length: 128 }),
   passwordHash: varchar("passwordHash", { length: 128 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  /** `superadmin` = Behberg platform operator (all tenants). `admin` = workspace admin. */
+  role: mysqlEnum("role", ["user", "admin", "superadmin"]).default("user").notNull(),
+  /** When true, sign-in and platform access are denied (set from Superadmin console). */
+  accountDisabled: boolean("accountDisabled").default(false).notNull(),
   /**
    * Workspace this user belongs to (null = platform / legacy users).
    * Nullable by design; non-null values are enforced by FK `users_organization_id_fk` (migration 0006).

@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FirebaseAuthOptions } from "@/components/FirebaseAuthOptions";
 import { Input } from "@/components/ui/input";
 import { getLoginUrl, getPublicHomeUrl } from "@/const";
+import { isFirebaseClientConfigured } from "@/lib/firebase";
 import { trpc } from "@/lib/trpc";
+import { Separator } from "@/components/ui/separator";
 import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -15,6 +18,9 @@ export default function SignUp() {
   const [adminDisplayName, setAdminDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  const { data: loginOpts } = trpc.auth.loginOptions.useQuery();
+  const showFirebase = Boolean(loginOpts?.firebaseSignInEnabled) && isFirebaseClientConfigured();
 
   const register = trpc.auth.registerOrganization.useMutation({
     onSuccess: (result) => {
@@ -36,6 +42,30 @@ export default function SignUp() {
     onError: (e) => toast.error(e.message),
   });
 
+  const registerWithFirebase = trpc.auth.registerOrganizationWithFirebase.useMutation({
+    onSuccess: result => {
+      if (!result.success) {
+        if (result.reason === "email_taken") {
+          toast.error("That email is already registered. Sign in instead.");
+          return;
+        }
+        if (result.reason === "already_registered") {
+          toast.error("This account already has a user. Sign in instead.");
+          return;
+        }
+        if (result.reason === "service_unavailable") {
+          toast.error("Server is not ready for sign-up. Configure the database or use dev file auth.");
+          return;
+        }
+        toast.error("Could not create organization.");
+        return;
+      }
+      toast.success("Organization created. You are signed in.");
+      setLocation("/app");
+    },
+    onError: e => toast.error(e.message),
+  });
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
@@ -53,6 +83,8 @@ export default function SignUp() {
       password,
     });
   };
+
+  const anyPending = register.isPending || registerWithFirebase.isPending;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 gap-4">
@@ -72,11 +104,40 @@ export default function SignUp() {
         <CardHeader>
           <CardTitle>Sign up</CardTitle>
           <CardDescription>
-            Create an organization and become the workspace owner. You can add team members after you sign
-            in.
+            Create an organization and become the workspace owner. When enabled, you can sign up with Google,
+            Microsoft, GitHub, or Apple, or use a password stored by this app.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          {showFirebase ? (
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Create with a linked account</p>
+              <p className="text-xs text-muted-foreground">
+                Enter your organization name first, then choose a provider. You will be signed in after the
+                workspace is created.
+              </p>
+              <FirebaseAuthOptions
+                variant="signup"
+                organizationName={organizationName}
+                disabled={anyPending}
+                pending={registerWithFirebase.isPending}
+                onIdToken={idToken =>
+                  registerWithFirebase.mutate({
+                    idToken,
+                    organizationName: organizationName.trim(),
+                    adminDisplayName: adminDisplayName.trim() || undefined,
+                  })
+                }
+              />
+              <div className="relative py-1">
+                <Separator />
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
+                  or app-managed password
+                </span>
+              </div>
+            </div>
+          ) : null}
+
           <form className="space-y-4" onSubmit={onSubmit} autoComplete="off">
             <div className="space-y-1">
               <label className="text-sm font-medium">Organization name</label>
@@ -136,7 +197,7 @@ export default function SignUp() {
                 minLength={8}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={register.isPending}>
+            <Button type="submit" className="w-full" disabled={anyPending}>
               {register.isPending ? "Creating…" : "Create organization"}
             </Button>
             <p className="text-center text-sm text-muted-foreground">

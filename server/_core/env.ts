@@ -9,7 +9,8 @@ export const ENV = {
   ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
   /** Comma-separated allowed login ids (stored in users.email). Alias: ADMIN_ALLOWLIST_EMAILS. */
   adminAllowlist: process.env.ADMIN_ALLOWLIST ?? process.env.ADMIN_ALLOWLIST_EMAILS ?? "",
-  defaultAdminLogin: process.env.DEFAULT_ADMIN_LOGIN ?? "behberg",
+  /** Empty / whitespace falls back so `.env` cannot accidentally disable the default operator id. */
+  defaultAdminLogin: (process.env.DEFAULT_ADMIN_LOGIN ?? "behberg").trim().toLowerCase() || "behberg",
   defaultAdminPassword: process.env.DEFAULT_ADMIN_PASSWORD ?? "grebheb",
   /** When true, password sign-in sends a 6-digit email code before issuing a session. Default: off. */
   authRequireEmailOtp: process.env.AUTH_REQUIRE_EMAIL_OTP === "true",

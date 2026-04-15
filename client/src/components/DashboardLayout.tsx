@@ -5,6 +5,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
@@ -20,6 +21,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { getAppHomeUrl, getLoginUrl, getPublicHomeUrl } from "@/const";
+import { clientMatchesDefaultOperatorLogin } from "@/lib/defaultOperatorClientHint";
+import { trpc } from "@/lib/trpc";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard,
@@ -30,13 +33,14 @@ import {
   Settings,
   Radar,
   Target,
+  Shield,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
-const menuItems = [
+const baseMenuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/app" },
   { icon: Users, label: "Contacts", path: "/app/contacts" },
   { icon: Mail, label: "Campaigns", path: "/app/campaigns" },
@@ -44,6 +48,30 @@ const menuItems = [
   { icon: Target, label: "Prospecting", path: "/app/prospecting" },
   { icon: Settings, label: "Settings", path: "/app/settings" },
 ];
+
+function showSuperadminInNav(
+  user:
+    | {
+        isPlatformOperator?: boolean;
+        role?: string;
+        openId?: string | null;
+        email?: string | null;
+        name?: string | null;
+        defaultOperatorLogin?: string | null;
+        accountDisabled?: boolean;
+      }
+    | null
+    | undefined,
+  defaultLoginHint: string | null | undefined,
+) {
+  const hint = user?.defaultOperatorLogin ?? defaultLoginHint;
+  if (user?.accountDisabled) return false;
+  return Boolean(
+    user?.isPlatformOperator ||
+      user?.role === "superadmin" ||
+      clientMatchesDefaultOperatorLogin(user, hint),
+  );
+}
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
@@ -130,11 +158,16 @@ function DashboardLayoutContent({
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
+  const { data: loginOpts } = trpc.auth.loginOptions.useQuery();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const superNav = showSuperadminInNav(user, loginOpts?.defaultAdminLogin);
+  const menuItems = superNav
+    ? [...baseMenuItems, { icon: Shield, label: "Superadmin", path: "/app/superadmin" }]
+    : baseMenuItems;
   const activeMenuItem = menuItems.find(
     item =>
       item.path === location ||
@@ -253,7 +286,19 @@ function DashboardLayoutContent({
                   </div>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-56">
+                {superNav ? (
+                  <>
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onClick={() => setLocation("/app/superadmin")}
+                    >
+                      <Shield className="mr-2 h-4 w-4" />
+                      <span>Superadmin console</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
                 <DropdownMenuItem
                   onClick={() => void logout()}
                   className="cursor-pointer text-destructive focus:text-destructive"

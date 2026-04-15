@@ -1,11 +1,24 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "@shared/const";
 import { randomInt } from "node:crypto";
+import { passwordResetChallengeKey } from "./auth/passwordResetChallenge";
 import { hashOtp, hashPassword, makePasswordSalt, verifyPassword } from "./auth/password";
 import { getSessionCookieOptions } from "./_core/cookies";
+import {
+  isPlatformOperatorUser,
+  resolvedElevatedRoleAfterPasswordLogin,
+} from "./_core/orgScope";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { ENV } from "./_core/env";
+import {
+  firebaseLoginMethodFromDecoded,
+  firebaseProviderRequiresVerifiedEmail,
+  isFirebaseServerAuthConfigured,
+  isFirebaseSignInProviderAllowed,
+  verifyFirebaseIdToken,
+} from "./_core/firebaseAdmin";
 import { sdk } from "./_core/sdk";
 import {
   abandonLatestUnusedLoginChallenge,
@@ -13,10 +26,11 @@ import {
   createOrganizationRecord,
   getDb,
   getUserByEmail,
+  getUserByOpenId,
   upsertUser,
   verifyLoginChallenge,
 } from "./db";
-import { sendLoginCodeEmail } from "./services/emailService";
+import { sendLoginCodeEmail, sendPasswordResetEmail } from "./services/emailService";
 import { agentDebugLog } from "./_core/agentDebugLog";
 import { contactsRouter } from "./routers/contacts";
 import { campaignsRouter } from "./routers/campaigns";
@@ -25,13 +39,26 @@ import { organizationRouter } from "./routers/organization";
 import { settingsRouter } from "./routers/settings";
 import { signalsRouter } from "./routers/signals";
 import { prospectingRouter } from "./routers/prospecting";
+import { platformRouter } from "./routers/platform";
 
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(opts => {
+      const u = opts.ctx.user;
+      if (!u) return null;
+      return {
+        ...u,
+        isPlatformOperator: isPlatformOperatorUser(u),
+        /** Same as `DEFAULT_ADMIN_LOGIN` / `auth.loginOptions.defaultAdminLogin` — bundled so the client nav does not race a second request. */
+        defaultOperatorLogin: ENV.defaultAdminLogin,
+      };
+    }),
     loginOptions: publicProcedure.query(() => ({
       requireEmailOtp: ENV.authRequireEmailOtp,
+      firebaseSignInEnabled: isFirebaseServerAuthConfigured(),
+      /** Public hint for matching the default operator in the UI (same as `DEFAULT_ADMIN_LOGIN`). */
+      defaultAdminLogin: ENV.defaultAdminLogin,
     })),
     registerOrganization: publicProcedure
       .input(
@@ -72,6 +99,103 @@ export const appRouter = router({
           passwordHash: hash,
           lastSignedIn: new Date(),
         });
+        return { success: true as const, organizationId: orgId };
+      }),
+    registerOrganizationWithFirebase: publicProcedure
+      .input(
+        z.object({
+          idToken: z.string().min(20).max(16_384),
+          organizationName: z.string().trim().min(2).max(256),
+          adminDisplayName: z.string().trim().min(1).max(200).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (!isFirebaseServerAuthConfigured()) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Firebase sign-up is not configured on this server.",
+          });
+        }
+
+        const db = await getDb();
+        if (!db && !ENV.useDevFileAuth) {
+          return { success: false as const, reason: "service_unavailable" as const };
+        }
+
+        let decoded: Awaited<ReturnType<typeof verifyFirebaseIdToken>>;
+        try {
+          decoded = await verifyFirebaseIdToken(input.idToken);
+        } catch {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Invalid or expired Firebase sign-in. Please try again.",
+          });
+        }
+
+        const signInProvider = decoded.firebase?.sign_in_provider;
+        if (!isFirebaseSignInProviderAllowed(signInProvider)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "This sign-in method is not enabled. Use Google, Microsoft, GitHub, or Apple.",
+          });
+        }
+
+        if (
+          decoded.email &&
+          firebaseProviderRequiresVerifiedEmail(signInProvider) &&
+          decoded.email_verified !== true
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Verify your account email with the provider before continuing.",
+          });
+        }
+
+        const uid = decoded.uid;
+        const openId = `firebase:${uid}`;
+        const emailRaw = decoded.email?.trim().toLowerCase();
+        const email = emailRaw && emailRaw.length > 0 ? emailRaw : null;
+        if (!email) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Your account must include an email to create an organization.",
+          });
+        }
+
+        const existingOpenId = await getUserByOpenId(openId);
+        if (existingOpenId) {
+          return { success: false as const, reason: "already_registered" as const };
+        }
+
+        const existingEmail = await getUserByEmail(email);
+        if (existingEmail) {
+          return { success: false as const, reason: "email_taken" as const };
+        }
+
+        const nameFromToken =
+          (typeof decoded.name === "string" && decoded.name.trim()) || email;
+        const name =
+          (input.adminDisplayName && input.adminDisplayName.trim()) || nameFromToken;
+        const loginMethod = firebaseLoginMethodFromDecoded(decoded);
+        const orgId = await createOrganizationRecord(input.organizationName.trim());
+
+        await upsertUser({
+          openId,
+          email,
+          name,
+          loginMethod,
+          role: "admin",
+          organizationId: orgId,
+          orgMemberRole: "owner",
+          lastSignedIn: new Date(),
+        });
+
+        const sessionToken = await sdk.createSessionToken(openId, {
+          name,
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
+
         return { success: true as const, organizationId: orgId };
       }),
     requestLoginCode: publicProcedure
@@ -154,7 +278,7 @@ export const appRouter = router({
             email: loginId,
             name: loginId,
             loginMethod: ENV.authRequireEmailOtp ? "password_email_2fa" : "password",
-            role: "admin",
+            role: "superadmin",
             passwordSalt: salt,
             passwordHash: hash,
             lastSignedIn: new Date(),
@@ -170,6 +294,10 @@ export const appRouter = router({
             data: { seeded: Boolean(user) },
           });
           // #endregion
+        }
+
+        if (user?.accountDisabled) {
+          return { success: false as const, reason: "invalid_credentials" as const };
         }
 
         if (!user?.passwordSalt || !user?.passwordHash) {
@@ -205,7 +333,7 @@ export const appRouter = router({
             email: loginId,
             name: user.name ?? loginId,
             loginMethod: "password",
-            role: "admin",
+            role: resolvedElevatedRoleAfterPasswordLogin(user, loginId),
             // Preserve organization membership when a member signs in again.
             organizationId: user.organizationId ?? null,
             orgMemberRole: user.orgMemberRole ?? null,
@@ -395,6 +523,9 @@ export const appRouter = router({
         const allowed = parseAllowlistLogins().has(loginId);
         // Org-created credentials should be able to verify OTP even if not on the admin allowlist.
         const existingUser = await getUserByEmail(loginId);
+        if (existingUser?.accountDisabled) {
+          return { success: false as const, reason: "invalid_code" as const };
+        }
         const isOrgCredentialUser = Boolean(
           existingUser &&
             existingUser.organizationId != null &&
@@ -443,7 +574,7 @@ export const appRouter = router({
           email: loginId,
           name: existingUser?.name ?? loginId,
           loginMethod: "password_email_2fa",
-          role: "admin",
+          role: resolvedElevatedRoleAfterPasswordLogin(existingUser, loginId),
           // Preserve organization membership for email-OTP sign-ins.
           organizationId: existingUser?.organizationId ?? null,
           orgMemberRole: existingUser?.orgMemberRole ?? null,
@@ -491,6 +622,194 @@ export const appRouter = router({
 
         return { success: true } as const;
       }),
+
+    requestPasswordReset: publicProcedure
+      .input(z.object({ loginId: z.string().trim().min(1).max(320) }))
+      .mutation(async ({ ctx, input }) => {
+        const loginId = input.loginId.trim().toLowerCase();
+        const db = await getDb();
+        if (!db && !ENV.useDevFileAuth) {
+          return { success: false as const, reason: "service_unavailable" as const };
+        }
+
+        const user = await getUserByEmail(loginId);
+        const canReset = Boolean(
+          user && !user.accountDisabled && user.passwordSalt && user.passwordHash,
+        );
+        if (!canReset) {
+          return { success: true as const, emailed: false as const };
+        }
+
+        const challengeEmail = passwordResetChallengeKey(loginId);
+        const otp = randomInt(100000, 1000000).toString();
+        const otpHash = hashOtp(loginId, otp);
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+        const creation = await createLoginChallenge({
+          email: challengeEmail,
+          codeHash: otpHash,
+          expiresAt,
+          requestIp: ctx.req.ip,
+          cooldownSeconds: 60,
+          maxAttempts: 5,
+        });
+
+        if (!creation.sent) {
+          return {
+            success: false as const,
+            reason: "rate_limited" as const,
+            retryAfterSeconds: creation.retryAfterSeconds,
+          };
+        }
+
+        const otpTo =
+          loginId.includes("@") ? loginId : (ENV.otpDeliveryEmail || "").trim().toLowerCase();
+        if (!otpTo) {
+          await abandonLatestUnusedLoginChallenge(challengeEmail);
+          return { success: false as const, reason: "delivery_not_configured" as const };
+        }
+
+        try {
+          await sendPasswordResetEmail({
+            toEmail: otpTo,
+            code: otp,
+            expiresInMinutes: 15,
+            accountLoginHint: loginId,
+          });
+        } catch {
+          await abandonLatestUnusedLoginChallenge(challengeEmail);
+          return { success: false as const, reason: "mail_send_failed" as const };
+        }
+
+        return { success: true as const, emailed: true as const };
+      }),
+
+    completePasswordReset: publicProcedure
+      .input(
+        z.object({
+          loginId: z.string().trim().min(1).max(320),
+          code: z.string().regex(/^\d{6}$/),
+          newPassword: z.string().min(8).max(256),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        const loginId = input.loginId.trim().toLowerCase();
+        const db = await getDb();
+        if (!db && !ENV.useDevFileAuth) {
+          return { success: false as const, reason: "service_unavailable" as const };
+        }
+
+        const challengeEmail = passwordResetChallengeKey(loginId);
+        const verification = await verifyLoginChallenge(challengeEmail, hashOtp(loginId, input.code));
+        if (!verification.ok) {
+          if (verification.reason === "expired") {
+            return { success: false as const, reason: "expired" as const };
+          }
+          if (verification.reason === "too_many_attempts") {
+            return { success: false as const, reason: "too_many_attempts" as const };
+          }
+          return { success: false as const, reason: "invalid_code" as const };
+        }
+
+        const user = await getUserByEmail(loginId);
+        if (!user?.openId) {
+          return { success: false as const, reason: "invalid_code" as const };
+        }
+
+        const salt = makePasswordSalt();
+        const hash = hashPassword(input.newPassword, salt);
+        await upsertUser({
+          openId: user.openId,
+          email: loginId,
+          name: user.name ?? loginId,
+          loginMethod: user.loginMethod ?? "password",
+          role: resolvedElevatedRoleAfterPasswordLogin(user, loginId),
+          passwordSalt: salt,
+          passwordHash: hash,
+          organizationId: user.organizationId ?? null,
+          orgMemberRole: user.orgMemberRole ?? null,
+          lastSignedIn: new Date(),
+        });
+
+        return { success: true as const };
+      }),
+
+    signInWithFirebase: publicProcedure
+      .input(z.object({ idToken: z.string().min(20).max(16_384) }))
+      .mutation(async ({ ctx, input }) => {
+        if (!isFirebaseServerAuthConfigured()) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Firebase sign-in is not configured on this server.",
+          });
+        }
+
+        const db = await getDb();
+        if (!db && !ENV.useDevFileAuth) {
+          return { success: false as const, reason: "service_unavailable" as const };
+        }
+
+        let decoded: Awaited<ReturnType<typeof verifyFirebaseIdToken>>;
+        try {
+          decoded = await verifyFirebaseIdToken(input.idToken);
+        } catch {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Invalid or expired Firebase sign-in. Please try again.",
+          });
+        }
+
+        const signInProvider = decoded.firebase?.sign_in_provider;
+        if (!isFirebaseSignInProviderAllowed(signInProvider)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "This sign-in method is not enabled. Use Google, Microsoft, GitHub, or Apple.",
+          });
+        }
+        if (
+          decoded.email &&
+          firebaseProviderRequiresVerifiedEmail(signInProvider) &&
+          decoded.email_verified !== true
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Verify your account email with the provider before signing in.",
+          });
+        }
+
+        const uid = decoded.uid;
+        const openId = `firebase:${uid}`;
+        const emailRaw = decoded.email?.trim().toLowerCase();
+        const email = emailRaw && emailRaw.length > 0 ? emailRaw : null;
+        const name =
+          (typeof decoded.name === "string" && decoded.name.trim()) ||
+          email ||
+          "User";
+        const loginMethod = firebaseLoginMethodFromDecoded(decoded);
+
+        const existing = await getUserByOpenId(openId);
+        await upsertUser({
+          openId,
+          email: email ?? undefined,
+          name,
+          loginMethod,
+          role: existing?.role,
+          organizationId: existing?.organizationId ?? null,
+          orgMemberRole: existing?.orgMemberRole ?? null,
+          lastSignedIn: new Date(),
+        });
+
+        const refreshed = (await getUserByOpenId(openId)) ?? existing;
+        if (refreshed?.accountDisabled) {
+          return { success: false as const, reason: "account_disabled" as const };
+        }
+        const sessionToken = await sdk.createSessionToken(openId, {
+          name: refreshed?.name ?? name,
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
+
+        return { success: true as const };
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
@@ -504,6 +823,7 @@ export const appRouter = router({
   settings: settingsRouter,
   signals: signalsRouter,
   prospecting: prospectingRouter,
+  platform: platformRouter,
 });
 
 export type AppRouter = typeof appRouter;
