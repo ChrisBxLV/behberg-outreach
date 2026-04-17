@@ -49,7 +49,7 @@ export default function Prospecting() {
     onSuccess: data => {
       setRunId(data.runId);
       setSelected({});
-      toast.success("Prospecting started");
+      toast.success("Search started");
     },
     onError: e => toast.error(e.message),
   });
@@ -90,7 +90,7 @@ export default function Prospecting() {
       <div className="space-y-6 p-2">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Prospecting (Basic)</h1>
+            <h1 className="text-2xl font-bold">Search (Basic)</h1>
             <p className="text-muted-foreground text-sm mt-0.5">
               Cost-free: uses Signals → company websites (team/leadership pages) → email guessing.
             </p>
