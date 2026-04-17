@@ -5,6 +5,7 @@ import {
   guessEmailsFromName,
   inferPatternFromPublicEmails,
   matchesSignalNeedles,
+  titleSynonymsForNeedle,
   rootDomainOnly,
 } from "./services/prospectingV1Utils";
 
@@ -66,6 +67,23 @@ describe("prospecting v1 helper hardening", () => {
   test("domainContainsCompany matches host fragments", () => {
     expect(domainContainsCompany("betsson.com", "Betsson Group")).toBe(true);
     expect(domainContainsCompany("example.org", "Betsson Group")).toBe(false);
+  });
+
+  test("title synonym expansion includes common executive equivalents", () => {
+    const ceoSynonyms = titleSynonymsForNeedle("CEO");
+    expect(ceoSynonyms).toContain("ceo");
+    expect(ceoSynonyms).toContain("chief executive officer");
+
+    const vpSalesSynonyms = titleSynonymsForNeedle("VP Sales");
+    expect(vpSalesSynonyms).toContain("vp sales");
+    expect(vpSalesSynonyms).toContain("vice president sales");
+  });
+
+  test("title synonym expansion covers founder / owner style titles", () => {
+    const founderSynonyms = titleSynonymsForNeedle("Founder");
+    expect(founderSynonyms).toContain("founder");
+    expect(founderSynonyms).toContain("co founder");
+    expect(founderSynonyms).toContain("owner");
   });
 });
 

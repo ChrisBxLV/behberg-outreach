@@ -134,3 +134,126 @@ export function matchesSignalNeedles(input: {
   if (input.countryNeedle && !hay.includes(input.countryNeedle)) return false;
   return true;
 }
+
+type TitleFamily = {
+  key: string;
+  variants: string[];
+};
+
+const TITLE_FAMILIES: TitleFamily[] = [
+  {
+    key: "chief_executive",
+    variants: ["ceo", "chief executive officer", "president", "managing director", "md", "founder", "co founder", "owner"],
+  },
+  {
+    key: "chief_operating",
+    variants: ["coo", "chief operating officer", "head of operations", "vp operations", "director of operations"],
+  },
+  {
+    key: "chief_financial",
+    variants: ["cfo", "chief financial officer", "finance director", "vp finance", "head of finance"],
+  },
+  {
+    key: "chief_technology",
+    variants: ["cto", "chief technology officer", "vp engineering", "head of engineering", "engineering director"],
+  },
+  {
+    key: "chief_information",
+    variants: ["cio", "chief information officer", "it director", "head of it", "vp it"],
+  },
+  {
+    key: "chief_security",
+    variants: ["ciso", "chief information security officer", "head of security", "security director"],
+  },
+  {
+    key: "chief_marketing",
+    variants: ["cmo", "chief marketing officer", "vp marketing", "head of marketing", "marketing director"],
+  },
+  {
+    key: "chief_revenue",
+    variants: ["cro", "chief revenue officer", "chief commercial officer", "cco", "vp sales", "head of sales", "sales director", "director of sales"],
+  },
+  {
+    key: "chief_people",
+    variants: ["chro", "chief human resources officer", "head of people", "hr director", "vp people"],
+  },
+  {
+    key: "chief_product",
+    variants: ["cpo", "chief product officer", "vp product", "head of product", "product director", "director of product"],
+  },
+  {
+    key: "general_management",
+    variants: ["general manager", "gm", "country manager", "regional director", "managing partner"],
+  },
+];
+
+function normalizeTitleValue(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizeTitleForLookup(value: string): string {
+  return normalizeTitleValue(value)
+    .replace(/\bvice president\b/g, "vp")
+    .replace(/\bco founder\b/g, "cofounder")
+    .trim();
+}
+
+function expandVariantForms(variant: string): string[] {
+  const base = normalizeTitleValue(variant);
+  const out = new Set<string>([base]);
+  if (base.includes("vice president")) out.add(base.replace(/\bvice president\b/g, "vp"));
+  if (base.includes("vp ")) out.add(base.replace(/\bvp\b/g, "vice president"));
+  if (base.includes("co founder")) out.add(base.replace(/\bco founder\b/g, "cofounder"));
+  if (base.includes("cofounder")) out.add(base.replace(/\bcofounder\b/g, "co founder"));
+  return Array.from(out);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function acronymPattern(value: string): string {
+  const letters = value.toLowerCase().replace(/[^a-z]/g, "");
+  if (letters.length < 2 || letters.length > 6) return escapeRegExp(value);
+  return letters.split("").map(ch => `${ch}\\.?`).join("");
+}
+
+function titleVariantToPattern(variant: string): string {
+  if (/^[a-z]{2,6}$/.test(variant)) return acronymPattern(variant);
+  return escapeRegExp(variant).replace(/\\\s+/g, "\\s+");
+}
+
+export function getTitleSynonyms(titleNeedle: string): string[] {
+  const normalized = normalizeTitleValue(titleNeedle);
+  const lookup = normalizeTitleForLookup(titleNeedle);
+  if (!normalized) return [];
+  for (const family of TITLE_FAMILIES) {
+    const expandedFamilyVariants = family.variants.flatMap(expandVariantForms);
+    const familyLookupSet = new Set(expandedFamilyVariants.map(normalizeTitleForLookup));
+    if (familyLookupSet.has(lookup)) {
+      return Array.from(new Set([normalized, ...expandedFamilyVariants]));
+    }
+  }
+  return [normalized];
+}
+
+export function titleSynonymsForNeedle(titleNeedle: string): string[] {
+  return getTitleSynonyms(titleNeedle);
+}
+
+export function titleSynonymsForInput(titleNeedle: string): string[] {
+  return getTitleSynonyms(titleNeedle);
+}
+
+export function titleMatchesLine(line: string, titleNeedle: string): boolean {
+  const normalizedLine = normalizeTitleValue(line);
+  const synonyms = getTitleSynonyms(titleNeedle);
+  for (const synonym of synonyms) {
+    const re = new RegExp(`\\b${titleVariantToPattern(synonym)}\\b`, "i");
+    if (re.test(normalizedLine) || re.test(line)) return true;
+  }
+  return false;
+}

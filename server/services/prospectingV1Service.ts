@@ -11,6 +11,7 @@ import {
   matchesSignalNeedles,
   rootDomainOnly,
   splitName,
+  titleSynonymsForInput,
 } from "./prospectingV1Utils";
 
 type RunInput = {
@@ -173,7 +174,11 @@ function extractDecisionMakersFromText(input: {
     .map(l => l.trim())
     .filter(l => l.length >= 6 && l.length <= 140);
 
-  const titleRe = new RegExp(`\\b${escapeRegExp(titleNeedle)}\\b`, "i");
+  const synonymNeedles = titleSynonymsForInput(titleNeedle);
+  const titleRes = synonymNeedles.map(needle => ({
+    needle,
+    re: new RegExp(`\\b${escapeRegExp(needle)}\\b`, "i"),
+  }));
   const countryRe = countryNeedle ? new RegExp(`\\b${escapeRegExp(countryNeedle)}\\b`, "i") : null;
 
   const out: Array<{ fullName: string; matchedTitle: string }> = [];
@@ -181,7 +186,8 @@ function extractDecisionMakersFromText(input: {
 
   for (let i = 0; i < rawLines.length; i++) {
     const line = rawLines[i] ?? "";
-    if (!titleRe.test(line)) continue;
+    const matchedTitleEntry = titleRes.find(x => x.re.test(line));
+    if (!matchedTitleEntry) continue;
     const window = [rawLines[i - 1], rawLines[i], rawLines[i + 1]].filter(Boolean).join(" ");
     if (countryRe && !countryRe.test(window)) continue;
     const name = guessNameFromSnippet(window);
@@ -189,7 +195,7 @@ function extractDecisionMakersFromText(input: {
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ fullName: name, matchedTitle: titleNeedle });
+    out.push({ fullName: name, matchedTitle: matchedTitleEntry.needle });
     if (out.length >= 12) break;
   }
 
