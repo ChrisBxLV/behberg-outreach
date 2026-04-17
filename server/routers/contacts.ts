@@ -134,8 +134,9 @@ export const contactsRouter = router({
       return { success: true };
     }),
 
-  importBatches: protectedProcedure.query(async () => {
-    return getImportBatches();
+  importBatches: protectedProcedure.query(async ({ ctx }) => {
+    const scope = dataScopeOrganizationId(ctx.user);
+    return getImportBatches(scope);
   }),
 
   emailHistory: protectedProcedure

@@ -527,10 +527,29 @@ export async function updateImportBatch(batchId: string, data: {
   await db.update(importBatches).set(data).where(eq(importBatches.batchId, batchId));
 }
 
-export async function getImportBatches() {
+export async function getImportBatches(scopeOrganizationId?: number | null) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(importBatches).orderBy(desc(importBatches.createdAt)).limit(20);
+  if (scopeOrganizationId == null) {
+    return db.select().from(importBatches).orderBy(desc(importBatches.createdAt)).limit(20);
+  }
+  return db
+    .selectDistinct({
+      id: importBatches.id,
+      batchId: importBatches.batchId,
+      filename: importBatches.filename,
+      totalRows: importBatches.totalRows,
+      importedRows: importBatches.importedRows,
+      skippedRows: importBatches.skippedRows,
+      status: importBatches.status,
+      errorLog: importBatches.errorLog,
+      createdAt: importBatches.createdAt,
+    })
+    .from(importBatches)
+    .innerJoin(contacts, eq(contacts.importBatchId, importBatches.batchId))
+    .where(eq(contacts.organizationId, scopeOrganizationId))
+    .orderBy(desc(importBatches.createdAt))
+    .limit(20);
 }
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────

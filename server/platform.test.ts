@@ -190,6 +190,25 @@ describe("contacts", () => {
     const result = await caller.contacts.bulkUpdateStage({ ids: [1, 2], stage: "enriched" });
     expect(result.success).toBe(true);
   });
+
+  it("scopes import batch history by organization", async () => {
+    const db = await import("./db");
+    vi.mocked(db.getImportBatches).mockResolvedValueOnce([
+      { batchId: "org-batch-1", filename: "org.csv" } as any,
+    ]);
+
+    const base = makeCtx();
+    const ctx: TrpcContext = {
+      ...base,
+      user: { ...base.user!, organizationId: 42, orgMemberRole: "owner" },
+    };
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.contacts.importBatches();
+
+    expect(vi.mocked(db.getImportBatches)).toHaveBeenCalledWith(42);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.batchId).toBe("org-batch-1");
+  });
 });
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
