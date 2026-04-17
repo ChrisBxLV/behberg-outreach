@@ -1,6 +1,6 @@
 import { parse } from "csv-parse/sync";
 import { v4 as uuidv4 } from "uuid";
-import { createContact, createImportBatch, updateImportBatch } from "../db";
+import { upsertContact, createImportBatch, updateImportBatch } from "../db";
 import type { InsertContact } from "../../drizzle/schema";
 
 type CsvMappedField = keyof InsertContact | "__country" | "__keywords";
@@ -82,9 +82,14 @@ export interface ImportResult {
   errors: string[];
 }
 
+type ImportCsvOptions = {
+  organizationId?: number | null;
+};
+
 export async function importCsvContacts(
   csvBuffer: Buffer,
-  filename: string
+  filename: string,
+  options: ImportCsvOptions = {},
 ): Promise<ImportResult> {
   const batchId = uuidv4();
   const errors: string[] = [];
@@ -115,6 +120,7 @@ export async function importCsvContacts(
         stage: "new",
         emailStatus: "unknown",
         tags: [],
+        organizationId: options.organizationId ?? null,
       };
       let csvCountry = "";
 
@@ -168,7 +174,7 @@ export async function importCsvContacts(
         continue;
       }
 
-      await createContact(contact);
+      await upsertContact(contact);
       imported++;
     } catch (err: any) {
       errors.push(`Row ${i + 2}: ${err.message}`);

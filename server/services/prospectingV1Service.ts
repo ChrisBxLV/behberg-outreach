@@ -1,9 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { desc, eq } from "drizzle-orm";
-import { getDb, createContact } from "../db";
+import { getDb, upsertContact } from "../db";
 import { signals } from "../../drizzle/schema";
 import { resolveCompanyDomainDeterministic } from "./companyDomainResolver";
+import {
+  domainContainsCompany,
+  guessEmailsFromName,
+  inferPatternFromPublicEmails,
+  matchesSignalNeedles,
+  rootDomainOnly,
+  splitName,
+  titleSynonymsForInput,
+} from "./prospectingV1Utils";
 
 type RunInput = {
   organizationId: number;
@@ -29,6 +38,15 @@ export type ProspectingV1Result = {
   stats: {
     companiesProcessed: number;
     candidatesFound: number;
+    companiesSeeded: number;
+    companiesWithDomain: number;
+    companiesWithoutDomain: number;
+    pagesAttempted: number;
+    pagesFetched: number;
+    fallbackSearchCompanies: number;
+    linkedinPriorityCompanies: number;
+    linkedinCandidatesFound: number;
+    zeroResultReason: string | null;
   };
 };
 
@@ -63,36 +81,36 @@ export type ProspectingV1Status =
     };
 
 const RUN_TTL_MS = 1000 * 60 * Math.max(5, Number(process.env.PROSPECTING_V1_RUN_TTL_MINUTES ?? "20") || 20);
+const RUN_HARD_TIMEOUT_MS =
+  1000 * 60 * Math.max(15, Number(process.env.PROSPECTING_V1_HARD_TIMEOUT_MINUTES ?? "60") || 60);
 const MAX_ACTIVE_RUNS_PER_ORG = Math.max(
   1,
   Math.min(5, Number(process.env.PROSPECTING_V1_MAX_ACTIVE_RUNS_PER_ORG ?? "2") || 2),
 );
 const runs = new Map<string, ProspectingV1Status>();
 
+function cleanupRuns(now = Date.now()) {
+  runs.forEach((s, id) => {
+    if (s.state === "running") {
+      if (now - s.startedAt > RUN_HARD_TIMEOUT_MS) runs.delete(id);
+      return;
+    }
+    if (now - s.finishedAt > RUN_TTL_MS) runs.delete(id);
+  });
+}
+
 function setRun(runId: string, status: ProspectingV1Status) {
   runs.set(runId, status);
-  const now = Date.now();
-  for (const [id, s] of Array.from(runs.entries())) {
-    if (now - s.startedAt > RUN_TTL_MS) runs.delete(id);
-  }
+  cleanupRuns();
 }
 
 export function getProspectingV1Status(runId: string) {
+  cleanupRuns();
   return runs.get(runId);
 }
 
 function normalizeCompanyName(value: string) {
   return value.trim().replace(/\s+/g, " ");
-}
-
-function rootDomainOnly(domain: string): string {
-  const d = domain.toLowerCase().replace(/^www\./i, "");
-  const labels = d.split(".").filter(Boolean);
-  if (labels.length <= 2) return d;
-  const publicSuffix3Labels = ["co.uk", "org.uk", "gov.uk", "ac.uk", "com.au", "org.au", "net.au", "co.jp"];
-  const last3 = labels.slice(-3).join(".");
-  if (publicSuffix3Labels.includes(last3)) return labels.slice(-3).join(".");
-  return labels.slice(-2).join(".");
 }
 
 async function fetchText(url: string, timeoutMs: number): Promise<string | null> {
@@ -141,63 +159,6 @@ function extractEmailsFromText(text: string, domain: string): string[] {
   return Array.from(new Set(filtered));
 }
 
-function inferPatternFromPublicEmails(emails: string[], domain: string): "first.last" | "flast" | null {
-  const root = rootDomainOnly(domain);
-  const locals = emails
-    .map(e => e.toLowerCase())
-    .filter(e => e.endsWith(`@${root}`))
-    .map(e => e.split("@")[0] ?? "")
-    .filter(Boolean);
-  if (locals.length === 0) return null;
-  const dotCount = locals.filter(l => l.includes(".")).length;
-  if (dotCount / locals.length >= 0.6) return "first.last";
-  const shortCount = locals.filter(l => l.length <= 8).length;
-  if (shortCount / locals.length >= 0.6) return "flast";
-  return null;
-}
-
-function splitName(fullName: string | null): { first: string | null; last: string | null } {
-  const s = (fullName ?? "").trim();
-  if (!s) return { first: null, last: null };
-  const parts = s.split(/\s+/g).filter(Boolean);
-  if (parts.length === 1) return { first: parts[0] ?? null, last: null };
-  return { first: parts[0] ?? null, last: parts[parts.length - 1] ?? null };
-}
-
-function guessEmailsFromName(input: {
-  first: string | null;
-  last: string | null;
-  domain: string;
-  patternHint: "first.last" | "flast" | null;
-}): Array<{ email: string; confidence: number; reason: string }> {
-  const root = rootDomainOnly(input.domain);
-  const f = (input.first ?? "").toLowerCase().replace(/[^a-z]/g, "");
-  const l = (input.last ?? "").toLowerCase().replace(/[^a-z]/g, "");
-  if (!f && !l) return [];
-
-  const out: Array<{ email: string; confidence: number; reason: string }> = [];
-  const push = (local: string, confidence: number, reason: string) => {
-    if (!local) return;
-    out.push({ email: `${local}@${root}`, confidence, reason });
-  };
-
-  if (input.patternHint === "first.last") push(`${f}.${l}`, 0.74, "pattern_inferred:first.last");
-  if (input.patternHint === "flast") push(`${f.slice(0, 1)}${l}`, 0.72, "pattern_inferred:flast");
-
-  push(`${f}.${l}`, 0.60, "common:first.last");
-  push(`${f}${l}`, 0.56, "common:firstlast");
-  push(`${f.slice(0, 1)}${l}`, 0.54, "common:flast");
-  push(`${f}${l.slice(0, 1)}`, 0.52, "common:firstl");
-  push(`${f}`, 0.45, "common:first");
-
-  const dedup = new Map<string, { email: string; confidence: number; reason: string }>();
-  for (const e of out) {
-    const prev = dedup.get(e.email);
-    if (!prev || e.confidence > prev.confidence) dedup.set(e.email, e);
-  }
-  return Array.from(dedup.values()).sort((a, b) => b.confidence - a.confidence).slice(0, 4);
-}
-
 function extractDecisionMakersFromText(input: {
   text: string;
   titleNeedle: string;
@@ -215,7 +176,11 @@ function extractDecisionMakersFromText(input: {
     .map(l => l.trim())
     .filter(l => l.length >= 6 && l.length <= 140);
 
-  const titleRe = new RegExp(`\\b${escapeRegExp(titleNeedle)}\\b`, "i");
+  const synonymNeedles = titleSynonymsForInput(titleNeedle);
+  const titleRes = synonymNeedles.map(needle => ({
+    needle,
+    re: new RegExp(`\\b${escapeRegExp(needle)}\\b`, "i"),
+  }));
   const countryRe = countryNeedle ? new RegExp(`\\b${escapeRegExp(countryNeedle)}\\b`, "i") : null;
 
   const out: Array<{ fullName: string; matchedTitle: string }> = [];
@@ -223,18 +188,16 @@ function extractDecisionMakersFromText(input: {
 
   for (let i = 0; i < rawLines.length; i++) {
     const line = rawLines[i] ?? "";
-    if (!titleRe.test(line)) continue;
-    if (countryRe && !countryRe.test(line)) {
-      // allow if country isn't in the same line; we’ll keep it simple and not enforce.
-    }
-
+    const matchedTitleEntry = titleRes.find(x => x.re.test(line));
+    if (!matchedTitleEntry) continue;
     const window = [rawLines[i - 1], rawLines[i], rawLines[i + 1]].filter(Boolean).join(" ");
+    if (countryRe && !countryRe.test(window)) continue;
     const name = guessNameFromSnippet(window);
     if (!name) continue;
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ fullName: name, matchedTitle: titleNeedle });
+    out.push({ fullName: name, matchedTitle: matchedTitleEntry.needle });
     if (out.length >= 12) break;
   }
 
@@ -255,6 +218,233 @@ function guessNameFromSnippet(s: string): string | null {
 
 function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeAbsoluteHttpUrl(raw: string): string | null {
+  try {
+    const cleaned = raw.replace(/&amp;/gi, "&").trim();
+    if (!/^https?:\/\//i.test(cleaned)) return null;
+    const parsed = new URL(cleaned);
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractHttpUrlsFromHtml(html: string): string[] {
+  const out: string[] = [];
+  const re = /href\s*=\s*["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null = null;
+  // eslint-disable-next-line no-cond-assign
+  while ((m = re.exec(html)) !== null) {
+    const href = m[1] ?? "";
+    const abs = normalizeAbsoluteHttpUrl(href);
+    if (!abs) continue;
+    out.push(abs);
+  }
+  return Array.from(new Set(out));
+}
+
+function normalizeLinkedInProfileUrl(raw: string): string | null {
+  try {
+    const parsed = new URL(raw);
+    if (!/^https?:$/i.test(parsed.protocol)) return null;
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    if (host !== "linkedin.com") return null;
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    if (segments[0] !== "in" || !segments[1]) return null;
+    const slug = segments[1].trim();
+    if (!slug) return null;
+    return `https://www.linkedin.com/in/${encodeURIComponent(decodeURIComponent(slug)).replace(/%2F/gi, "")}`;
+  } catch {
+    return null;
+  }
+}
+
+function decodeSearchResultHref(rawHref: string): string | null {
+  try {
+    if (!rawHref) return null;
+    if (/^https?:\/\//i.test(rawHref)) return rawHref;
+    if (rawHref.startsWith("/url?")) {
+      const wrapped = new URL(`https://www.google.com${rawHref}`);
+      const q = wrapped.searchParams.get("q");
+      if (q) return q;
+    }
+    if (rawHref.includes("uddg=")) {
+      const wrapped = new URL(rawHref, "https://duckduckgo.com");
+      const uddg = wrapped.searchParams.get("uddg");
+      if (uddg) return decodeURIComponent(uddg);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function extractLinkedInProfileUrlsFromSearchHtml(html: string): string[] {
+  const discovered: string[] = [];
+  const hrefRe = /href\s*=\s*["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null = null;
+  // eslint-disable-next-line no-cond-assign
+  while ((m = hrefRe.exec(html)) !== null) {
+    const href = m[1] ?? "";
+    const decoded = decodeSearchResultHref(href);
+    if (!decoded) continue;
+    const profile = normalizeLinkedInProfileUrl(decoded);
+    if (!profile) continue;
+    discovered.push(profile);
+  }
+
+  const directRe = /https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9%._-]+/gi;
+  let dm: RegExpExecArray | null = null;
+  // eslint-disable-next-line no-cond-assign
+  while ((dm = directRe.exec(html)) !== null) {
+    const profile = normalizeLinkedInProfileUrl(dm[0] ?? "");
+    if (!profile) continue;
+    discovered.push(profile);
+  }
+  return Array.from(new Set(discovered));
+}
+
+function titleBooleanClause(titleNeedle: string): string {
+  const synonyms = titleSynonymsForInput(titleNeedle).slice(0, 8);
+  if (synonyms.length === 0) return "";
+  return `(${synonyms.map(s => `"${s}"`).join(" OR ")})`;
+}
+
+function buildLinkedInBooleanQueries(input: {
+  company: string;
+  titleNeedle: string;
+  countryNeedle?: string;
+}): string[] {
+  const companyClause = `"${input.company}"`;
+  const titleClause = titleBooleanClause(input.titleNeedle);
+  const country = (input.countryNeedle ?? "").trim();
+  const countryClause = country ? `"${country}"` : "";
+
+  const primary = `site:linkedin.com/in ${titleClause} ${companyClause} ${countryClause}`.replace(/\s+/g, " ").trim();
+  const secondary = `site:linkedin.com/in ${companyClause} ${titleClause}`.replace(/\s+/g, " ").trim();
+  return Array.from(new Set([primary, secondary].filter(Boolean)));
+}
+
+function inferNameFromLinkedInProfileUrl(profileUrl: string): string | null {
+  try {
+    const parsed = new URL(profileUrl);
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (parts[0] !== "in" || !parts[1]) return null;
+    const slug = decodeURIComponent(parts[1]).replace(/[0-9]+/g, " ");
+    const rawName = slug
+      .replace(/[_-]+/g, " ")
+      .replace(/[^a-zA-Z\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!rawName) return null;
+    const tokens = rawName.split(" ").filter(Boolean).slice(0, 3);
+    if (tokens.length < 2) return null;
+    return tokens
+      .map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase())
+      .join(" ");
+  } catch {
+    return null;
+  }
+}
+
+async function discoverDecisionMakersFromLinkedInSearch(input: {
+  company: string;
+  titleNeedle: string;
+  countryNeedle?: string;
+  maxResults: number;
+}): Promise<Array<{ fullName: string; matchedTitle: string; evidenceUrl: string }>> {
+  const queries = buildLinkedInBooleanQueries(input);
+  const out: Array<{ fullName: string; matchedTitle: string; evidenceUrl: string }> = [];
+  const seen = new Set<string>();
+
+  for (const query of queries) {
+    const q = encodeURIComponent(query);
+    const providers = [
+      `https://www.google.com/search?q=${q}&hl=en&gl=us&num=10`,
+      `https://duckduckgo.com/html/?q=${q}`,
+      `https://www.bing.com/search?q=${q}&count=10`,
+    ];
+    for (const provider of providers) {
+      // eslint-disable-next-line no-await-in-loop
+      const html = await fetchText(provider, 8_000);
+      if (!html) continue;
+      const urls = extractLinkedInProfileUrlsFromSearchHtml(html);
+      for (const url of urls) {
+        const fullName = inferNameFromLinkedInProfileUrl(url);
+        if (!fullName) continue;
+        const key = `${fullName.toLowerCase()}::${url.toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          fullName,
+          matchedTitle: input.titleNeedle.trim(),
+          evidenceUrl: url,
+        });
+        if (out.length >= input.maxResults) return out;
+      }
+    }
+  }
+  return out;
+}
+
+function defaultCompanyPageCandidates(root: string): string[] {
+  const base = `https://${root}`;
+  return [
+    `${base}/`,
+    `${base}/about`,
+    `${base}/team`,
+    `${base}/leadership`,
+    `${base}/company`,
+    `${base}/contact`,
+    `${base}/press`,
+    `${base}/management`,
+    `${base}/about-us`,
+  ];
+}
+
+function likelyCompanyUrlsFromSearch(company: string, urls: string[]): string[] {
+  const ranked = urls
+    .map(u => {
+      try {
+        const host = new URL(u).hostname.replace(/^www\./i, "").toLowerCase();
+        const score = (domainContainsCompany(host, company) ? 2 : 0) + (u.includes("/about") || u.includes("/team") ? 1 : 0);
+        return { url: u, host, score };
+      } catch {
+        return null;
+      }
+    })
+    .filter((x): x is { url: string; host: string; score: number } => Boolean(x))
+    .filter(x => !["google.com", "duckduckgo.com", "bing.com", "linkedin.com", "wikipedia.org"].some(h => x.host === h || x.host.endsWith(`.${h}`)))
+    .sort((a, b) => b.score - a.score);
+
+  const seenHosts = new Set<string>();
+  const out: string[] = [];
+  for (const r of ranked) {
+    if (seenHosts.has(r.host)) continue;
+    seenHosts.add(r.host);
+    out.push(...defaultCompanyPageCandidates(rootDomainOnly(r.host)));
+    if (seenHosts.size >= 2) break;
+  }
+  return Array.from(new Set(out)).slice(0, 14);
+}
+
+async function discoverCompanyUrlsWithoutDomain(company: string): Promise<string[]> {
+  const q = encodeURIComponent(`${company} leadership team`);
+  const providers = [
+    `https://www.google.com/search?q=${q}&hl=en&gl=us&num=5`,
+    `https://duckduckgo.com/html/?q=${q}`,
+    `https://www.bing.com/search?q=${q}&count=10`,
+  ];
+  const discovered: string[] = [];
+  for (const provider of providers) {
+    // eslint-disable-next-line no-await-in-loop
+    const html = await fetchText(provider, 8_000);
+    if (!html) continue;
+    extractHttpUrlsFromHtml(html).forEach(u => discovered.push(u));
+  }
+  return likelyCompanyUrlsFromSearch(company, discovered);
 }
 
 async function seedCompaniesFromSignals(input: RunInput): Promise<string[]> {
@@ -283,9 +473,7 @@ async function seedCompaniesFromSignals(input: RunInput): Promise<string[]> {
     if (seen.has(key)) continue;
 
     const hay = `${r.headline ?? ""} ${(r.tags ?? []).join(" ")}`.toLowerCase();
-    const industryOk = !industryNeedle || hay.includes(industryNeedle);
-    const countryOk = !countryNeedle || hay.includes(countryNeedle);
-    if (!industryOk && !countryOk) continue;
+    if (!matchesSignalNeedles({ haystack: hay, industryNeedle, countryNeedle })) continue;
 
     seen.add(key);
     out.push(company);
@@ -297,6 +485,7 @@ async function seedCompaniesFromSignals(input: RunInput): Promise<string[]> {
 async function runV1(input: RunInput, runId: string) {
   const startedAt = Date.now();
   let companies = input.companies.map(normalizeCompanyName).filter(Boolean);
+  let companiesSeeded = 0;
 
   setRun(runId, {
     organizationId: input.organizationId,
@@ -307,7 +496,10 @@ async function runV1(input: RunInput, runId: string) {
     startedAt,
   });
 
-  if (companies.length === 0) companies = await seedCompaniesFromSignals(input);
+  if (companies.length === 0) {
+    companies = await seedCompaniesFromSignals(input);
+    companiesSeeded = companies.length;
+  }
   companies = companies.slice(0, input.maxCompanies);
 
   setRun(runId, {
@@ -320,16 +512,31 @@ async function runV1(input: RunInput, runId: string) {
   });
 
   const items: ProspectingV1Candidate[] = [];
+  const seenCandidates = new Set<string>();
+  let companiesWithDomain = 0;
+  let companiesWithoutDomain = 0;
+  let pagesAttempted = 0;
+  let pagesFetched = 0;
+  let fallbackSearchCompanies = 0;
+  let linkedinPriorityCompanies = 0;
+  let linkedinCandidatesFound = 0;
   let companiesDone = 0;
 
   for (const company of companies) {
-    const resolved = await resolveCompanyDomainDeterministic({
+    const domainPromise = resolveCompanyDomainDeterministic({
       company,
       article_html: "",
       article_text: "",
-    });
-    const domain = resolved.domain;
+    })
+      .then(result => result.domain)
+      .catch(() => null);
+    const domain = await Promise.race([
+      domainPromise,
+      new Promise<null>(resolve => setTimeout(() => resolve(null), 10_000)),
+    ]);
     const root = domain ? rootDomainOnly(domain) : null;
+    if (root) companiesWithDomain++;
+    else companiesWithoutDomain++;
 
     setRun(runId, {
       organizationId: input.organizationId,
@@ -340,26 +547,48 @@ async function runV1(input: RunInput, runId: string) {
       startedAt,
     });
 
-    const urls: string[] = [];
-    if (root) {
-      const base = `https://${root}`;
-      urls.push(
-        `${base}/`,
-        `${base}/about`,
-        `${base}/team`,
-        `${base}/leadership`,
-        `${base}/company`,
-        `${base}/contact`,
-        `${base}/press`,
-      );
+    const linkedinCandidates = await discoverDecisionMakersFromLinkedInSearch({
+      company,
+      titleNeedle: input.title,
+      countryNeedle: input.country,
+      maxResults: 4,
+    });
+    if (linkedinCandidates.length > 0) {
+      linkedinPriorityCompanies++;
+      linkedinCandidatesFound += linkedinCandidates.length;
     }
+
+    for (const profile of linkedinCandidates) {
+      const { first, last } = splitName(profile.fullName);
+      const guessed = root
+        ? guessEmailsFromName({ first, last, domain: root, patternHint: null })
+        : [];
+      const candidateKey =
+        `${company.toLowerCase()}::${profile.fullName.toLowerCase()}::${profile.matchedTitle.toLowerCase()}`;
+      if (seenCandidates.has(candidateKey)) continue;
+      seenCandidates.add(candidateKey);
+      items.push({
+        id: randomUUID().slice(0, 12),
+        company,
+        domain: root,
+        fullName: profile.fullName,
+        matchedTitle: profile.matchedTitle,
+        evidenceUrl: profile.evidenceUrl,
+        guessedEmails: guessed,
+      });
+    }
+
+    const urls = root ? defaultCompanyPageCandidates(root) : await discoverCompanyUrlsWithoutDomain(company);
+    if (!root && urls.length > 0) fallbackSearchCompanies++;
 
     const publicEmails = new Set<string>();
     let patternHint: "first.last" | "flast" | null = null;
 
     for (const url of urls) {
+      pagesAttempted++;
       const html = await fetchText(url, 12_000);
       if (!html) continue;
+      pagesFetched++;
       const text = stripHtml(html);
 
       if (root) {
@@ -382,6 +611,9 @@ async function runV1(input: RunInput, runId: string) {
         const guessed = root
           ? guessEmailsFromName({ first, last, domain: root, patternHint })
           : [];
+        const candidateKey = `${company.toLowerCase()}::${(dm.fullName ?? "").toLowerCase()}::${dm.matchedTitle.toLowerCase()}`;
+        if (seenCandidates.has(candidateKey)) continue;
+        seenCandidates.add(candidateKey);
         items.push({
           id,
           company,
@@ -401,7 +633,26 @@ async function runV1(input: RunInput, runId: string) {
 
   const result: ProspectingV1Result = {
     items,
-    stats: { companiesProcessed: companies.length, candidatesFound: items.length },
+    stats: {
+      companiesProcessed: companies.length,
+      candidatesFound: items.length,
+      companiesSeeded,
+      companiesWithDomain,
+      companiesWithoutDomain,
+      pagesAttempted,
+      pagesFetched,
+      fallbackSearchCompanies,
+      linkedinPriorityCompanies,
+      linkedinCandidatesFound,
+      zeroResultReason:
+        items.length > 0
+          ? null
+          : companies.length === 0
+            ? "No companies were available from Signals for the selected filters."
+            : pagesFetched === 0
+              ? "Could not fetch prospect pages for selected companies. Domain discovery likely failed."
+              : "Prospect pages were fetched, but no matching people/title patterns were found.",
+    },
   };
 
   setRun(runId, {
@@ -417,6 +668,7 @@ async function runV1(input: RunInput, runId: string) {
 }
 
 export async function startProspectingV1Run(input: RunInput): Promise<string> {
+  cleanupRuns();
   const active = Array.from(runs.values()).filter(
     r => r.organizationId === input.organizationId && r.state === "running",
   );
@@ -468,13 +720,14 @@ export async function importProspectingV1Selected(input: {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Run not completed yet." });
   }
 
-  const selected = status.result.items.filter(i => input.candidateIds.includes(i.id));
+  const candidateIdSet = new Set(input.candidateIds);
+  const selected = status.result.items.filter(i => candidateIdSet.has(i.id));
   let imported = 0;
   for (const item of selected) {
     const best = item.guessedEmails[0];
     const email = best?.email;
     try {
-      await createContact({
+      await upsertContact({
         organizationId: input.organizationId,
         source: "prospecting_v1",
         stage: "enriched",

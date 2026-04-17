@@ -1,29 +1,13 @@
 import { describe, expect, test } from "vitest";
-
-function rootDomainOnly(domain: string): string {
-  const d = domain.toLowerCase().replace(/^www\./i, "");
-  const labels = d.split(".").filter(Boolean);
-  if (labels.length <= 2) return d;
-  const publicSuffix3Labels = ["co.uk", "org.uk", "gov.uk", "ac.uk", "com.au", "org.au", "net.au", "co.jp"];
-  const last3 = labels.slice(-3).join(".");
-  if (publicSuffix3Labels.includes(last3)) return labels.slice(-3).join(".");
-  return labels.slice(-2).join(".");
-}
-
-function inferPatternFromPublicEmails(emails: string[], domain: string): "first.last" | "flast" | null {
-  const root = rootDomainOnly(domain);
-  const locals = emails
-    .map(e => e.toLowerCase())
-    .filter(e => e.endsWith(`@${root}`))
-    .map(e => e.split("@")[0] ?? "")
-    .filter(Boolean);
-  if (locals.length === 0) return null;
-  const dotCount = locals.filter(l => l.includes(".")).length;
-  if (dotCount / locals.length >= 0.6) return "first.last";
-  const shortCount = locals.filter(l => l.length <= 8).length;
-  if (shortCount / locals.length >= 0.6) return "flast";
-  return null;
-}
+import {
+  domainContainsCompany,
+  generateDomainCandidates,
+  guessEmailsFromName,
+  inferPatternFromPublicEmails,
+  matchesSignalNeedles,
+  titleSynonymsForNeedle,
+  rootDomainOnly,
+} from "./services/prospectingV1Utils";
 
 describe("prospecting v1 pattern inference", () => {
   test("infers first.last when most locals have dot", () => {
@@ -39,6 +23,67 @@ describe("prospecting v1 pattern inference", () => {
     expect(
       inferPatternFromPublicEmails(["asmith@acme.com", "bjones@acme.com", "clee@acme.com"], "acme.com"),
     ).toBe("flast");
+  });
+});
+
+describe("prospecting v1 helper hardening", () => {
+  test("rootDomainOnly keeps known multi-part public suffixes", () => {
+    expect(rootDomainOnly("news.company.co.uk")).toBe("company.co.uk");
+  });
+
+  test("guessEmailsFromName skips malformed local parts", () => {
+    const guessed = guessEmailsFromName({
+      first: "A",
+      last: null,
+      domain: "example.com",
+      patternHint: "first.last",
+    });
+    expect(guessed.every(g => !g.email.includes(".."))).toBe(true);
+    expect(guessed.every(g => !g.email.includes(".@"))).toBe(true);
+  });
+
+  test("matchesSignalNeedles enforces both filters when present", () => {
+    expect(
+      matchesSignalNeedles({
+        haystack: "igaming expansion in latvia",
+        industryNeedle: "igaming",
+        countryNeedle: "latvia",
+      }),
+    ).toBe(true);
+    expect(
+      matchesSignalNeedles({
+        haystack: "igaming expansion in sweden",
+        industryNeedle: "igaming",
+        countryNeedle: "latvia",
+      }),
+    ).toBe(false);
+  });
+
+  test("domain candidate generation includes .com roots", () => {
+    const candidates = generateDomainCandidates("Acme Holdings Inc");
+    expect(candidates.some(c => c === "acme.com")).toBe(true);
+  });
+
+  test("domainContainsCompany matches host fragments", () => {
+    expect(domainContainsCompany("betsson.com", "Betsson Group")).toBe(true);
+    expect(domainContainsCompany("example.org", "Betsson Group")).toBe(false);
+  });
+
+  test("title synonym expansion includes common executive equivalents", () => {
+    const ceoSynonyms = titleSynonymsForNeedle("CEO");
+    expect(ceoSynonyms).toContain("ceo");
+    expect(ceoSynonyms).toContain("chief executive officer");
+
+    const vpSalesSynonyms = titleSynonymsForNeedle("VP Sales");
+    expect(vpSalesSynonyms).toContain("vp sales");
+    expect(vpSalesSynonyms).toContain("vice president sales");
+  });
+
+  test("title synonym expansion covers founder / owner style titles", () => {
+    const founderSynonyms = titleSynonymsForNeedle("Founder");
+    expect(founderSynonyms).toContain("founder");
+    expect(founderSynonyms).toContain("co founder");
+    expect(founderSynonyms).toContain("owner");
   });
 });
 

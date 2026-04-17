@@ -45,7 +45,7 @@ const baseMenuItems = [
   { icon: Users, label: "Contacts", path: "/app/contacts" },
   { icon: Mail, label: "Campaigns", path: "/app/campaigns" },
   { icon: Radar, label: "Signals", path: "/app/signals" },
-  { icon: Target, label: "Prospecting", path: "/app/prospecting" },
+  { icon: Target, label: "Search", path: "/app/prospecting" },
   { icon: Settings, label: "Settings", path: "/app/settings" },
 ];
 

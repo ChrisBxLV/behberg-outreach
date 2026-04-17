@@ -5,7 +5,7 @@ import {
   users, organizations, contacts, importBatches, campaigns, sequenceSteps,
   campaignContacts, emailLogs, trackingEvents, loginChallenges,
   signalProfiles, signals, signalInsights, signalIngestionRuns,
-  type InsertUser, type InsertContact, type InsertCampaign,
+  type InsertUser, type InsertContact, type Contact, type InsertCampaign,
   type InsertSequenceStep, type InsertEmailLog, type InsertLoginChallenge,
   type InsertSignalProfile, type InsertSignal, type InsertSignalInsight,
 } from "../drizzle/schema";
@@ -626,7 +626,7 @@ export async function getContactFilterOptions(scopeOrganizationId?: number | nul
     new Set(
       locationRows
         .map((row) => row.location?.trim())
-        .filter((loc): loc is string => Boolean(loc))
+        .filter((location): location is string => Boolean(location))
         .map((location) => {
           const parts = location.split(",").map((part) => part.trim()).filter(Boolean);
           return parts[parts.length - 1] ?? location;
@@ -654,6 +654,281 @@ export async function createContact(data: InsertContact) {
   if (!db) throw new Error("Database not available");
   const result = await db.insert(contacts).values(data);
   return result[0];
+}
+
+function normalizeOptionalText(value: string | null | undefined): string | null {
+  const v = (value ?? "").trim();
+  return v.length > 0 ? v : null;
+}
+
+function normalizeOptionalLower(value: string | null | undefined): string | null {
+  const v = normalizeOptionalText(value);
+  return v ? v.toLowerCase() : null;
+}
+
+function normalizeDomainish(value: string | null | undefined): string | null {
+  const v = normalizeOptionalText(value);
+  if (!v) return null;
+  const noProto = v.replace(/^https?:\/\//i, "");
+  const hostOnly = noProto.split("/")[0] ?? noProto;
+  return hostOnly.replace(/^www\./i, "").toLowerCase().trim() || null;
+}
+
+function nameTokenSet(fullName: string | null | undefined): Set<string> {
+  const v = normalizeOptionalLower(fullName);
+  if (!v) return new Set();
+  return new Set(
+    v
+      .split(/\s+/g)
+      .map(x => x.replace(/[^a-z0-9]/g, ""))
+      .filter(x => x.length >= 2),
+  );
+}
+
+function overlapCount(a: Set<string>, b: Set<string>): number {
+  let c = 0;
+  a.forEach((x) => {
+    if (b.has(x)) c++;
+  });
+  return c;
+}
+
+function mergeTags(existing: string[] | null | undefined, incoming: string[] | null | undefined): string[] | null {
+  const a = (existing ?? []).map(x => x.trim()).filter(Boolean);
+  const b = (incoming ?? []).map(x => x.trim()).filter(Boolean);
+  const merged = Array.from(new Set([...a, ...b]));
+  return merged.length > 0 ? merged : null;
+}
+
+function chooseBetterText(existing: string | null | undefined, incoming: string | null | undefined): string | null {
+  const e = normalizeOptionalText(existing);
+  const i = normalizeOptionalText(incoming);
+  if (!e && !i) return null;
+  if (!e) return i;
+  if (!i) return e;
+  if (i.length > e.length + 8) return i;
+  return e;
+}
+
+function mergeContactFields(existing: typeof contacts.$inferSelect, incoming: InsertContact): Partial<InsertContact> {
+  const out: Partial<InsertContact> = {};
+
+  const directTextFields: Array<keyof InsertContact> = [
+    "firstName",
+    "lastName",
+    "fullName",
+    "email",
+    "title",
+    "company",
+    "industry",
+    "companySize",
+    "companyWebsite",
+    "linkedinUrl",
+    "location",
+    "notes",
+    "source",
+    "importBatchId",
+  ];
+  for (const field of directTextFields) {
+    const merged = chooseBetterText(existing[field] as string | null | undefined, incoming[field] as string | null | undefined);
+    if (merged != null && merged !== (existing[field] ?? null)) {
+      (out as any)[field] = merged;
+    }
+  }
+
+  const mergedTags = mergeTags(existing.tags ?? null, incoming.tags ?? null);
+  if (mergedTags && JSON.stringify(mergedTags) !== JSON.stringify(existing.tags ?? null)) out.tags = mergedTags;
+
+  const existingConfidence = existing.emailConfidence ?? null;
+  const incomingConfidence = incoming.emailConfidence ?? null;
+  if (incomingConfidence != null && (existingConfidence == null || incomingConfidence > existingConfidence)) {
+    out.emailConfidence = incomingConfidence;
+  }
+
+  const existingStatus = existing.emailStatus ?? "unknown";
+  const incomingStatus = incoming.emailStatus ?? "unknown";
+  const statusRank: Record<string, number> = {
+    unknown: 0,
+    risky: 1,
+    catch_all: 2,
+    valid: 3,
+    invalid: 3,
+  };
+  if ((statusRank[incomingStatus] ?? 0) > (statusRank[existingStatus] ?? 0)) {
+    out.emailStatus = incomingStatus;
+  }
+
+  const stageRank: Record<string, number> = {
+    new: 0,
+    enriched: 1,
+    in_sequence: 2,
+    replied: 3,
+    closed: 4,
+    unsubscribed: 4,
+  };
+  const existingStage = existing.stage ?? "new";
+  const incomingStage = incoming.stage ?? "new";
+  if ((stageRank[incomingStage] ?? 0) > (stageRank[existingStage] ?? 0)) {
+    out.stage = incomingStage as InsertContact["stage"];
+  }
+
+  return out;
+}
+
+async function findDuplicateCandidate(input: InsertContact): Promise<typeof contacts.$inferSelect | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const scopeCond =
+    input.organizationId == null
+      ? isNull(contacts.organizationId)
+      : eq(contacts.organizationId, input.organizationId);
+
+  const email = normalizeOptionalLower(input.email);
+  if (email) {
+    const byEmail = await db
+      .select()
+      .from(contacts)
+      .where(and(scopeCond, isNotNull(contacts.email)))
+      .orderBy(desc(contacts.updatedAt))
+      .limit(300);
+    const found = byEmail.find(row => normalizeOptionalLower(row.email) === email);
+    if (found) return found;
+  }
+
+  const linkedin = normalizeDomainish(input.linkedinUrl);
+  if (linkedin) {
+    const rows = await db
+      .select()
+      .from(contacts)
+      .where(and(scopeCond, isNotNull(contacts.linkedinUrl)))
+      .orderBy(desc(contacts.updatedAt))
+      .limit(300);
+    const found = rows.find(r => normalizeDomainish(r.linkedinUrl) === linkedin);
+    if (found) return found;
+  }
+
+  const incomingNameTokens = nameTokenSet(input.fullName);
+  const incomingCompany = normalizeOptionalLower(input.company);
+  const incomingTitle = normalizeOptionalLower(input.title);
+  const incomingWebsite = normalizeDomainish(input.companyWebsite);
+  if (incomingNameTokens.size === 0 && !incomingCompany && !incomingTitle && !incomingWebsite) return null;
+
+  const candidates = await db
+    .select()
+    .from(contacts)
+    .where(scopeCond)
+    .orderBy(desc(contacts.updatedAt))
+    .limit(500);
+
+  let best: {
+    row: typeof contacts.$inferSelect;
+    score: number;
+    nameOverlap: number;
+    companyMatch: boolean;
+    titleMatch: boolean;
+    websiteMatch: boolean;
+    locationMatch: boolean;
+  } | null = null;
+  for (const row of candidates) {
+    let score = 0;
+    const rowNameTokens = nameTokenSet(row.fullName);
+    const nameOverlap = overlapCount(incomingNameTokens, rowNameTokens);
+    if (nameOverlap >= 2) score += 3;
+    else if (nameOverlap === 1) score += 1;
+
+    const rowCompany = normalizeOptionalLower(row.company);
+    const companyMatch = Boolean(incomingCompany && rowCompany && incomingCompany === rowCompany);
+    if (companyMatch) score += 2;
+
+    const rowTitle = normalizeOptionalLower(row.title);
+    const titleMatch = Boolean(
+      incomingTitle &&
+      rowTitle &&
+      (incomingTitle === rowTitle || incomingTitle.includes(rowTitle) || rowTitle.includes(incomingTitle)),
+    );
+    if (titleMatch) {
+      score += 1;
+    }
+
+    const rowWebsite = normalizeDomainish(row.companyWebsite);
+    const websiteMatch = Boolean(incomingWebsite && rowWebsite && incomingWebsite === rowWebsite);
+    if (websiteMatch) score += 2;
+
+    const incomingLocation = normalizeOptionalLower(input.location);
+    const rowLocation = normalizeOptionalLower(row.location);
+    const locationMatch = Boolean(incomingLocation && rowLocation && incomingLocation === rowLocation);
+    if (locationMatch) score += 1;
+
+    if (!best || score > best.score) {
+      best = {
+        row,
+        score,
+        nameOverlap,
+        companyMatch,
+        titleMatch,
+        websiteMatch,
+        locationMatch,
+      };
+    }
+  }
+
+  if (!best) return null;
+
+  const layeredConfirmations =
+    (best.nameOverlap >= 1 ? 1 : 0) +
+    (best.companyMatch ? 1 : 0) +
+    (best.titleMatch ? 1 : 0) +
+    (best.websiteMatch ? 1 : 0) +
+    (best.locationMatch ? 1 : 0);
+
+  // Multi-layer fuzzy confirmation: require person+company alignment and
+  // at least one additional corroborating signal before auto-merging.
+  const fuzzyConfirmed =
+    best.nameOverlap >= 1 &&
+    best.companyMatch &&
+    (best.websiteMatch || best.titleMatch || best.locationMatch) &&
+    best.score >= 5 &&
+    layeredConfirmations >= 3;
+
+  if (fuzzyConfirmed) return best.row;
+  return null;
+}
+
+export async function createOrMergeContact(input: InsertContact): Promise<{
+  action: "created" | "merged";
+  contact: typeof contacts.$inferSelect;
+}> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const duplicate = await findDuplicateCandidate(input);
+  if (!duplicate) {
+    const insertResult = await db.insert(contacts).values(input);
+    const insertedId = Number((insertResult as any)?.insertId ?? 0);
+    const inserted = insertedId ? await getContactById(insertedId, input.organizationId ?? null) : null;
+    return {
+      action: "created",
+      contact: (inserted ??
+        ({
+          ...input,
+          id: insertedId || -1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as any)),
+    };
+  }
+
+  const patch = mergeContactFields(duplicate, input);
+  if (Object.keys(patch).length > 0) {
+    await db.update(contacts).set(patch).where(eq(contacts.id, duplicate.id));
+  }
+  const merged = (await getContactById(duplicate.id, duplicate.organizationId ?? null)) ?? duplicate;
+  return { action: "merged", contact: merged };
+}
+
+export async function upsertContact(data: InsertContact) {
+  return createOrMergeContact(data);
 }
 
 export async function updateContact(
@@ -722,10 +997,29 @@ export async function updateImportBatch(batchId: string, data: {
   await db.update(importBatches).set(data).where(eq(importBatches.batchId, batchId));
 }
 
-export async function getImportBatches() {
+export async function getImportBatches(scopeOrganizationId?: number | null) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(importBatches).orderBy(desc(importBatches.createdAt)).limit(20);
+  if (scopeOrganizationId == null) {
+    return db.select().from(importBatches).orderBy(desc(importBatches.createdAt)).limit(20);
+  }
+  return db
+    .selectDistinct({
+      id: importBatches.id,
+      batchId: importBatches.batchId,
+      filename: importBatches.filename,
+      totalRows: importBatches.totalRows,
+      importedRows: importBatches.importedRows,
+      skippedRows: importBatches.skippedRows,
+      status: importBatches.status,
+      errorLog: importBatches.errorLog,
+      createdAt: importBatches.createdAt,
+    })
+    .from(importBatches)
+    .innerJoin(contacts, eq(contacts.importBatchId, importBatches.batchId))
+    .where(eq(contacts.organizationId, scopeOrganizationId))
+    .orderBy(desc(importBatches.createdAt))
+    .limit(20);
 }
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────

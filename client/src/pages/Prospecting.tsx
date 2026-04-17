@@ -10,8 +10,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { ExternalLink, RefreshCw, Search } from "lucide-react";
+import { getDecisionMakerAutocompleteTitles } from "@shared/decisionMakerTitles";
 
-type CandidateRow = {
+type ProspectRow = {
   id: string;
   company: string;
   domain: string | null;
@@ -32,6 +33,8 @@ export default function Prospecting() {
   const [runId, setRunId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
 
+  const titleSuggestions = useMemo(() => getDecisionMakerAutocompleteTitles(), []);
+
   const companies = useMemo(
     () =>
       companiesText
@@ -46,14 +49,18 @@ export default function Prospecting() {
     onSuccess: data => {
       setRunId(data.runId);
       setSelected({});
-      toast.success("Prospecting started");
+      toast.success("Search started");
     },
     onError: e => toast.error(e.message),
   });
 
   const statusQuery = trpc.prospecting.statusV1.useQuery(
     { runId: runId ?? "00000000-0000-0000-0000-000000000000" },
-    { enabled: Boolean(runId), refetchInterval: runId ? 1500 : false },
+    {
+      enabled: Boolean(runId),
+      refetchInterval: query =>
+        query.state.data?.state === "running" ? 1500 : false,
+    },
   );
 
   const importMutation = trpc.prospecting.importSelectedV1.useMutation({
@@ -65,8 +72,10 @@ export default function Prospecting() {
     onError: e => toast.error(e.message),
   });
 
-  const rows: CandidateRow[] =
+  const rows: ProspectRow[] =
     (statusQuery.data && "result" in statusQuery.data ? statusQuery.data.result?.items : []) ?? [];
+  const doneStats =
+    statusQuery.data?.state === "done" ? statusQuery.data.result.stats : null;
 
   useEffect(() => {
     if (!statusQuery.data) return;
@@ -81,7 +90,7 @@ export default function Prospecting() {
       <div className="space-y-6 p-2">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Prospecting (Basic)</h1>
+            <h1 className="text-2xl font-bold">Search (Basic)</h1>
             <p className="text-muted-foreground text-sm mt-0.5">
               Cost-free: uses Signals → company websites (team/leadership pages) → email guessing.
             </p>
@@ -119,7 +128,17 @@ export default function Prospecting() {
             </div>
             <div className="space-y-2">
               <Label>Title</Label>
-              <Input value={title} onChange={e => setTitle(e.target.value)} className="bg-muted/30 border-border/50" />
+              <Input
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                className="bg-muted/30 border-border/50"
+                list="prospecting-title-suggestions"
+              />
+              <datalist id="prospecting-title-suggestions">
+                {titleSuggestions.map(s => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
               <p className="text-xs text-muted-foreground">Example: CEO, Founder, CTO, Managing Director</p>
             </div>
             <div className="space-y-2">
@@ -161,9 +180,33 @@ export default function Prospecting() {
                 {statusQuery.data.state === "running"
                   ? `Running: ${statusQuery.data.step} (${statusQuery.data.progress.companiesDone}/${statusQuery.data.progress.companiesTotal})`
                   : statusQuery.data.state === "done"
-                    ? `Done: ${statusQuery.data.result.stats.candidatesFound} candidates`
+                    ? `Done: ${statusQuery.data.result.stats.candidatesFound} prospects`
                     : "Error"}
               </CardDescription>
+              {doneStats && (
+                <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  <div>
+                    Companies processed: {doneStats.companiesProcessed} | Seeded from Signals:{" "}
+                    {doneStats.companiesSeeded}
+                  </div>
+                  <div>
+                    Domains found: {doneStats.companiesWithDomain} | No-domain fallback used:{" "}
+                    {doneStats.fallbackSearchCompanies}
+                  </div>
+                  <div>
+                    LinkedIn-priority companies: {doneStats.linkedinPriorityCompanies} | LinkedIn prospects:{" "}
+                    {doneStats.linkedinCandidatesFound}
+                  </div>
+                  <div>
+                    Pages fetched: {doneStats.pagesFetched}/{doneStats.pagesAttempted}
+                  </div>
+                  {doneStats.zeroResultReason && (
+                    <div className="text-amber-500">
+                      No results reason: {doneStats.zeroResultReason}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardHeader>
           </Card>
         )}
@@ -171,8 +214,8 @@ export default function Prospecting() {
         <Card className="border-border/50 bg-card/80">
           <CardHeader className="flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-base">Shortlist</CardTitle>
-              <CardDescription>Select matches and import to Contacts.</CardDescription>
+              <CardTitle className="text-base">Prospects</CardTitle>
+              <CardDescription>Select prospects and import to Contacts.</CardDescription>
             </div>
             <Button
               variant="outline"
@@ -184,7 +227,12 @@ export default function Prospecting() {
           </CardHeader>
           <CardContent>
             {rows.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No results yet.</div>
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">No results yet.</div>
+                {doneStats?.zeroResultReason && (
+                  <div className="text-xs text-amber-500">{doneStats.zeroResultReason}</div>
+                )}
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">

@@ -5,7 +5,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import {
   getContacts,
   getContactById,
-  createContact,
+  createOrMergeContact,
   updateContact,
   deleteContacts,
   bulkUpdateContactStage,
@@ -73,7 +73,7 @@ export const contactsRouter = router({
         input.fullName ??
         ([input.firstName, input.lastName].filter(Boolean).join(" ") || undefined);
       const orgId = dataScopeOrganizationId(ctx.user);
-      await createContact({
+      await createOrMergeContact({
         ...input,
         fullName,
         organizationId: orgId ?? null,
@@ -134,8 +134,9 @@ export const contactsRouter = router({
       return { success: true };
     }),
 
-  importBatches: protectedProcedure.query(async () => {
-    return getImportBatches();
+  importBatches: protectedProcedure.query(async ({ ctx }) => {
+    const scope = dataScopeOrganizationId(ctx.user);
+    return getImportBatches(scope);
   }),
 
   emailHistory: protectedProcedure
