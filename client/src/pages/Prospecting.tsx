@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { ExternalLink, RefreshCw, Search } from "lucide-react";
+import { getDecisionMakerAutocompleteTitles } from "@shared/decisionMakerTitles";
 
 type CandidateRow = {
   id: string;
@@ -31,6 +32,8 @@ export default function Prospecting() {
 
   const [runId, setRunId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+
+  const titleSuggestions = useMemo(() => getDecisionMakerAutocompleteTitles(), []);
 
   const companies = useMemo(
     () =>
@@ -125,7 +128,17 @@ export default function Prospecting() {
             </div>
             <div className="space-y-2">
               <Label>Title</Label>
-              <Input value={title} onChange={e => setTitle(e.target.value)} className="bg-muted/30 border-border/50" />
+              <Input
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                className="bg-muted/30 border-border/50"
+                list="prospecting-title-suggestions"
+              />
+              <datalist id="prospecting-title-suggestions">
+                {titleSuggestions.map(s => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
               <p className="text-xs text-muted-foreground">Example: CEO, Founder, CTO, Managing Director</p>
             </div>
             <div className="space-y-2">

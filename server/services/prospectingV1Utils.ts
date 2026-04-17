@@ -124,6 +124,8 @@ export function guessEmailsFromName(input: {
   return Array.from(dedup.values()).sort((a, b) => b.confidence - a.confidence).slice(0, 4);
 }
 
+import { DECISION_MAKER_TITLE_FAMILIES } from "../../shared/decisionMakerTitles";
+
 export function matchesSignalNeedles(input: {
   haystack: string;
   industryNeedle: string;
@@ -134,58 +136,6 @@ export function matchesSignalNeedles(input: {
   if (input.countryNeedle && !hay.includes(input.countryNeedle)) return false;
   return true;
 }
-
-type TitleFamily = {
-  key: string;
-  variants: string[];
-};
-
-const TITLE_FAMILIES: TitleFamily[] = [
-  {
-    key: "chief_executive",
-    variants: ["ceo", "chief executive officer", "president", "managing director", "md", "founder", "co founder", "owner"],
-  },
-  {
-    key: "chief_operating",
-    variants: ["coo", "chief operating officer", "head of operations", "vp operations", "director of operations"],
-  },
-  {
-    key: "chief_financial",
-    variants: ["cfo", "chief financial officer", "finance director", "vp finance", "head of finance"],
-  },
-  {
-    key: "chief_technology",
-    variants: ["cto", "chief technology officer", "vp engineering", "head of engineering", "engineering director"],
-  },
-  {
-    key: "chief_information",
-    variants: ["cio", "chief information officer", "it director", "head of it", "vp it"],
-  },
-  {
-    key: "chief_security",
-    variants: ["ciso", "chief information security officer", "head of security", "security director"],
-  },
-  {
-    key: "chief_marketing",
-    variants: ["cmo", "chief marketing officer", "vp marketing", "head of marketing", "marketing director"],
-  },
-  {
-    key: "chief_revenue",
-    variants: ["cro", "chief revenue officer", "chief commercial officer", "cco", "vp sales", "head of sales", "sales director", "director of sales"],
-  },
-  {
-    key: "chief_people",
-    variants: ["chro", "chief human resources officer", "head of people", "hr director", "vp people"],
-  },
-  {
-    key: "chief_product",
-    variants: ["cpo", "chief product officer", "vp product", "head of product", "product director", "director of product"],
-  },
-  {
-    key: "general_management",
-    variants: ["general manager", "gm", "country manager", "regional director", "managing partner"],
-  },
-];
 
 function normalizeTitleValue(value: string): string {
   return value
@@ -230,7 +180,7 @@ export function getTitleSynonyms(titleNeedle: string): string[] {
   const normalized = normalizeTitleValue(titleNeedle);
   const lookup = normalizeTitleForLookup(titleNeedle);
   if (!normalized) return [];
-  for (const family of TITLE_FAMILIES) {
+  for (const family of DECISION_MAKER_TITLE_FAMILIES) {
     const expandedFamilyVariants = family.variants.flatMap(expandVariantForms);
     const familyLookupSet = new Set(expandedFamilyVariants.map(normalizeTitleForLookup));
     if (familyLookupSet.has(lookup)) {
