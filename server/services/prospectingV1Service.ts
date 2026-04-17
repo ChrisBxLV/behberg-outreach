@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { desc, eq } from "drizzle-orm";
-import { getDb, createContact } from "../db";
+import { getDb, upsertContact } from "../db";
 import { signals } from "../../drizzle/schema";
 import { resolveCompanyDomainDeterministic } from "./companyDomainResolver";
 import {
@@ -546,7 +546,7 @@ export async function importProspectingV1Selected(input: {
     const best = item.guessedEmails[0];
     const email = best?.email;
     try {
-      await createContact({
+      await upsertContact({
         organizationId: input.organizationId,
         source: "prospecting_v1",
         stage: "enriched",

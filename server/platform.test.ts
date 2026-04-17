@@ -15,6 +15,7 @@ vi.mock("./db", () => ({
   getContacts: vi.fn().mockResolvedValue({ contacts: [], total: 0 }),
   getContactById: vi.fn().mockResolvedValue(null),
   createContact: vi.fn().mockResolvedValue({ insertId: 1 }),
+  createOrMergeContact: vi.fn().mockResolvedValue({ action: "created", contact: { id: 1 } }),
   updateContact: vi.fn().mockResolvedValue(undefined),
   deleteContacts: vi.fn().mockResolvedValue(undefined),
   bulkUpdateContactStage: vi.fn().mockResolvedValue(undefined),
@@ -167,6 +168,11 @@ describe("contacts", () => {
   });
 
   it("creates a new contact", async () => {
+    const db = await import("./db");
+    vi.mocked(db.createOrMergeContact).mockResolvedValueOnce({
+      action: "created",
+      contact: { id: 1 } as any,
+    });
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.contacts.create({
       firstName: "John",
@@ -176,6 +182,7 @@ describe("contacts", () => {
       title: "CTO",
     });
     expect(result.success).toBe(true);
+    expect(vi.mocked(db.createOrMergeContact)).toHaveBeenCalled();
   });
 
   it("deletes contacts by ids", async () => {
@@ -393,7 +400,7 @@ describe("settings", () => {
 describe("csvImport service", () => {
   it("parses Apollo CSV buffer correctly", async () => {
     const { importCsvContacts } = await import("./services/csvImport");
-    const { createContact } = await import("./db");
+    const { upsertContact } = await import("./db");
 
     const csvContent = `First Name,Last Name,Title,Company,Email,LinkedIn URL,City,State,Country
 John,Doe,CTO,Acme Corp,john.doe@acme.com,https://linkedin.com/in/johndoe,London,,UK
@@ -404,11 +411,12 @@ Jane,Smith,VP Sales,TechCo,jane.smith@techco.com,https://linkedin.com/in/janesmi
     expect(result).toHaveProperty("imported");
     expect(result).toHaveProperty("skipped");
     expect(result.imported).toBeGreaterThanOrEqual(0);
+    expect(vi.mocked(upsertContact)).toHaveBeenCalled();
   });
 
   it("applies organization scope to imported contacts", async () => {
     const { importCsvContacts } = await import("./services/csvImport");
-    const { createContact } = await import("./db");
+    const { upsertContact } = await import("./db");
 
     const csvContent = `First Name,Last Name,Title,Company,Email
 Scoped,User,CTO,Scoped Co,scoped.user@scopedco.com`;
@@ -416,8 +424,8 @@ Scoped,User,CTO,Scoped Co,scoped.user@scopedco.com`;
     const buffer = Buffer.from(csvContent, "utf-8");
     await importCsvContacts(buffer, "scoped-test-batch", { organizationId: 123 });
 
-    const createContactMock = vi.mocked(createContact);
-    const scopedCall = createContactMock.mock.calls.find(
+    const upsertContactMock = vi.mocked(upsertContact);
+    const scopedCall = upsertContactMock.mock.calls.find(
       call => call?.[0]?.email === "scoped.user@scopedco.com",
     );
     expect(scopedCall?.[0]?.organizationId).toBe(123);
