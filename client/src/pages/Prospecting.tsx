@@ -194,6 +194,10 @@ export default function Prospecting() {
                     {doneStats.fallbackSearchCompanies}
                   </div>
                   <div>
+                    LinkedIn-priority companies: {doneStats.linkedinPriorityCompanies} | LinkedIn candidates:{" "}
+                    {doneStats.linkedinCandidatesFound}
+                  </div>
+                  <div>
                     Pages fetched: {doneStats.pagesFetched}/{doneStats.pagesAttempted}
                   </div>
                   {doneStats.zeroResultReason && (

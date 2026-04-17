@@ -44,6 +44,8 @@ export type ProspectingV1Result = {
     pagesAttempted: number;
     pagesFetched: number;
     fallbackSearchCompanies: number;
+    linkedinPriorityCompanies: number;
+    linkedinCandidatesFound: number;
     zeroResultReason: string | null;
   };
 };
@@ -243,6 +245,150 @@ function extractHttpUrlsFromHtml(html: string): string[] {
   return Array.from(new Set(out));
 }
 
+function normalizeLinkedInProfileUrl(raw: string): string | null {
+  try {
+    const parsed = new URL(raw);
+    if (!/^https?:$/i.test(parsed.protocol)) return null;
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    if (host !== "linkedin.com") return null;
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    if (segments[0] !== "in" || !segments[1]) return null;
+    const slug = segments[1].trim();
+    if (!slug) return null;
+    return `https://www.linkedin.com/in/${encodeURIComponent(decodeURIComponent(slug)).replace(/%2F/gi, "")}`;
+  } catch {
+    return null;
+  }
+}
+
+function decodeSearchResultHref(rawHref: string): string | null {
+  try {
+    if (!rawHref) return null;
+    if (/^https?:\/\//i.test(rawHref)) return rawHref;
+    if (rawHref.startsWith("/url?")) {
+      const wrapped = new URL(`https://www.google.com${rawHref}`);
+      const q = wrapped.searchParams.get("q");
+      if (q) return q;
+    }
+    if (rawHref.includes("uddg=")) {
+      const wrapped = new URL(rawHref, "https://duckduckgo.com");
+      const uddg = wrapped.searchParams.get("uddg");
+      if (uddg) return decodeURIComponent(uddg);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function extractLinkedInProfileUrlsFromSearchHtml(html: string): string[] {
+  const discovered: string[] = [];
+  const hrefRe = /href\s*=\s*["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null = null;
+  // eslint-disable-next-line no-cond-assign
+  while ((m = hrefRe.exec(html)) !== null) {
+    const href = m[1] ?? "";
+    const decoded = decodeSearchResultHref(href);
+    if (!decoded) continue;
+    const profile = normalizeLinkedInProfileUrl(decoded);
+    if (!profile) continue;
+    discovered.push(profile);
+  }
+
+  const directRe = /https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9%._-]+/gi;
+  let dm: RegExpExecArray | null = null;
+  // eslint-disable-next-line no-cond-assign
+  while ((dm = directRe.exec(html)) !== null) {
+    const profile = normalizeLinkedInProfileUrl(dm[0] ?? "");
+    if (!profile) continue;
+    discovered.push(profile);
+  }
+  return Array.from(new Set(discovered));
+}
+
+function titleBooleanClause(titleNeedle: string): string {
+  const synonyms = titleSynonymsForInput(titleNeedle).slice(0, 8);
+  if (synonyms.length === 0) return "";
+  return `(${synonyms.map(s => `"${s}"`).join(" OR ")})`;
+}
+
+function buildLinkedInBooleanQueries(input: {
+  company: string;
+  titleNeedle: string;
+  countryNeedle?: string;
+}): string[] {
+  const companyClause = `"${input.company}"`;
+  const titleClause = titleBooleanClause(input.titleNeedle);
+  const country = (input.countryNeedle ?? "").trim();
+  const countryClause = country ? `"${country}"` : "";
+
+  const primary = `site:linkedin.com/in ${titleClause} ${companyClause} ${countryClause}`.replace(/\s+/g, " ").trim();
+  const secondary = `site:linkedin.com/in ${companyClause} ${titleClause}`.replace(/\s+/g, " ").trim();
+  return Array.from(new Set([primary, secondary].filter(Boolean)));
+}
+
+function inferNameFromLinkedInProfileUrl(profileUrl: string): string | null {
+  try {
+    const parsed = new URL(profileUrl);
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (parts[0] !== "in" || !parts[1]) return null;
+    const slug = decodeURIComponent(parts[1]).replace(/[0-9]+/g, " ");
+    const rawName = slug
+      .replace(/[_-]+/g, " ")
+      .replace(/[^a-zA-Z\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!rawName) return null;
+    const tokens = rawName.split(" ").filter(Boolean).slice(0, 3);
+    if (tokens.length < 2) return null;
+    return tokens
+      .map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase())
+      .join(" ");
+  } catch {
+    return null;
+  }
+}
+
+async function discoverDecisionMakersFromLinkedInSearch(input: {
+  company: string;
+  titleNeedle: string;
+  countryNeedle?: string;
+  maxResults: number;
+}): Promise<Array<{ fullName: string; matchedTitle: string; evidenceUrl: string }>> {
+  const queries = buildLinkedInBooleanQueries(input);
+  const out: Array<{ fullName: string; matchedTitle: string; evidenceUrl: string }> = [];
+  const seen = new Set<string>();
+
+  for (const query of queries) {
+    const q = encodeURIComponent(query);
+    const providers = [
+      `https://www.google.com/search?q=${q}&hl=en&gl=us&num=10`,
+      `https://duckduckgo.com/html/?q=${q}`,
+      `https://www.bing.com/search?q=${q}&count=10`,
+    ];
+    for (const provider of providers) {
+      // eslint-disable-next-line no-await-in-loop
+      const html = await fetchText(provider, 8_000);
+      if (!html) continue;
+      const urls = extractLinkedInProfileUrlsFromSearchHtml(html);
+      for (const url of urls) {
+        const fullName = inferNameFromLinkedInProfileUrl(url);
+        if (!fullName) continue;
+        const key = `${fullName.toLowerCase()}::${url.toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          fullName,
+          matchedTitle: input.titleNeedle.trim(),
+          evidenceUrl: url,
+        });
+        if (out.length >= input.maxResults) return out;
+      }
+    }
+  }
+  return out;
+}
+
 function defaultCompanyPageCandidates(root: string): string[] {
   const base = `https://${root}`;
   return [
@@ -372,6 +518,8 @@ async function runV1(input: RunInput, runId: string) {
   let pagesAttempted = 0;
   let pagesFetched = 0;
   let fallbackSearchCompanies = 0;
+  let linkedinPriorityCompanies = 0;
+  let linkedinCandidatesFound = 0;
   let companiesDone = 0;
 
   for (const company of companies) {
@@ -398,6 +546,37 @@ async function runV1(input: RunInput, runId: string) {
       progress: { companiesTotal: companies.length, companiesDone },
       startedAt,
     });
+
+    const linkedinCandidates = await discoverDecisionMakersFromLinkedInSearch({
+      company,
+      titleNeedle: input.title,
+      countryNeedle: input.country,
+      maxResults: 4,
+    });
+    if (linkedinCandidates.length > 0) {
+      linkedinPriorityCompanies++;
+      linkedinCandidatesFound += linkedinCandidates.length;
+    }
+
+    for (const profile of linkedinCandidates) {
+      const { first, last } = splitName(profile.fullName);
+      const guessed = root
+        ? guessEmailsFromName({ first, last, domain: root, patternHint: null })
+        : [];
+      const candidateKey =
+        `${company.toLowerCase()}::${profile.fullName.toLowerCase()}::${profile.matchedTitle.toLowerCase()}`;
+      if (seenCandidates.has(candidateKey)) continue;
+      seenCandidates.add(candidateKey);
+      items.push({
+        id: randomUUID().slice(0, 12),
+        company,
+        domain: root,
+        fullName: profile.fullName,
+        matchedTitle: profile.matchedTitle,
+        evidenceUrl: profile.evidenceUrl,
+        guessedEmails: guessed,
+      });
+    }
 
     const urls = root ? defaultCompanyPageCandidates(root) : await discoverCompanyUrlsWithoutDomain(company);
     if (!root && urls.length > 0) fallbackSearchCompanies++;
@@ -463,6 +642,8 @@ async function runV1(input: RunInput, runId: string) {
       pagesAttempted,
       pagesFetched,
       fallbackSearchCompanies,
+      linkedinPriorityCompanies,
+      linkedinCandidatesFound,
       zeroResultReason:
         items.length > 0
           ? null
