@@ -28,12 +28,14 @@ export function registerExpressRoutes(app: Express) {
   app.post("/api/import/csv", upload.single("file"), async (req, res) => {
     try {
       // Protect CSV import: it writes PII to your database.
-      await sdk.authenticateRequest(req);
+      const user = await sdk.authenticateRequest(req);
 
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
-      const result = await importCsvContacts(req.file.buffer, req.file.originalname);
+      const result = await importCsvContacts(req.file.buffer, req.file.originalname, {
+        organizationId: user.organizationId ?? null,
+      });
       res.json({ success: true, ...result });
     } catch (err: any) {
       console.error("[CSV Import] Error:", err.message);

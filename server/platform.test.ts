@@ -386,6 +386,23 @@ Jane,Smith,VP Sales,TechCo,jane.smith@techco.com,https://linkedin.com/in/janesmi
     expect(result).toHaveProperty("skipped");
     expect(result.imported).toBeGreaterThanOrEqual(0);
   });
+
+  it("applies organization scope to imported contacts", async () => {
+    const { importCsvContacts } = await import("./services/csvImport");
+    const { createContact } = await import("./db");
+
+    const csvContent = `First Name,Last Name,Title,Company,Email
+Scoped,User,CTO,Scoped Co,scoped.user@scopedco.com`;
+
+    const buffer = Buffer.from(csvContent, "utf-8");
+    await importCsvContacts(buffer, "scoped-test-batch", { organizationId: 123 });
+
+    const createContactMock = vi.mocked(createContact);
+    const scopedCall = createContactMock.mock.calls.find(
+      call => call?.[0]?.email === "scoped.user@scopedco.com",
+    );
+    expect(scopedCall?.[0]?.organizationId).toBe(123);
+  });
 });
 
 // ─── Email interpolation ───────────────────────────────────────────────────────

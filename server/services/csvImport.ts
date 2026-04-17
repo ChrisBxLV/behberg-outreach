@@ -82,9 +82,14 @@ export interface ImportResult {
   errors: string[];
 }
 
+type ImportCsvOptions = {
+  organizationId?: number | null;
+};
+
 export async function importCsvContacts(
   csvBuffer: Buffer,
-  filename: string
+  filename: string,
+  options: ImportCsvOptions = {},
 ): Promise<ImportResult> {
   const batchId = uuidv4();
   const errors: string[] = [];
@@ -115,6 +120,7 @@ export async function importCsvContacts(
         stage: "new",
         emailStatus: "unknown",
         tags: [],
+        organizationId: options.organizationId ?? null,
       };
       let csvCountry = "";
 
