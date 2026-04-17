@@ -5,6 +5,7 @@ import { getDb, createContact } from "../db";
 import { signals } from "../../drizzle/schema";
 import { resolveCompanyDomainDeterministic } from "./companyDomainResolver";
 import {
+  domainContainsCompany,
   guessEmailsFromName,
   inferPatternFromPublicEmails,
   matchesSignalNeedles,
@@ -36,6 +37,13 @@ export type ProspectingV1Result = {
   stats: {
     companiesProcessed: number;
     candidatesFound: number;
+    companiesSeeded: number;
+    companiesWithDomain: number;
+    companiesWithoutDomain: number;
+    pagesAttempted: number;
+    pagesFetched: number;
+    fallbackSearchCompanies: number;
+    zeroResultReason: string | null;
   };
 };
 
@@ -204,6 +212,89 @@ function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function normalizeAbsoluteHttpUrl(raw: string): string | null {
+  try {
+    const cleaned = raw.replace(/&amp;/gi, "&").trim();
+    if (!/^https?:\/\//i.test(cleaned)) return null;
+    const parsed = new URL(cleaned);
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractHttpUrlsFromHtml(html: string): string[] {
+  const out: string[] = [];
+  const re = /href\s*=\s*["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null = null;
+  // eslint-disable-next-line no-cond-assign
+  while ((m = re.exec(html)) !== null) {
+    const href = m[1] ?? "";
+    const abs = normalizeAbsoluteHttpUrl(href);
+    if (!abs) continue;
+    out.push(abs);
+  }
+  return Array.from(new Set(out));
+}
+
+function defaultCompanyPageCandidates(root: string): string[] {
+  const base = `https://${root}`;
+  return [
+    `${base}/`,
+    `${base}/about`,
+    `${base}/team`,
+    `${base}/leadership`,
+    `${base}/company`,
+    `${base}/contact`,
+    `${base}/press`,
+    `${base}/management`,
+    `${base}/about-us`,
+  ];
+}
+
+function likelyCompanyUrlsFromSearch(company: string, urls: string[]): string[] {
+  const ranked = urls
+    .map(u => {
+      try {
+        const host = new URL(u).hostname.replace(/^www\./i, "").toLowerCase();
+        const score = (domainContainsCompany(host, company) ? 2 : 0) + (u.includes("/about") || u.includes("/team") ? 1 : 0);
+        return { url: u, host, score };
+      } catch {
+        return null;
+      }
+    })
+    .filter((x): x is { url: string; host: string; score: number } => Boolean(x))
+    .filter(x => !["google.com", "duckduckgo.com", "bing.com", "linkedin.com", "wikipedia.org"].some(h => x.host === h || x.host.endsWith(`.${h}`)))
+    .sort((a, b) => b.score - a.score);
+
+  const seenHosts = new Set<string>();
+  const out: string[] = [];
+  for (const r of ranked) {
+    if (seenHosts.has(r.host)) continue;
+    seenHosts.add(r.host);
+    out.push(...defaultCompanyPageCandidates(rootDomainOnly(r.host)));
+    if (seenHosts.size >= 2) break;
+  }
+  return Array.from(new Set(out)).slice(0, 14);
+}
+
+async function discoverCompanyUrlsWithoutDomain(company: string): Promise<string[]> {
+  const q = encodeURIComponent(`${company} leadership team`);
+  const providers = [
+    `https://www.google.com/search?q=${q}&hl=en&gl=us&num=5`,
+    `https://duckduckgo.com/html/?q=${q}`,
+    `https://www.bing.com/search?q=${q}&count=10`,
+  ];
+  const discovered: string[] = [];
+  for (const provider of providers) {
+    // eslint-disable-next-line no-await-in-loop
+    const html = await fetchText(provider, 8_000);
+    if (!html) continue;
+    extractHttpUrlsFromHtml(html).forEach(u => discovered.push(u));
+  }
+  return likelyCompanyUrlsFromSearch(company, discovered);
+}
+
 async function seedCompaniesFromSignals(input: RunInput): Promise<string[]> {
   const db = await getDb();
   if (!db) return [];
@@ -242,6 +333,7 @@ async function seedCompaniesFromSignals(input: RunInput): Promise<string[]> {
 async function runV1(input: RunInput, runId: string) {
   const startedAt = Date.now();
   let companies = input.companies.map(normalizeCompanyName).filter(Boolean);
+  let companiesSeeded = 0;
 
   setRun(runId, {
     organizationId: input.organizationId,
@@ -252,7 +344,10 @@ async function runV1(input: RunInput, runId: string) {
     startedAt,
   });
 
-  if (companies.length === 0) companies = await seedCompaniesFromSignals(input);
+  if (companies.length === 0) {
+    companies = await seedCompaniesFromSignals(input);
+    companiesSeeded = companies.length;
+  }
   companies = companies.slice(0, input.maxCompanies);
 
   setRun(runId, {
@@ -266,6 +361,11 @@ async function runV1(input: RunInput, runId: string) {
 
   const items: ProspectingV1Candidate[] = [];
   const seenCandidates = new Set<string>();
+  let companiesWithDomain = 0;
+  let companiesWithoutDomain = 0;
+  let pagesAttempted = 0;
+  let pagesFetched = 0;
+  let fallbackSearchCompanies = 0;
   let companiesDone = 0;
 
   for (const company of companies) {
@@ -281,6 +381,8 @@ async function runV1(input: RunInput, runId: string) {
       new Promise<null>(resolve => setTimeout(() => resolve(null), 10_000)),
     ]);
     const root = domain ? rootDomainOnly(domain) : null;
+    if (root) companiesWithDomain++;
+    else companiesWithoutDomain++;
 
     setRun(runId, {
       organizationId: input.organizationId,
@@ -291,26 +393,17 @@ async function runV1(input: RunInput, runId: string) {
       startedAt,
     });
 
-    const urls: string[] = [];
-    if (root) {
-      const base = `https://${root}`;
-      urls.push(
-        `${base}/`,
-        `${base}/about`,
-        `${base}/team`,
-        `${base}/leadership`,
-        `${base}/company`,
-        `${base}/contact`,
-        `${base}/press`,
-      );
-    }
+    const urls = root ? defaultCompanyPageCandidates(root) : await discoverCompanyUrlsWithoutDomain(company);
+    if (!root && urls.length > 0) fallbackSearchCompanies++;
 
     const publicEmails = new Set<string>();
     let patternHint: "first.last" | "flast" | null = null;
 
     for (const url of urls) {
+      pagesAttempted++;
       const html = await fetchText(url, 12_000);
       if (!html) continue;
+      pagesFetched++;
       const text = stripHtml(html);
 
       if (root) {
@@ -355,7 +448,24 @@ async function runV1(input: RunInput, runId: string) {
 
   const result: ProspectingV1Result = {
     items,
-    stats: { companiesProcessed: companies.length, candidatesFound: items.length },
+    stats: {
+      companiesProcessed: companies.length,
+      candidatesFound: items.length,
+      companiesSeeded,
+      companiesWithDomain,
+      companiesWithoutDomain,
+      pagesAttempted,
+      pagesFetched,
+      fallbackSearchCompanies,
+      zeroResultReason:
+        items.length > 0
+          ? null
+          : companies.length === 0
+            ? "No companies were available from Signals for the selected filters."
+            : pagesFetched === 0
+              ? "Could not fetch candidate pages for selected companies. Domain discovery likely failed."
+              : "Candidate pages were fetched, but no matching people/title patterns were found.",
+    },
   };
 
   setRun(runId, {

@@ -1,4 +1,8 @@
-import { rootDomainOnly } from "./prospectingV1Utils";
+import {
+  domainContainsCompany,
+  generateDomainCandidates,
+  rootDomainOnly,
+} from "./prospectingV1Utils";
 
 type ResolveInput = {
   company: string;
@@ -46,23 +50,6 @@ function extractHrefDomainsFromArticleHtml(article_html: string): string[] {
   return domains;
 }
 
-function companyFragments(company: string): string[] {
-  const c = company.toLowerCase().trim();
-  if (!c) return [];
-  return c
-    .split(/\s+/g)
-    .map(x => x.replace(/[^a-z0-9]/g, ""))
-    .filter(x => x.length >= 3)
-    .slice(0, 5);
-}
-
-function domainContainsCompany(domain: string, company: string): boolean {
-  const d = domain.toLowerCase();
-  const frags = companyFragments(company);
-  if (frags.length === 0) return false;
-  return frags.some(f => d.includes(f));
-}
-
 function extractFirstOrganicResultUrlFromGoogleSearch(html: string): string | null {
   // Parse links of the form: /url?q=<URL>&...
   const re = /href\s*=\s*["']\/url\?q=([^&"']+)&/gi;
@@ -78,6 +65,25 @@ function extractFirstOrganicResultUrlFromGoogleSearch(html: string): string | nu
     } catch {
       continue;
     }
+  }
+  return null;
+}
+
+function extractFirstHttpUrlByHostHint(html: string, hostHint: string): string | null {
+  const blockedHosts = new Set(["google.com", "duckduckgo.com", "bing.com", "yahoo.com"]);
+  const attrRe = /href\s*=\s*["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null = null;
+  // eslint-disable-next-line no-cond-assign
+  while ((m = attrRe.exec(html)) !== null) {
+    const href = m[1] ?? "";
+    if (!href || href.startsWith("/")) continue;
+    if (!/^https?:\/\//i.test(href)) continue;
+    if (!href.toLowerCase().includes(hostHint.toLowerCase())) continue;
+    const host = normalizeHrefDomain(href);
+    if (!host) continue;
+    const root = normalizeDomainForOutput(host);
+    if (blockedHosts.has(root)) continue;
+    return href;
   }
   return null;
 }
@@ -162,54 +168,62 @@ export async function resolveCompanyDomainDeterministic(
     return { domain: normalized, domain_confidence: conf };
   }
 
-  // Fallback: search query
-  const query = `${company} official website`;
-  const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=en&gl=us&num=1`;
-  const res = await fetch(url, {
-    headers: {
-      "user-agent": "BehbergSignalsBot/1.0 (+https://behberg.com)",
-      accept: "text/html,application/xhtml+xml",
-    },
-  });
-  if (!res.ok) {
-    const explicit = (() => {
-      const domains = extractExplicitDomainsFromText(input.article_text ?? "");
-      const freq = new Map<string, number>();
-      domains.forEach(d => freq.set(d, (freq.get(d) ?? 0) + 1));
+  const searchHeader = {
+    "user-agent": "BehbergSignalsBot/1.0 (+https://behberg.com)",
+    accept: "text/html,application/xhtml+xml",
+  };
+  const firstUrlFromSearch = await (async () => {
+    const query = `${company} official website`;
+    const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=en&gl=us&num=1`;
+    try {
+      const googleRes = await fetch(googleUrl, { headers: searchHeader });
+      if (googleRes.ok) {
+        const html = await googleRes.text();
+        const parsed =
+          extractFirstOrganicResultUrlFromGoogleSearch(html) ??
+          extractFirstHttpUrlByHostHint(html, company.split(/\s+/g)[0] ?? company);
+        if (parsed) return parsed;
+      }
+    } catch {
+      // try next provider
+    }
 
-      const ranked: Array<{ domain: string; count: number; score: number }> = [];
-      const frags = companyFragments(company);
-      freq.forEach((count, d) => {
-        const root = normalizeDomainForOutput(d);
-        if (DOMAIN_BLACKLIST.some(b => root === b || root.endsWith(`.${b}`))) return;
-        let score = 0;
-        const contains = frags.some(f => root.includes(f));
-        if (contains) score += 0.5;
-        if (count > 1) score += 0.3;
-        if (!contains) score -= 0.6;
-        ranked.push({ domain: root, count, score });
-      });
-      ranked.sort((a, b) => b.score - a.score);
-      const best = ranked[0];
-      if (!best || best.score < 0.5) return null;
-      return { domain: best.domain, domain_confidence: 0.86 };
-    })();
+    const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    try {
+      const ddgRes = await fetch(ddgUrl, { headers: searchHeader });
+      if (ddgRes.ok) {
+        const html = await ddgRes.text();
+        const parsed = extractFirstHttpUrlByHostHint(html, company.split(/\s+/g)[0] ?? company);
+        if (parsed) return parsed;
+      }
+    } catch {
+      // try next provider
+    }
 
-    return explicit ?? { domain: null, domain_confidence: null };
-  }
-  const html = await res.text();
-  const firstUrl = extractFirstOrganicResultUrlFromGoogleSearch(html);
-  if (!firstUrl) {
-    const explicit = (() => {
+    const bingUrl = `https://www.bing.com/search?q=${encodeURIComponent(query)}&count=5`;
+    try {
+      const bingRes = await fetch(bingUrl, { headers: searchHeader });
+      if (bingRes.ok) {
+        const html = await bingRes.text();
+        const parsed = extractFirstHttpUrlByHostHint(html, company.split(/\s+/g)[0] ?? company);
+        if (parsed) return parsed;
+      }
+    } catch {
+      // no-op
+    }
+    return null;
+  })();
+
+  if (!firstUrlFromSearch) {
+    const explicit = await (async () => {
       const domains = extractExplicitDomainsFromText(input.article_text ?? "");
       const freq = new Map<string, number>();
       domains.forEach(d => freq.set(d, (freq.get(d) ?? 0) + 1));
       const ranked: Array<{ domain: string; score: number }> = [];
-      const frags = companyFragments(company);
       freq.forEach((count, d) => {
         const root = normalizeDomainForOutput(d);
         if (DOMAIN_BLACKLIST.some(b => root === b || root.endsWith(`.${b}`))) return;
-        const contains = frags.some(f => root.includes(f));
+        const contains = domainContainsCompany(root, company);
         let score = 0;
         if (contains) score += 0.5;
         if (count > 1) score += 0.3;
@@ -218,13 +232,26 @@ export async function resolveCompanyDomainDeterministic(
       });
       ranked.sort((a, b) => b.score - a.score);
       const best = ranked[0];
-      if (!best || best.score < 0.5) return null;
-      return { domain: best.domain, domain_confidence: 0.86 };
+      if (best && best.score >= 0.5) return { domain: best.domain, domain_confidence: 0.86 };
+
+      // Last free fallback: deterministic direct-domain probes.
+      const candidates = generateDomainCandidates(company);
+      for (const candidate of candidates) {
+        if (DOMAIN_BLACKLIST.some(b => candidate === b || candidate.endsWith(`.${b}`))) continue;
+        // eslint-disable-next-line no-await-in-loop
+        const ok = await probeDomain(candidate);
+        if (!ok) continue;
+        return {
+          domain: normalizeDomainForOutput(candidate),
+          domain_confidence: domainContainsCompany(candidate, company) ? 0.74 : 0.62,
+        };
+      }
+      return null;
     })();
     return explicit ?? { domain: null, domain_confidence: null };
   }
 
-  const host = normalizeHrefDomain(firstUrl);
+  const host = normalizeHrefDomain(firstUrlFromSearch);
   if (!host) return { domain: null, domain_confidence: null };
   const root = normalizeDomainForOutput(host);
 
@@ -245,5 +272,26 @@ export async function resolveCompanyDomainDeterministic(
   if (conf < 0.5) return { domain: null, domain_confidence: null };
 
   return { domain: root, domain_confidence: conf };
+}
+
+async function probeDomain(domain: string): Promise<boolean> {
+  const url = `https://${domain}`;
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 4_000);
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      signal: ac.signal,
+      redirect: "follow",
+      headers: { "user-agent": "BehbergSignalsBot/1.0 (+https://behberg.com)" },
+    });
+    if (!res.ok) return false;
+    const ct = (res.headers.get("content-type") ?? "").toLowerCase();
+    return ct.includes("text/html") || ct.includes("text/plain") || ct === "";
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(t);
+  }
 }
 

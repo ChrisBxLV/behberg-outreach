@@ -71,6 +71,8 @@ export default function Prospecting() {
 
   const rows: CandidateRow[] =
     (statusQuery.data && "result" in statusQuery.data ? statusQuery.data.result?.items : []) ?? [];
+  const doneStats =
+    statusQuery.data?.state === "done" ? statusQuery.data.result.stats : null;
 
   useEffect(() => {
     if (!statusQuery.data) return;
@@ -168,6 +170,26 @@ export default function Prospecting() {
                     ? `Done: ${statusQuery.data.result.stats.candidatesFound} candidates`
                     : "Error"}
               </CardDescription>
+              {doneStats && (
+                <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  <div>
+                    Companies processed: {doneStats.companiesProcessed} | Seeded from Signals:{" "}
+                    {doneStats.companiesSeeded}
+                  </div>
+                  <div>
+                    Domains found: {doneStats.companiesWithDomain} | No-domain fallback used:{" "}
+                    {doneStats.fallbackSearchCompanies}
+                  </div>
+                  <div>
+                    Pages fetched: {doneStats.pagesFetched}/{doneStats.pagesAttempted}
+                  </div>
+                  {doneStats.zeroResultReason && (
+                    <div className="text-amber-500">
+                      No results reason: {doneStats.zeroResultReason}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardHeader>
           </Card>
         )}
@@ -188,7 +210,12 @@ export default function Prospecting() {
           </CardHeader>
           <CardContent>
             {rows.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No results yet.</div>
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">No results yet.</div>
+                {doneStats?.zeroResultReason && (
+                  <div className="text-xs text-amber-500">{doneStats.zeroResultReason}</div>
+                )}
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">

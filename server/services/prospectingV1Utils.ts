@@ -8,6 +8,58 @@ export function rootDomainOnly(domain: string): string {
   return labels.slice(-2).join(".");
 }
 
+const COMPANY_STOP_WORDS = new Set([
+  "inc",
+  "llc",
+  "ltd",
+  "limited",
+  "corp",
+  "corporation",
+  "group",
+  "holding",
+  "holdings",
+  "company",
+  "co",
+  "plc",
+  "ab",
+  "ag",
+  "sa",
+  "bv",
+  "oy",
+]);
+
+export function companyFragments(company: string): string[] {
+  const parts = company
+    .toLowerCase()
+    .split(/\s+/g)
+    .map(p => p.replace(/[^a-z0-9]/g, ""))
+    .filter(Boolean)
+    .filter(p => p.length >= 3 && !COMPANY_STOP_WORDS.has(p));
+  return Array.from(new Set(parts)).slice(0, 5);
+}
+
+export function domainContainsCompany(domain: string, company: string): boolean {
+  const d = domain.toLowerCase();
+  const frags = companyFragments(company);
+  if (frags.length === 0) return false;
+  return frags.some(f => d.includes(f));
+}
+
+export function generateDomainCandidates(company: string): string[] {
+  const frags = companyFragments(company);
+  if (frags.length === 0) return [];
+  const compact = frags.join("");
+  const dashed = frags.join("-");
+  const first = frags[0] ?? compact;
+  const roots = Array.from(new Set([compact, dashed, first].filter(Boolean)));
+  const tlds = ["com", "io", "co", "ai", "net", "org"];
+  const out: string[] = [];
+  for (const root of roots) {
+    for (const tld of tlds) out.push(`${root}.${tld}`);
+  }
+  return Array.from(new Set(out)).slice(0, 18);
+}
+
 export function inferPatternFromPublicEmails(emails: string[], domain: string): "first.last" | "flast" | null {
   const root = rootDomainOnly(domain);
   const locals = emails

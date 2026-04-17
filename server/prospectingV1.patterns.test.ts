@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
+  domainContainsCompany,
+  generateDomainCandidates,
   guessEmailsFromName,
   inferPatternFromPublicEmails,
   matchesSignalNeedles,
@@ -54,6 +56,16 @@ describe("prospecting v1 helper hardening", () => {
         countryNeedle: "latvia",
       }),
     ).toBe(false);
+  });
+
+  test("domain candidate generation includes .com roots", () => {
+    const candidates = generateDomainCandidates("Acme Holdings Inc");
+    expect(candidates.some(c => c === "acme.com")).toBe(true);
+  });
+
+  test("domainContainsCompany matches host fragments", () => {
+    expect(domainContainsCompany("betsson.com", "Betsson Group")).toBe(true);
+    expect(domainContainsCompany("example.org", "Betsson Group")).toBe(false);
   });
 });
 
