@@ -650,8 +650,8 @@ async function runV1(input: RunInput, runId: string) {
           : companies.length === 0
             ? "No companies were available from Signals for the selected filters."
             : pagesFetched === 0
-              ? "Could not fetch candidate pages for selected companies. Domain discovery likely failed."
-              : "Candidate pages were fetched, but no matching people/title patterns were found.",
+              ? "Could not fetch prospect pages for selected companies. Domain discovery likely failed."
+              : "Prospect pages were fetched, but no matching people/title patterns were found.",
     },
   };
 

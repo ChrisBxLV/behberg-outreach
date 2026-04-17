@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { ExternalLink, RefreshCw, Search } from "lucide-react";
 import { getDecisionMakerAutocompleteTitles } from "@shared/decisionMakerTitles";
 
-type CandidateRow = {
+type ProspectRow = {
   id: string;
   company: string;
   domain: string | null;
@@ -72,7 +72,7 @@ export default function Prospecting() {
     onError: e => toast.error(e.message),
   });
 
-  const rows: CandidateRow[] =
+  const rows: ProspectRow[] =
     (statusQuery.data && "result" in statusQuery.data ? statusQuery.data.result?.items : []) ?? [];
   const doneStats =
     statusQuery.data?.state === "done" ? statusQuery.data.result.stats : null;
@@ -180,7 +180,7 @@ export default function Prospecting() {
                 {statusQuery.data.state === "running"
                   ? `Running: ${statusQuery.data.step} (${statusQuery.data.progress.companiesDone}/${statusQuery.data.progress.companiesTotal})`
                   : statusQuery.data.state === "done"
-                    ? `Done: ${statusQuery.data.result.stats.candidatesFound} candidates`
+                    ? `Done: ${statusQuery.data.result.stats.candidatesFound} prospects`
                     : "Error"}
               </CardDescription>
               {doneStats && (
@@ -194,7 +194,7 @@ export default function Prospecting() {
                     {doneStats.fallbackSearchCompanies}
                   </div>
                   <div>
-                    LinkedIn-priority companies: {doneStats.linkedinPriorityCompanies} | LinkedIn candidates:{" "}
+                    LinkedIn-priority companies: {doneStats.linkedinPriorityCompanies} | LinkedIn prospects:{" "}
                     {doneStats.linkedinCandidatesFound}
                   </div>
                   <div>
@@ -214,8 +214,8 @@ export default function Prospecting() {
         <Card className="border-border/50 bg-card/80">
           <CardHeader className="flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-base">Shortlist</CardTitle>
-              <CardDescription>Select matches and import to Contacts.</CardDescription>
+              <CardTitle className="text-base">Prospects</CardTitle>
+              <CardDescription>Select prospects and import to Contacts.</CardDescription>
             </div>
             <Button
               variant="outline"
