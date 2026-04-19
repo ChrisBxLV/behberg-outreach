@@ -65,6 +65,11 @@ done
 log() { printf '\n[%s] %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*"; }
 die() { echo "ERROR: $*" >&2; exit 1; }
 
+LOG_FILE="${LOG_FILE:-/var/log/behberg-deploy.log}"
+mkdir -p "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE"
+exec >> "$LOG_FILE" 2>&1
+
 cd "$APP_DIR"
 [[ -d .git ]] || die "APP_DIR is not a git repo: $APP_DIR"
 
