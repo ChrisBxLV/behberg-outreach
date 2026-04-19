@@ -140,6 +140,16 @@ export async function devSetOrganizationSubscriptionPlanId(
   });
 }
 
+export async function devUpdateOrganizationName(organizationId: number, name: string): Promise<void> {
+  return serialized(async () => {
+    const store = await loadStore();
+    const o = store.organizations.find(x => x.id === organizationId);
+    if (!o) throw new Error("Organization not found");
+    o.name = name.trim();
+    await saveStore(store);
+  });
+}
+
 /** Dev-file auth: org list + counts from local-auth.json only (contacts/campaigns not in file → 0). */
 export async function devGetPlatformOverview(): Promise<{
   organizations: {

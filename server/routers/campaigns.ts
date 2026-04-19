@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { assertCampaignScope, assertContactScope } from "../_core/orgAccess";
 import { dataScopeOrganizationId } from "../_core/orgScope";
+import { requireTenantQueryScope } from "../_core/authz";
 import { protectedProcedure, router } from "../_core/trpc";
 import { agentDebugLog } from "../_core/agentDebugLog";
 import {
@@ -23,14 +24,14 @@ import { launchCampaign, processEmailQueue } from "../services/sequenceScheduler
 
 export const campaignsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
-    const scope = dataScopeOrganizationId(ctx.user);
+    const scope = requireTenantQueryScope(ctx.user);
     return getCampaigns(scope);
   }),
 
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const scope = dataScopeOrganizationId(ctx.user);
+      const scope = requireTenantQueryScope(ctx.user);
       const campaign = await getCampaignById(input.id, scope);
       assertCampaignScope(campaign, ctx.user);
       const steps = await getSequenceSteps(input.id);
@@ -75,7 +76,7 @@ export const campaignsRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
-      const scope = dataScopeOrganizationId(ctx.user);
+      const scope = requireTenantQueryScope(ctx.user);
       const campaign = await getCampaignById(id, scope);
       assertCampaignScope(campaign, ctx.user);
       await updateCampaign(id, data, scope);
@@ -85,7 +86,7 @@ export const campaignsRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const scope = dataScopeOrganizationId(ctx.user);
+      const scope = requireTenantQueryScope(ctx.user);
       const campaign = await getCampaignById(input.id, scope);
       assertCampaignScope(campaign, ctx.user);
       await deleteSequenceStepsByCampaign(input.id);
@@ -115,7 +116,7 @@ export const campaignsRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const scope = dataScopeOrganizationId(ctx.user);
+      const scope = requireTenantQueryScope(ctx.user);
       const campaign = await getCampaignById(input.campaignId, scope);
       assertCampaignScope(campaign, ctx.user);
       await deleteSequenceStepsByCampaign(input.campaignId);
@@ -138,7 +139,7 @@ export const campaignsRouter = router({
   contacts: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
     .query(async ({ input, ctx }) => {
-      const scope = dataScopeOrganizationId(ctx.user);
+      const scope = requireTenantQueryScope(ctx.user);
       const campaign = await getCampaignById(input.campaignId, scope);
       assertCampaignScope(campaign, ctx.user);
       return getCampaignContacts(input.campaignId);
@@ -152,7 +153,7 @@ export const campaignsRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const scope = dataScopeOrganizationId(ctx.user);
+      const scope = requireTenantQueryScope(ctx.user);
       const campaign = await getCampaignById(input.campaignId, scope);
       assertCampaignScope(campaign, ctx.user);
       for (const cid of input.contactIds) {
@@ -171,7 +172,7 @@ export const campaignsRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const scope = dataScopeOrganizationId(ctx.user);
+      const scope = requireTenantQueryScope(ctx.user);
       const campaign = await getCampaignById(input.campaignId, scope);
       assertCampaignScope(campaign, ctx.user);
 
@@ -190,7 +191,7 @@ export const campaignsRouter = router({
   pause: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const scope = dataScopeOrganizationId(ctx.user);
+      const scope = requireTenantQueryScope(ctx.user);
       const campaign = await getCampaignById(input.campaignId, scope);
       assertCampaignScope(campaign, ctx.user);
       await updateCampaign(input.campaignId, { status: "paused" }, scope);
@@ -200,7 +201,7 @@ export const campaignsRouter = router({
   resume: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const scope = dataScopeOrganizationId(ctx.user);
+      const scope = requireTenantQueryScope(ctx.user);
       const campaign = await getCampaignById(input.campaignId, scope);
       assertCampaignScope(campaign, ctx.user);
       await updateCampaign(input.campaignId, { status: "active" }, scope);
@@ -210,7 +211,7 @@ export const campaignsRouter = router({
   emailLogs: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
     .query(async ({ input, ctx }) => {
-      const scope = dataScopeOrganizationId(ctx.user);
+      const scope = requireTenantQueryScope(ctx.user);
       const campaign = await getCampaignById(input.campaignId, scope);
       assertCampaignScope(campaign, ctx.user);
       return getEmailLogsByCampaign(input.campaignId);
@@ -219,13 +220,17 @@ export const campaignsRouter = router({
   markReplied: protectedProcedure
     .input(z.object({ emailLogId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const scope = dataScopeOrganizationId(ctx.user);
+      const scope = requireTenantQueryScope(ctx.user);
       agentDebugLog({
         runId: "post-fix",
         hypothesisId: "H_TENANT_MARK_REPLIED",
         location: "server/routers/campaigns.ts:markReplied",
         message: "markReplied called",
-        data: { scopeOrganizationId: scope, emailLogId: input.emailLogId },
+        data: {
+          scopeType: scope.type,
+          tenantOrgId: scope.type === "tenant" ? scope.organizationId : null,
+          emailLogId: input.emailLogId,
+        },
       });
       await markEmailReplied(input.emailLogId, scope);
       return { success: true };

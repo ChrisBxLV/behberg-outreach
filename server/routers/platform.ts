@@ -14,6 +14,7 @@ import {
   listOrganizationMembers,
   listUsersForPlatform,
   setOrganizationSubscriptionPlanId,
+  updateOrganizationName,
   upsertUser,
 } from "../db";
 
@@ -42,6 +43,22 @@ export const platformRouter = router({
     .mutation(async ({ input }) => {
       const id = await createOrganizationRecord(input.name);
       return { id } as const;
+    }),
+
+  updateOrganization: superadminProcedure
+    .input(
+      z.object({
+        organizationId: z.number().int().positive(),
+        name: z.string().trim().min(2).max(256),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const org = await getOrganizationById(input.organizationId);
+      if (!org) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Organization not found." });
+      }
+      await updateOrganizationName(input.organizationId, input.name);
+      return { success: true as const };
     }),
 
   organizationMembers: superadminProcedure

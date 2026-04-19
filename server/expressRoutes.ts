@@ -3,6 +3,7 @@ import multer from "multer";
 import { importCsvContacts } from "./services/csvImport";
 import { recordOpenEvent, unsubscribeByTrackingId } from "./db";
 import { startScheduler } from "./services/sequenceScheduler";
+import { resolveTenantQueryScope } from "./_core/authz";
 import { sdk } from "./_core/sdk";
 
 const upload = multer({
@@ -32,6 +33,10 @@ export function registerExpressRoutes(app: Express) {
 
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
+      }
+      const scope = resolveTenantQueryScope(user);
+      if (scope == null) {
+        return res.status(403).json({ error: "Organization context required" });
       }
       const result = await importCsvContacts(req.file.buffer, req.file.originalname, {
         organizationId: user.organizationId ?? null,

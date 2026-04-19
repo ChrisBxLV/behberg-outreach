@@ -15,5 +15,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
+    /** Avoid vi.mock("./db") in one file breaking vi.doMock("./db") in another within the same worker. */
+    fileParallelism: false,
   },
 });

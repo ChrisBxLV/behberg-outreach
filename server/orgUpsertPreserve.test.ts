@@ -43,12 +43,14 @@ describe("org-scoped sign-in upsert", () => {
     vi.doMock("./db", async () => ({
       getDb: getDbMock,
       getUserByEmail: getUserByEmailMock,
+      getUserByOpenId: vi.fn(),
       upsertUser: upsertUserMock,
       abandonLatestUnusedLoginChallenge: vi.fn(),
       createLoginChallenge: vi.fn(),
       verifyLoginChallenge: vi.fn(),
       // unused in this test:
       getContacts: vi.fn(),
+      getContactFilterOptions: vi.fn(),
       getContactById: vi.fn(),
       createContact: vi.fn(),
       updateContact: vi.fn(),

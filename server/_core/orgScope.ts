@@ -1,7 +1,10 @@
 import type { User } from "../../drizzle/schema";
 import { ENV } from "./env";
 
-/** When null, the user may see all rows (platform / legacy admin). When set, data is scoped to that org. */
+/**
+ * Workspace organization id on the user row (single-tenant attachment).
+ * Does **not** imply cross-tenant access — use `resolveTenantQueryScope` from `authz` for query filtering.
+ */
 export function dataScopeOrganizationId(user: User | null | undefined): number | null {
   const id = user?.organizationId;
   if (id == null || id <= 0) return null;

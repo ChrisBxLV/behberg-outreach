@@ -15,6 +15,7 @@ vi.mock("./db", () => ({
   getOrganizationById: vi.fn().mockResolvedValue({ id: 1, name: "Test Org", createdAt: new Date() }),
   listOrganizationMembers: vi.fn().mockResolvedValue([]),
   getContacts: vi.fn().mockResolvedValue({ contacts: [], total: 0 }),
+  getContactFilterOptions: vi.fn().mockResolvedValue({ industries: [], countries: [] }),
   getContactById: vi.fn().mockResolvedValue(null),
   createContact: vi.fn().mockResolvedValue({ insertId: 1 }),
   createOrMergeContact: vi.fn().mockResolvedValue({ action: "created", contact: { id: 1 } }),
@@ -100,6 +101,15 @@ function makeCtx(): TrpcContext {
     },
     req: { protocol: "https", headers: {} } as TrpcContext["req"],
     res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
+  };
+}
+
+/** Authenticated user with a workspace org (tenant-scoped routes). */
+function makeTenantCtx(): TrpcContext {
+  const base = makeCtx();
+  return {
+    ...base,
+    user: { ...base.user!, organizationId: 1, orgMemberRole: "owner" },
   };
 }
 
@@ -325,12 +335,40 @@ describe("organization", () => {
 
 // ─── Contacts ─────────────────────────────────────────────────────────────────
 describe("contacts", () => {
-  it("returns paginated contact list", async () => {
+  it("rejects list without organization context", async () => {
     const caller = appRouter.createCaller(makeCtx());
+    await expect(caller.contacts.list({ limit: 10, offset: 0 })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+
+  it("returns paginated contact list for tenant user", async () => {
+    const db = await import("./db");
+    const caller = appRouter.createCaller(makeTenantCtx());
     const result = await caller.contacts.list({ limit: 10, offset: 0 });
     expect(result).toHaveProperty("contacts");
     expect(result).toHaveProperty("total");
     expect(Array.isArray(result.contacts)).toBe(true);
+    expect(vi.mocked(db.getContacts)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: { type: "tenant", organizationId: 1 },
+        limit: 10,
+        offset: 0,
+      }),
+    );
+  });
+
+  it("uses platform scope for superadmin without workspace org", async () => {
+    const db = await import("./db");
+    const base = makeCtx();
+    const caller = appRouter.createCaller({
+      ...base,
+      user: { ...base.user!, role: "superadmin", organizationId: null },
+    });
+    await caller.contacts.list({ limit: 5, offset: 0 });
+    expect(vi.mocked(db.getContacts)).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: { type: "platform" } }),
+    );
   });
 
   it("creates a new contact", async () => {
@@ -352,14 +390,14 @@ describe("contacts", () => {
   });
 
   it("deletes contacts by ids", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makeTenantCtx());
     const result = await caller.contacts.delete({ ids: [1, 2, 3] });
     expect(result.success).toBe(true);
     expect(result.deleted).toBe(3);
   });
 
   it("bulk updates contact stage", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makeTenantCtx());
     const result = await caller.contacts.bulkUpdateStage({ ids: [1, 2], stage: "enriched" });
     expect(result.success).toBe(true);
   });
@@ -378,7 +416,10 @@ describe("contacts", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.contacts.importBatches();
 
-    expect(vi.mocked(db.getImportBatches)).toHaveBeenCalledWith(42);
+    expect(vi.mocked(db.getImportBatches)).toHaveBeenCalledWith({
+      type: "tenant",
+      organizationId: 42,
+    });
     expect(result).toHaveLength(1);
     expect(result[0]?.batchId).toBe("org-batch-1");
   });
@@ -406,7 +447,7 @@ describe("campaigns", () => {
       notifiedBounce: false,
       createdAt: new Date(),
       updatedAt: new Date(),
-      organizationId: null,
+      organizationId: 1,
     } as any);
     vi.mocked(db.getContactById).mockImplementation(async (id: number) => ({
       id,
@@ -428,14 +469,14 @@ describe("campaigns", () => {
       tags: null,
       source: "csv_import",
       importBatchId: null,
-      organizationId: null,
+      organizationId: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
     } as any));
   });
 
   it("returns campaign list", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makeTenantCtx());
     const result = await caller.campaigns.list();
     expect(Array.isArray(result)).toBe(true);
   });
@@ -451,7 +492,7 @@ describe("campaigns", () => {
   });
 
   it("saves sequence steps", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makeTenantCtx());
     const result = await caller.campaigns.saveSteps({
       campaignId: 1,
       steps: [
@@ -481,14 +522,14 @@ describe("campaigns", () => {
   });
 
   it("enrolls contacts in campaign", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makeTenantCtx());
     const result = await caller.campaigns.enroll({ campaignId: 1, contactIds: [1, 2, 3] });
     expect(result.success).toBe(true);
     expect(result.enrolled).toBe(3);
   });
 
   it("pauses and resumes a campaign", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makeTenantCtx());
     const pauseResult = await caller.campaigns.pause({ campaignId: 1 });
     expect(pauseResult.success).toBe(true);
     const resumeResult = await caller.campaigns.resume({ campaignId: 1 });
@@ -496,7 +537,7 @@ describe("campaigns", () => {
   });
 
   it("marks an email as replied", async () => {
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makeTenantCtx());
     const result = await caller.campaigns.markReplied({ emailLogId: 1 });
     expect(result.success).toBe(true);
   });
@@ -532,12 +573,12 @@ describe("email", () => {
       tags: null,
       source: "apollo",
       importBatchId: null,
-      organizationId: null,
+      organizationId: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
-    const caller = appRouter.createCaller(makeCtx());
+    const caller = appRouter.createCaller(makeTenantCtx());
     const result = await caller.email.generateVariations({ contactId: 1, stepType: "initial", count: 1 });
     expect(result.variations).toHaveLength(1);
     expect(result.variations[0]).toHaveProperty("subject");

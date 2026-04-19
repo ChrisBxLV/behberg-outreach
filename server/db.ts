@@ -10,6 +10,7 @@ import {
   type InsertSignalProfile, type InsertSignal, type InsertSignalInsight,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { scopeForContactOrganizationId, type TenantQueryScope } from "./_core/authz";
 import { matchesConfiguredDefaultOperatorLogin } from "./_core/orgScope";
 import { agentDebugLog } from "./_core/agentDebugLog";
 import {
@@ -259,6 +260,25 @@ export async function setOrganizationSubscriptionPlanId(
     if (ENV.isProduction) throw err;
     const { devSetOrganizationSubscriptionPlanId } = await import("./devLocalAuthStore");
     await devSetOrganizationSubscriptionPlanId(organizationId, planId);
+  }
+}
+
+export async function updateOrganizationName(organizationId: number, name: string): Promise<void> {
+  const next = name.trim();
+  if (next.length < 2) throw new Error("Organization name is required");
+  if (ENV.useDevFileAuth) {
+    const { devUpdateOrganizationName } = await import("./devLocalAuthStore");
+    await devUpdateOrganizationName(organizationId, next);
+    return;
+  }
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    await db.update(organizations).set({ name: next }).where(eq(organizations.id, organizationId));
+  } catch (err: any) {
+    if (ENV.isProduction) throw err;
+    const { devUpdateOrganizationName } = await import("./devLocalAuthStore");
+    await devUpdateOrganizationName(organizationId, next);
   }
 }
 
@@ -546,15 +566,15 @@ export async function getContacts(opts: {
   keywords?: string;
   limit?: number;
   offset?: number;
-  /** When set, only rows for this organization (tenant scope). */
-  scopeOrganizationId?: number | null;
+  /** Tenant filter, or platform (cross-tenant) when `type === "platform"`. */
+  scope: TenantQueryScope;
 }) {
   const db = await getDb();
   if (!db) return { contacts: [], total: 0 };
 
   const conditions = [];
-  if (opts.scopeOrganizationId != null) {
-    conditions.push(eq(contacts.organizationId, opts.scopeOrganizationId));
+  if (opts.scope.type === "tenant") {
+    conditions.push(eq(contacts.organizationId, opts.scope.organizationId));
   }
   if (opts.search) {
     conditions.push(
@@ -595,13 +615,13 @@ export async function getContacts(opts: {
   return { contacts: rows, total: countResult[0]?.count ?? 0 };
 }
 
-export async function getContactFilterOptions(scopeOrganizationId?: number | null) {
+export async function getContactFilterOptions(scope: TenantQueryScope) {
   const db = await getDb();
   if (!db) return { industries: [], countries: [] };
 
   const conditions = [];
-  if (scopeOrganizationId != null) {
-    conditions.push(eq(contacts.organizationId, scopeOrganizationId));
+  if (scope.type === "tenant") {
+    conditions.push(eq(contacts.organizationId, scope.organizationId));
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -638,12 +658,12 @@ export async function getContactFilterOptions(scopeOrganizationId?: number | nul
   return { industries, countries };
 }
 
-export async function getContactById(id: number, scopeOrganizationId?: number | null) {
+export async function getContactById(id: number, scope: TenantQueryScope) {
   const db = await getDb();
   if (!db) return undefined;
   const conds = [eq(contacts.id, id)];
-  if (scopeOrganizationId != null) {
-    conds.push(eq(contacts.organizationId, scopeOrganizationId));
+  if (scope.type === "tenant") {
+    conds.push(eq(contacts.organizationId, scope.organizationId));
   }
   const result = await db.select().from(contacts).where(and(...conds)).limit(1);
   return result[0];
@@ -906,7 +926,9 @@ export async function createOrMergeContact(input: InsertContact): Promise<{
   if (!duplicate) {
     const insertResult = await db.insert(contacts).values(input);
     const insertedId = Number((insertResult as any)?.insertId ?? 0);
-    const inserted = insertedId ? await getContactById(insertedId, input.organizationId ?? null) : null;
+    const inserted = insertedId
+      ? await getContactById(insertedId, scopeForContactOrganizationId(input.organizationId))
+      : null;
     return {
       action: "created",
       contact: (inserted ??
@@ -923,7 +945,9 @@ export async function createOrMergeContact(input: InsertContact): Promise<{
   if (Object.keys(patch).length > 0) {
     await db.update(contacts).set(patch).where(eq(contacts.id, duplicate.id));
   }
-  const merged = (await getContactById(duplicate.id, duplicate.organizationId ?? null)) ?? duplicate;
+  const merged =
+    (await getContactById(duplicate.id, scopeForContactOrganizationId(duplicate.organizationId))) ??
+    duplicate;
   return { action: "merged", contact: merged };
 }
 
@@ -934,23 +958,23 @@ export async function upsertContact(data: InsertContact) {
 export async function updateContact(
   id: number,
   data: Partial<InsertContact>,
-  scopeOrganizationId?: number | null,
+  scope: TenantQueryScope,
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const conds = [eq(contacts.id, id)];
-  if (scopeOrganizationId != null) {
-    conds.push(eq(contacts.organizationId, scopeOrganizationId));
+  if (scope.type === "tenant") {
+    conds.push(eq(contacts.organizationId, scope.organizationId));
   }
   await db.update(contacts).set(data).where(and(...conds));
 }
 
-export async function deleteContacts(ids: number[], scopeOrganizationId?: number | null) {
+export async function deleteContacts(ids: number[], scope: TenantQueryScope) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const conds = [inArray(contacts.id, ids)];
-  if (scopeOrganizationId != null) {
-    conds.push(eq(contacts.organizationId, scopeOrganizationId));
+  if (scope.type === "tenant") {
+    conds.push(eq(contacts.organizationId, scope.organizationId));
   }
   await db.delete(contacts).where(and(...conds));
 }
@@ -958,13 +982,13 @@ export async function deleteContacts(ids: number[], scopeOrganizationId?: number
 export async function bulkUpdateContactStage(
   ids: number[],
   stage: string,
-  scopeOrganizationId?: number | null,
+  scope: TenantQueryScope,
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const conds = [inArray(contacts.id, ids)];
-  if (scopeOrganizationId != null) {
-    conds.push(eq(contacts.organizationId, scopeOrganizationId));
+  if (scope.type === "tenant") {
+    conds.push(eq(contacts.organizationId, scope.organizationId));
   }
   await db.update(contacts).set({ stage: stage as any }).where(and(...conds));
 }
@@ -997,10 +1021,10 @@ export async function updateImportBatch(batchId: string, data: {
   await db.update(importBatches).set(data).where(eq(importBatches.batchId, batchId));
 }
 
-export async function getImportBatches(scopeOrganizationId?: number | null) {
+export async function getImportBatches(scope: TenantQueryScope) {
   const db = await getDb();
   if (!db) return [];
-  if (scopeOrganizationId == null) {
+  if (scope.type === "platform") {
     return db.select().from(importBatches).orderBy(desc(importBatches.createdAt)).limit(20);
   }
   return db
@@ -1017,31 +1041,31 @@ export async function getImportBatches(scopeOrganizationId?: number | null) {
     })
     .from(importBatches)
     .innerJoin(contacts, eq(contacts.importBatchId, importBatches.batchId))
-    .where(eq(contacts.organizationId, scopeOrganizationId))
+    .where(eq(contacts.organizationId, scope.organizationId))
     .orderBy(desc(importBatches.createdAt))
     .limit(20);
 }
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
-export async function getCampaigns(scopeOrganizationId?: number | null) {
+export async function getCampaigns(scope: TenantQueryScope) {
   const db = await getDb();
   if (!db) return [];
-  if (scopeOrganizationId != null) {
+  if (scope.type === "tenant") {
     return db
       .select()
       .from(campaigns)
-      .where(eq(campaigns.organizationId, scopeOrganizationId))
+      .where(eq(campaigns.organizationId, scope.organizationId))
       .orderBy(desc(campaigns.createdAt));
   }
   return db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
 }
 
-export async function getCampaignById(id: number, scopeOrganizationId?: number | null) {
+export async function getCampaignById(id: number, scope: TenantQueryScope) {
   const db = await getDb();
   if (!db) return undefined;
   const conds = [eq(campaigns.id, id)];
-  if (scopeOrganizationId != null) {
-    conds.push(eq(campaigns.organizationId, scopeOrganizationId));
+  if (scope.type === "tenant") {
+    conds.push(eq(campaigns.organizationId, scope.organizationId));
   }
   const result = await db.select().from(campaigns).where(and(...conds)).limit(1);
   return result[0];
@@ -1057,23 +1081,23 @@ export async function createCampaign(data: InsertCampaign) {
 export async function updateCampaign(
   id: number,
   data: Partial<InsertCampaign>,
-  scopeOrganizationId?: number | null,
+  scope: TenantQueryScope,
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const conds = [eq(campaigns.id, id)];
-  if (scopeOrganizationId != null) {
-    conds.push(eq(campaigns.organizationId, scopeOrganizationId));
+  if (scope.type === "tenant") {
+    conds.push(eq(campaigns.organizationId, scope.organizationId));
   }
   await db.update(campaigns).set(data).where(and(...conds));
 }
 
-export async function deleteCampaign(id: number, scopeOrganizationId?: number | null) {
+export async function deleteCampaign(id: number, scope: TenantQueryScope) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const conds = [eq(campaigns.id, id)];
-  if (scopeOrganizationId != null) {
-    conds.push(eq(campaigns.organizationId, scopeOrganizationId));
+  if (scope.type === "tenant") {
+    conds.push(eq(campaigns.organizationId, scope.organizationId));
   }
   await db.delete(campaigns).where(and(...conds));
 }
@@ -1270,7 +1294,7 @@ export async function recordOpenEvent(trackingId: string, ip: string, userAgent:
 
 export async function markEmailReplied(
   emailLogId: number,
-  scopeOrganizationId?: number | null,
+  scope: TenantQueryScope,
 ) {
   const db = await getDb();
   if (!db) return;
@@ -1287,13 +1311,13 @@ export async function markEmailReplied(
 
   // Enforce tenant isolation: email logs can only be replied by users in the same organization.
   const campaignOrgId = row.campaign.organizationId ?? null;
-  if (scopeOrganizationId != null && campaignOrgId !== scopeOrganizationId) {
+  if (scope.type === "tenant" && campaignOrgId !== scope.organizationId) {
     agentDebugLog({
       runId: "post-fix",
       hypothesisId: "H_TENANT_MARK_REPLIED",
       location: "server/db.ts:markEmailReplied-scope-check",
       message: "Blocked markReplied due to org scope mismatch",
-      data: { scopeOrganizationId, campaignOrgId, emailLogId },
+      data: { scopeOrganizationId: scope.type === "tenant" ? scope.organizationId : null, campaignOrgId, emailLogId },
     });
     throw new TRPCError({ code: "NOT_FOUND", message: "Email log not found" });
   }

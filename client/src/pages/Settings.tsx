@@ -5,12 +5,30 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   Mail, CheckCircle2, XCircle, RefreshCw,
   Settings2, Play, AlertCircle, Users, CreditCard, MailPlus,
+  Pencil, Trash2,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 const SUBSCRIPTION_PLANS = [
   {
@@ -41,22 +59,109 @@ const SUBSCRIPTION_PLANS = [
 
 export default function Settings() {
   const utils = trpc.useUtils();
+  const { user } = useAuth();
 
   const { data: smtpConfig } = trpc.settings.getSmtpConfig.useQuery();
   const { data: appConfig } = trpc.settings.getAppConfig.useQuery();
   const { data: orgMine, isLoading: isOrgMineLoading } = trpc.organization.mine.useQuery();
   const isOrgOwner = orgMine?.role === "owner";
   const canSeeMembers = Boolean(orgMine?.organization?.id);
+  const createMine = trpc.organization.createMine.useMutation({
+    onSuccess: () => {
+      toast.success("Organization created.");
+      void utils.organization.mine.invalidate();
+      void utils.organization.members.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
 
   const { data: members, refetch: refetchMembers } = trpc.organization.members.useQuery(undefined, {
     enabled: canSeeMembers,
   });
 
+  const updateMember = trpc.organization.updateMember.useMutation({
+    onSuccess: () => {
+      toast.success("Member updated.");
+      void refetchMembers();
+      void utils.organization.members.invalidate();
+      setEditMemberOpen(false);
+      setEditingMember(null);
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const removeMember = trpc.organization.removeMember.useMutation({
+    onSuccess: () => {
+      toast.success("Member removed from organization.");
+      void refetchMembers();
+      void utils.organization.members.invalidate();
+      setEditMemberOpen(false);
+      setEditingMember(null);
+    },
+    onError: e => toast.error(e.message),
+  });
+
   const [memberLoginId, setMemberLoginId] = useState("");
   const [memberName, setMemberName] = useState("");
   const [memberPassword, setMemberPassword] = useState("");
+  const [newOrgName, setNewOrgName] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState<string>("free");
   const [additionalMailboxes, setAdditionalMailboxes] = useState(0);
+  const [additionalOrganizations, setAdditionalOrganizations] = useState(0);
+
+  const [editMemberOpen, setEditMemberOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<
+    | {
+        id: number;
+        name: string | null;
+        email: string | null;
+        orgMemberRole: "owner" | "member" | null;
+      }
+    | null
+  >(null);
+  const [editMemberName, setEditMemberName] = useState("");
+  const [editMemberRole, setEditMemberRole] = useState<"owner" | "member">("member");
+  const requestPasswordResetSelf = trpc.organization.requestPasswordResetSelf.useMutation({
+    onSuccess: (r) => {
+      if (r.success && "emailed" in r && r.emailed) {
+        toast.success("Password reset code sent.");
+        return;
+      }
+      if (r.success && "emailed" in r && !r.emailed) {
+        toast.message("No password reset email sent for this account.");
+        return;
+      }
+      toast.error("Password reset request failed.");
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const requestPasswordResetMember = trpc.organization.requestPasswordResetMember.useMutation({
+    onSuccess: (r) => {
+      if (r.success && "emailed" in r && r.emailed) {
+        toast.success("Password reset code sent.");
+        return;
+      }
+      if (r.success && "emailed" in r && !r.emailed) {
+        toast.message("No password reset email sent for that account.");
+        return;
+      }
+      toast.error("Password reset request failed.");
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const openEditMember = (m: {
+    id: number;
+    name: string | null;
+    email: string | null;
+    orgMemberRole: "owner" | "member" | null;
+  }) => {
+    setEditingMember(m);
+    setEditMemberName(m.name ?? "");
+    setEditMemberRole((m.orgMemberRole ?? "member") as any);
+    setEditMemberOpen(true);
+  };
 
   const addMemberMutation = trpc.organization.addMember.useMutation({
     onSuccess: (r) => {
@@ -90,7 +195,9 @@ export default function Settings() {
     isOrgMineLoading ? "loading" : canSeeMembers ? "card" : "no_org_or_role";
   const selectedPlan = SUBSCRIPTION_PLANS.find((plan) => plan.id === selectedPlanId) ?? SUBSCRIPTION_PLANS[0];
   const mailboxAddonTotal = additionalMailboxes * 15;
-  const estimatedMonthlyTotal = selectedPlan.priceEur + mailboxAddonTotal;
+  const orgAddonUnitPrice = 49;
+  const orgAddonTotal = additionalOrganizations * orgAddonUnitPrice;
+  const estimatedMonthlyTotal = selectedPlan.priceEur + mailboxAddonTotal + orgAddonTotal;
 
   return (
     <DashboardLayout>
@@ -100,15 +207,15 @@ export default function Settings() {
           <p className="text-muted-foreground text-sm mt-0.5">Configure your integrations and platform settings</p>
         </div>
 
-        <Tabs defaultValue="members">
+        <Tabs defaultValue="organization">
           <TabsList className="bg-muted/30 border border-border/50">
-            <TabsTrigger value="members">Members</TabsTrigger>
+            <TabsTrigger value="organization">Organization</TabsTrigger>
             <TabsTrigger value="smtp">Outlook SMTP</TabsTrigger>
             <TabsTrigger value="subscription">Manage Subscription</TabsTrigger>
             <TabsTrigger value="platform">Platform Info</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="members" className="mt-4">
+          <TabsContent value="organization" className="mt-4">
             {membersBranch === "loading" ? (
               <p className="text-sm text-muted-foreground">Loading organization…</p>
             ) : membersBranch === "card" ? (
@@ -119,7 +226,7 @@ export default function Settings() {
                   <Users className="h-5 w-5 text-violet-300" />
                 </div>
                 <div>
-                  <CardTitle className="text-base">Organization members</CardTitle>
+                  <CardTitle className="text-base">Organization</CardTitle>
                   <CardDescription className="text-xs">
                     {orgMine?.organization?.name ?? "This workspace"} — add people who can sign in and use this workspace.
                   </CardDescription>
@@ -127,6 +234,18 @@ export default function Settings() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-sm flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">Workspace</p>
+                  <p className="font-medium">{orgMine?.organization?.name}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Your role</p>
+                  <p className="font-medium capitalize">{orgMine?.role ?? "member"}</p>
+                </div>
+              </div>
+
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Members</p>
               <div className="rounded-lg border border-border/40 divide-y divide-border/40">
                 {(members ?? []).length === 0 ? (
                   <p className="p-3 text-sm text-muted-foreground">No members yet besides you.</p>
@@ -137,12 +256,50 @@ export default function Settings() {
                         <p className="font-medium">{m.name || "—"}</p>
                         <p className="text-xs text-muted-foreground">{m.email ?? "—"}</p>
                       </div>
-                      <Badge variant="outline" className="capitalize">
-                        {m.orgMemberRole ?? "member"}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="capitalize">
+                          {m.orgMemberRole ?? "member"}
+                        </Badge>
+                        {isOrgOwner ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              openEditMember({
+                                id: m.id,
+                                name: m.name ?? null,
+                                email: m.email ?? null,
+                                orgMemberRole: (m.orgMemberRole ?? "member") as any,
+                              })
+                            }
+                          >
+                            <Pencil className="h-3.5 w-3.5 mr-1" />
+                            Edit
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   ))
                 )}
+              </div>
+
+              <div className="rounded-lg border border-border/30 bg-muted/10 p-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Password reset
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Members can reset only their own password. Owners can send reset codes for anyone in the organization.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={requestPasswordResetSelf.isPending}
+                  onClick={() => requestPasswordResetSelf.mutate()}
+                >
+                  {requestPasswordResetSelf.isPending ? "Sending…" : "Send my reset code"}
+                </Button>
               </div>
               {isOrgOwner ? (
                 <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-border/30">
@@ -189,9 +346,32 @@ export default function Settings() {
             </CardContent>
               </Card>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                No organization found for this account. Create an organization, or sign out and sign back in.
-              </p>
+              <Card className="border-border/50 bg-card/80">
+                <CardHeader>
+                  <CardTitle className="text-base">No organization yet</CardTitle>
+                  <CardDescription className="text-xs">
+                    Create a workspace for this account to start adding members and managing subscription.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Input
+                    placeholder="Organization name (e.g. Acme Inc.)"
+                    value={newOrgName}
+                    onChange={e => setNewOrgName(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={createMine.isPending || newOrgName.trim().length < 2}
+                    onClick={() => createMine.mutate({ name: newOrgName.trim() })}
+                  >
+                    {createMine.isPending ? "Creating…" : "Create organization"}
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    If you expected to already be in a workspace, ask your org admin to invite you, or sign out and sign back in.
+                  </p>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
 
@@ -273,7 +453,7 @@ export default function Settings() {
                   <div>
                     <CardTitle className="text-base">Manage Subscription</CardTitle>
                     <CardDescription className="text-xs">
-                      Select your plan and add extra mailboxes (€15/month each). Stripe checkout wiring comes next.
+                      Select your plan and add-ons. Stripe checkout wiring comes next.
                     </CardDescription>
                   </div>
                 </div>
@@ -345,10 +525,52 @@ export default function Settings() {
                 </div>
 
                 <div className="rounded-lg border border-border/40 bg-muted/10 p-4">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold">Additional organizations</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Add more organizations under your billing account for EUR {orgAddonUnitPrice}/month each.
+                    (Billing enforcement will be connected when Stripe is wired.)
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAdditionalOrganizations((prev) => Math.max(0, prev - 1))}
+                    >
+                      -
+                    </Button>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={additionalOrganizations}
+                      onChange={(e) => {
+                        const value = Number.parseInt(e.target.value || "0", 10);
+                        setAdditionalOrganizations(Number.isNaN(value) ? 0 : Math.max(0, value));
+                      }}
+                      className="w-24 bg-muted/20 border-border/50"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAdditionalOrganizations((prev) => prev + 1)}
+                    >
+                      +
+                    </Button>
+                    <p className="text-xs text-muted-foreground ml-2">
+                      Add-on total: EUR {orgAddonTotal}/mo
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border/40 bg-muted/10 p-4">
                   <p className="text-xs text-muted-foreground">Estimated monthly total</p>
                   <p className="text-xl font-bold mt-1">EUR {estimatedMonthlyTotal}/mo</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Plan: {selectedPlan.name} (EUR {selectedPlan.priceEur}/mo) + {additionalMailboxes} mailbox add-on(s).
+                    Plan: {selectedPlan.name} (EUR {selectedPlan.priceEur}/mo)
+                    {" "}+ {additionalMailboxes} mailbox add-on(s)
+                    {" "}+ {additionalOrganizations} organization add-on(s).
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button size="sm" onClick={() => toast.info("Stripe integration will be connected in this flow next.")}>
@@ -400,6 +622,116 @@ export default function Settings() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog
+        open={editMemberOpen}
+        onOpenChange={(open) => {
+          setEditMemberOpen(open);
+          if (!open) setEditingMember(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit member</DialogTitle>
+            <DialogDescription>
+              Update name and role, or remove this user from the organization.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingMember ? (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border border-border/50 bg-muted/20 px-4 py-3 text-sm">
+                <p className="text-xs text-muted-foreground">Member</p>
+                <p className="font-medium">{editingMember.email ?? `User #${editingMember.id}`}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="member-edit-name">Display name</Label>
+                <Input
+                  id="member-edit-name"
+                  value={editMemberName}
+                  onChange={(e) => setEditMemberName(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={editMemberRole} onValueChange={(v) => setEditMemberRole(v as any)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="member">member</SelectItem>
+                    <SelectItem value="owner">owner</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Setting owner transfers ownership (only one owner is kept).
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-border/50 bg-muted/20 px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">Password reset</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sends a reset code if this account uses password sign-in.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={requestPasswordResetMember.isPending || updateMember.isPending || removeMember.isPending}
+                  onClick={() => requestPasswordResetMember.mutate({ userId: editingMember.id })}
+                >
+                  {requestPasswordResetMember.isPending ? "Sending…" : "Send reset code"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0 sm:justify-between">
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                !editingMember ||
+                removeMember.isPending ||
+                updateMember.isPending ||
+                (editingMember?.orgMemberRole ?? "member") === "owner"
+              }
+              onClick={() => {
+                if (!editingMember) return;
+                removeMember.mutate({ userId: editingMember.id });
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Remove from org
+            </Button>
+
+            <div className="flex gap-2 justify-end w-full sm:w-auto">
+              <Button type="button" variant="outline" onClick={() => setEditMemberOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={!editingMember || updateMember.isPending}
+                onClick={() => {
+                  if (!editingMember) return;
+                  updateMember.mutate({
+                    userId: editingMember.id,
+                    name: editMemberName.trim(),
+                    orgMemberRole: editMemberRole,
+                  });
+                }}
+              >
+                {updateMember.isPending ? "Saving…" : "Save changes"}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

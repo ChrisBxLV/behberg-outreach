@@ -1,14 +1,17 @@
 import { TRPCError } from "@trpc/server";
 import type { Campaign, Contact, User } from "../../drizzle/schema";
-import { dataScopeOrganizationId } from "./orgScope";
+import { resolveTenantQueryScope } from "./authz";
 
 export function assertContactScope(contact: Contact | null | undefined, user: User | null | undefined) {
   if (!contact) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
   }
-  const scope = dataScopeOrganizationId(user);
-  if (scope == null) return;
-  if (contact.organizationId !== scope) {
+  const scope = resolveTenantQueryScope(user);
+  if (scope == null) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+  }
+  if (scope.type === "platform") return;
+  if (contact.organizationId !== scope.organizationId) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
   }
 }
@@ -17,9 +20,12 @@ export function assertCampaignScope(campaign: Campaign | null | undefined, user:
   if (!campaign) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
   }
-  const scope = dataScopeOrganizationId(user);
-  if (scope == null) return;
-  if (campaign.organizationId !== scope) {
+  const scope = resolveTenantQueryScope(user);
+  if (scope == null) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+  }
+  if (scope.type === "platform") return;
+  if (campaign.organizationId !== scope.organizationId) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
   }
 }

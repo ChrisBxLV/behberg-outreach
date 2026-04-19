@@ -1,7 +1,11 @@
 import nodemailer from "nodemailer";
 import { v4 as uuidv4 } from "uuid";
+import type { TenantQueryScope } from "../_core/authz";
 import { createEmailLog, updateEmailLog, recordOpenEvent, updateCampaign, getCampaignStats } from "../db";
 import { notifyOwner } from "../_core/notification";
+
+/** Scheduler / internal updates run without a user session; match legacy unscoped campaign writes. */
+const internalCampaignWriteScope: TenantQueryScope = { type: "platform" };
 import type { Contact, Campaign, SequenceStep } from "../../drizzle/schema";
 
 let _transporter: nodemailer.Transporter | null = null;
@@ -134,7 +138,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
     // Increment campaign sent count
     const stats = await getCampaignStats(campaign.id);
     const newSentCount = (stats?.sentCount ?? 0) + 1;
-    await updateCampaign(campaign.id, { sentCount: newSentCount });
+    await updateCampaign(campaign.id, { sentCount: newSentCount }, internalCampaignWriteScope);
 
     // Milestone notifications
     await checkMilestones(campaign.id, newSentCount, stats);
@@ -161,7 +165,7 @@ async function checkMilestones(campaignId: number, sentCount: number, stats: any
 
   // 100 sent milestone
   if (sentCount >= 100 && !stats.notifiedAt100Sent) {
-    await updateCampaign(campaignId, { notifiedAt100Sent: true });
+    await updateCampaign(campaignId, { notifiedAt100Sent: true }, internalCampaignWriteScope);
     await notifyOwner({
       title: `🎯 Campaign Milestone: 100 emails sent`,
       content: `Campaign "${stats.name}" has reached 100 sent emails. Open rate: ${stats.openCount > 0 ? Math.round((stats.openCount / sentCount) * 100) : 0}%`,
@@ -171,7 +175,7 @@ async function checkMilestones(campaignId: number, sentCount: number, stats: any
   // High reply rate (>20%)
   const replyRate = stats.replyCount / Math.max(sentCount, 1);
   if (replyRate > 0.2 && !stats.notifiedHighReply && sentCount >= 10) {
-    await updateCampaign(campaignId, { notifiedHighReply: true });
+    await updateCampaign(campaignId, { notifiedHighReply: true }, internalCampaignWriteScope);
     await notifyOwner({
       title: `🔥 High Reply Rate Detected`,
       content: `Campaign "${stats.name}" has a ${Math.round(replyRate * 100)}% reply rate (${stats.replyCount} replies from ${sentCount} sent).`,
@@ -181,7 +185,7 @@ async function checkMilestones(campaignId: number, sentCount: number, stats: any
   // Bounce detection (>5%)
   const bounceRate = stats.bounceCount / Math.max(sentCount, 1);
   if (bounceRate > 0.05 && !stats.notifiedBounce && sentCount >= 10) {
-    await updateCampaign(campaignId, { notifiedBounce: true });
+    await updateCampaign(campaignId, { notifiedBounce: true }, internalCampaignWriteScope);
     await notifyOwner({
       title: `⚠️ High Bounce Rate Detected`,
       content: `Campaign "${stats.name}" has a ${Math.round(bounceRate * 100)}% bounce rate (${stats.bounceCount} bounces from ${sentCount} sent). Review your contact list.`,

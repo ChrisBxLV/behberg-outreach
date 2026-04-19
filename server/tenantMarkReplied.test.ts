@@ -52,7 +52,9 @@ describe("tenant isolation: markEmailReplied", () => {
     const dbModule = await import("./db");
     const { markEmailReplied } = dbModule;
 
-    await expect(markEmailReplied(1, 100)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      markEmailReplied(1, { type: "tenant", organizationId: 100 }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
     // Should have blocked before any updates.
     expect(updateCalls.length).toBe(0);

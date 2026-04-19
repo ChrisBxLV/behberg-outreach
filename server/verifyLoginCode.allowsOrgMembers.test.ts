@@ -31,12 +31,14 @@ describe("verifyLoginCode org member OTP verification", () => {
     vi.doMock("./db", () => ({
       getDb,
       getUserByEmail,
+      getUserByOpenId: vi.fn(),
       upsertUser,
       abandonLatestUnusedLoginChallenge,
       verifyLoginChallenge,
       // other exports not used in this test
       createLoginChallenge: vi.fn(),
       getContacts: vi.fn(),
+      getContactFilterOptions: vi.fn(),
       getContactById: vi.fn(),
       createContact: vi.fn(),
       updateContact: vi.fn(),
