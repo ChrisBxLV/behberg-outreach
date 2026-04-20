@@ -2,6 +2,15 @@
 
 Use this as the default runbook when a Cloud agent starts work in this repo.
 
+## Companion security skills
+
+Use these alongside this starter skill when the task is security-heavy:
+
+- `docs/skill-secure-app-development.md`
+- `docs/skill-devsecops.md`
+- `docs/skill-cybersecurity.md`
+- `docs/skill-penetration-testing.md`
+
 ## 1) Fast bootstrap (first 3-5 minutes)
 
 1. Install deps (repo uses `pnpm`):
