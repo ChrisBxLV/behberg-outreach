@@ -27,7 +27,7 @@ export const organizationRouter = router({
     }
     const org = await getOrganizationById(u.organizationId);
     return {
-      organization: org ? { id: org.id, name: org.name } : null,
+      organization: org ? { id: org.id, name: org.name, subscriptionPlanId: org.subscriptionPlanId } : null,
       role: u.orgMemberRole ?? null,
     };
   }),

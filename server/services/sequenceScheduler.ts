@@ -2,7 +2,7 @@ import cron from "node-cron";
 import { getDb } from "../db";
 import {
   getDueEmailJobs, getSequenceSteps, updateCampaignContact,
-  getEmailLogsByContact, getCampaignStats, updateCampaign
+  getEmailLogsByContact, getCampaignStats, updateCampaign, getMailboxById, getMailboxHealthByMailboxId
 } from "../db";
 import { sendEmail, interpolateTemplate } from "./emailService";
 import { generatePersonalizedEmail } from "./llmPersonalization";
@@ -81,6 +81,16 @@ async function processContactStep(
   contact: Contact,
   campaign: Campaign
 ) {
+  if (!campaign.mailboxId) {
+    throw new Error(`Campaign ${campaign.id} has no mailbox attached`);
+  }
+  const mailbox = await getMailboxById(campaign.mailboxId);
+  if (!mailbox) throw new Error(`Mailbox ${campaign.mailboxId} not found`);
+  const mailboxHealth = await getMailboxHealthByMailboxId(campaign.mailboxId);
+  if (mailbox.status !== "connected" || mailboxHealth?.reauthRequired) {
+    throw new Error(`Mailbox ${mailbox.id} is not healthy for sending`);
+  }
+
   const steps = await getSequenceSteps(campaign.id);
   if (!steps.length) return;
 
@@ -219,9 +229,18 @@ function calculateNextSendAt(step: SequenceStep): Date {
 }
 
 export async function launchCampaign(campaignId: number, contactIds: number[]): Promise<void> {
-  const { enrollContactsInCampaign, getSequenceSteps: getSteps } = await import("../db");
+  const { enrollContactsInCampaign, getSequenceSteps: getSteps, getCampaignById } = await import("../db");
   const { campaigns, campaignContacts } = await import("../../drizzle/schema");
-  const { eq, inArray } = await import("drizzle-orm");
+  const { eq } = await import("drizzle-orm");
+  const campaign = await getCampaignById(campaignId, { type: "platform" } as any);
+  if (!campaign) throw new Error("Campaign not found");
+  if (!campaign.mailboxId) throw new Error("Campaign must have a connected mailbox before launch");
+  const mailbox = await getMailboxById(campaign.mailboxId);
+  if (!mailbox) throw new Error("Campaign mailbox not found");
+  const health = await getMailboxHealthByMailboxId(mailbox.id);
+  if (mailbox.status !== "connected" || health?.reauthRequired) {
+    throw new Error("Campaign mailbox is not healthy. Reconnect it in Settings before launch.");
+  }
 
   await enrollContactsInCampaign(campaignId, contactIds);
 

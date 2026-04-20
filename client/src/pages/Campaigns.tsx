@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Mail, Plus, Play, Pause, BarChart3, Users, Send, Eye, MessageSquare, Trash2, ArrowRight } from "lucide-react";
 import { useLocation } from "wouter";
@@ -22,16 +23,24 @@ const STATUS_COLORS: Record<string, string> = {
 export default function Campaigns() {
   const [, setLocation] = useLocation();
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", fromName: "Behberg", fromEmail: "", replyTo: "" });
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    fromName: "Behberg",
+    fromEmail: "",
+    replyTo: "",
+    mailboxId: "",
+  });
   const utils = trpc.useUtils();
 
   const { data: campaigns, isLoading } = trpc.campaigns.list.useQuery();
+  const { data: mailboxes } = trpc.mailboxes.list.useQuery();
 
   const createMutation = trpc.campaigns.create.useMutation({
     onSuccess: () => {
       toast.success("Campaign created");
       setShowCreate(false);
-      setForm({ name: "", description: "", fromName: "Behberg", fromEmail: "", replyTo: "" });
+      setForm({ name: "", description: "", fromName: "Behberg", fromEmail: "", replyTo: "", mailboxId: "" });
       utils.campaigns.list.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -196,6 +205,36 @@ export default function Campaigns() {
                 <Textarea className="mt-1 bg-muted/30 border-border/50 text-sm" rows={2} placeholder="Optional description..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
               </div>
               <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <Label className="text-xs">Mailbox *</Label>
+                  <Select
+                    value={form.mailboxId}
+                    onValueChange={(value) => {
+                      const mailbox = (mailboxes ?? []).find((m) => String(m.id) === value);
+                      setForm((f) => ({
+                        ...f,
+                        mailboxId: value,
+                        fromEmail: mailbox?.email ?? f.fromEmail,
+                        replyTo: mailbox?.email ?? f.replyTo,
+                        fromName: mailbox?.displayName ?? f.fromName,
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="mt-1 bg-muted/30 border-border/50 h-8 text-sm">
+                      <SelectValue placeholder="Select connected mailbox" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(mailboxes ?? []).map((mailbox) => (
+                        <SelectItem key={mailbox.id} value={String(mailbox.id)}>
+                          {mailbox.email} ({mailbox.provider})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(mailboxes ?? []).length === 0 ? (
+                    <p className="mt-1 text-xs text-amber-400">Connect a mailbox in Settings first.</p>
+                  ) : null}
+                </div>
                 <div>
                   <Label className="text-xs">From Name</Label>
                   <Input className="mt-1 bg-muted/30 border-border/50 h-8 text-sm" value={form.fromName} onChange={e => setForm(f => ({ ...f, fromName: e.target.value }))} />
@@ -212,7 +251,15 @@ export default function Campaigns() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-              <Button onClick={() => createMutation.mutate(form as any)} disabled={!form.name || createMutation.isPending}>
+              <Button
+                onClick={() =>
+                  createMutation.mutate({
+                    ...form,
+                    mailboxId: form.mailboxId ? Number(form.mailboxId) : undefined,
+                  } as any)
+                }
+                disabled={!form.name || !form.mailboxId || createMutation.isPending}
+              >
                 Create Campaign
               </Button>
             </DialogFooter>

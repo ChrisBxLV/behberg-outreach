@@ -135,6 +135,7 @@ export const campaigns = mysqlTable("campaigns", {
   fromName: varchar("fromName", { length: 128 }).default("Behberg"),
   fromEmail: varchar("fromEmail", { length: 320 }).default("outreach@behberg.com"),
   replyTo: varchar("replyTo", { length: 320 }),
+  mailboxId: int("mailboxId"),
   // Tracking
   totalContacts: int("totalContacts").default(0),
   sentCount: int("sentCount").default(0),
@@ -158,6 +159,100 @@ export const campaigns = mysqlTable("campaigns", {
 
 export type Campaign = typeof campaigns.$inferSelect;
 export type InsertCampaign = typeof campaigns.$inferInsert;
+
+// ─── Mailboxes ────────────────────────────────────────────────────────────────
+export const mailboxes = mysqlTable("mailboxes", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: int("organizationId")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  connectedByUserId: int("connectedByUserId").references(() => users.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+  provider: mysqlEnum("provider", ["google", "microsoft", "smtp"]).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  displayName: varchar("displayName", { length: 200 }),
+  status: mysqlEnum("status", ["connected", "reauth_required", "error", "disabled"])
+    .default("connected")
+    .notNull(),
+  isDefault: boolean("isDefault").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Mailbox = typeof mailboxes.$inferSelect;
+export type InsertMailbox = typeof mailboxes.$inferInsert;
+
+export const mailboxOauthTokens = mysqlTable("mailbox_oauth_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  mailboxId: int("mailboxId")
+    .notNull()
+    .references(() => mailboxes.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  encryptedAccessToken: text("encryptedAccessToken"),
+  encryptedRefreshToken: text("encryptedRefreshToken"),
+  encryptedSmtpPassword: text("encryptedSmtpPassword"),
+  smtpHost: varchar("smtpHost", { length: 256 }),
+  smtpPort: int("smtpPort"),
+  smtpSecure: boolean("smtpSecure").default(false).notNull(),
+  smtpUsername: varchar("smtpUsername", { length: 320 }),
+  accessTokenExpiresAt: timestamp("accessTokenExpiresAt"),
+  scopes: text("scopes"),
+  providerAccountId: varchar("providerAccountId", { length: 256 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MailboxOauthToken = typeof mailboxOauthTokens.$inferSelect;
+export type InsertMailboxOauthToken = typeof mailboxOauthTokens.$inferInsert;
+
+export const mailboxHealth = mysqlTable("mailbox_health", {
+  id: int("id").autoincrement().primaryKey(),
+  mailboxId: int("mailboxId")
+    .notNull()
+    .references(() => mailboxes.id, { onDelete: "cascade", onUpdate: "cascade" })
+    .unique(),
+  lastSuccessAt: timestamp("lastSuccessAt"),
+  lastErrorAt: timestamp("lastErrorAt"),
+  errorCode: varchar("errorCode", { length: 128 }),
+  errorMessage: text("errorMessage"),
+  reauthRequired: boolean("reauthRequired").default(false).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MailboxHealth = typeof mailboxHealth.$inferSelect;
+export type InsertMailboxHealth = typeof mailboxHealth.$inferInsert;
+
+export const mailboxSendLimits = mysqlTable("mailbox_send_limits", {
+  id: int("id").autoincrement().primaryKey(),
+  mailboxId: int("mailboxId")
+    .notNull()
+    .references(() => mailboxes.id, { onDelete: "cascade", onUpdate: "cascade" })
+    .unique(),
+  dailyLimit: int("dailyLimit").default(250).notNull(),
+  hourlyLimit: int("hourlyLimit").default(40).notNull(),
+  timezone: varchar("timezone", { length: 64 }).default("UTC").notNull(),
+  warmupProfile: json("warmupProfile").$type<Record<string, unknown>>(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MailboxSendLimit = typeof mailboxSendLimits.$inferSelect;
+export type InsertMailboxSendLimit = typeof mailboxSendLimits.$inferInsert;
+
+export const mailboxWebhookSubscriptions = mysqlTable("mailbox_webhook_subscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  mailboxId: int("mailboxId")
+    .notNull()
+    .references(() => mailboxes.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  providerSubscriptionId: varchar("providerSubscriptionId", { length: 256 }).notNull(),
+  status: mysqlEnum("status", ["active", "expired", "error"]).default("active").notNull(),
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MailboxWebhookSubscription = typeof mailboxWebhookSubscriptions.$inferSelect;
+export type InsertMailboxWebhookSubscription = typeof mailboxWebhookSubscriptions.$inferInsert;
 
 // ─── Sequence Steps ───────────────────────────────────────────────────────────
 export const sequenceSteps = mysqlTable("sequence_steps", {
@@ -198,6 +293,7 @@ export const emailLogs = mysqlTable("email_logs", {
   contactId: int("contactId").notNull(),
   sequenceStepId: int("sequenceStepId"),
   campaignContactId: int("campaignContactId"),
+  mailboxId: int("mailboxId"),
   // Email content
   subject: varchar("subject", { length: 512 }),
   body: text("body"),
@@ -205,6 +301,8 @@ export const emailLogs = mysqlTable("email_logs", {
   toEmail: varchar("toEmail", { length: 320 }),
   // Status
   status: mysqlEnum("status", ["queued", "sent", "failed", "bounced"]).default("queued").notNull(),
+  providerMessageId: varchar("providerMessageId", { length: 256 }),
+  providerThreadId: varchar("providerThreadId", { length: 256 }),
   // Tracking
   trackingId: varchar("trackingId", { length: 64 }).unique(), // UUID for pixel tracking
   openedAt: timestamp("openedAt"),

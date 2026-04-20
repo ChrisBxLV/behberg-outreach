@@ -19,6 +19,8 @@ import {
   getEmailLogsByCampaign,
   markEmailReplied,
   getContactById,
+  getDefaultMailboxByOrganization,
+  getMailboxById,
 } from "../db";
 import { launchCampaign, processEmailQueue } from "../services/sequenceScheduler";
 
@@ -46,16 +48,32 @@ export const campaignsRouter = router({
         fromName: z.string().optional(),
         fromEmail: z.string().email().optional(),
         replyTo: z.string().email().optional(),
+        mailboxId: z.number().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       const orgId = dataScopeOrganizationId(ctx.user);
+      const defaultMailbox =
+        input.mailboxId == null && orgId != null
+          ? await getDefaultMailboxByOrganization(orgId)
+          : undefined;
+      const effectiveMailboxId = input.mailboxId ?? defaultMailbox?.id ?? null;
+      if (input.mailboxId != null && orgId != null) {
+        const mailbox = await getMailboxById(input.mailboxId);
+        if (!mailbox || mailbox.organizationId !== orgId) {
+          throw new Error("Selected mailbox is not available in this workspace");
+        }
+        if (input.fromEmail && input.fromEmail.toLowerCase() !== mailbox.email.toLowerCase()) {
+          throw new Error("From email must match the connected mailbox identity");
+        }
+      }
       await createCampaign({
         name: input.name,
         description: input.description,
-        fromName: input.fromName ?? "Behberg",
-        fromEmail: input.fromEmail ?? "outreach@behberg.com",
-        replyTo: input.replyTo,
+        fromName: input.fromName ?? defaultMailbox?.displayName ?? "Behberg",
+        fromEmail: input.fromEmail ?? defaultMailbox?.email ?? "outreach@behberg.com",
+        replyTo: input.replyTo ?? defaultMailbox?.email ?? null,
+        mailboxId: effectiveMailboxId,
         status: "draft",
         organizationId: orgId ?? null,
       });
@@ -71,6 +89,7 @@ export const campaignsRouter = router({
         fromName: z.string().optional(),
         fromEmail: z.string().email().optional(),
         replyTo: z.string().email().optional(),
+        mailboxId: z.number().nullable().optional(),
         status: z.enum(["draft", "active", "paused", "completed"]).optional(),
       }),
     )
@@ -79,6 +98,15 @@ export const campaignsRouter = router({
       const scope = requireTenantQueryScope(ctx.user);
       const campaign = await getCampaignById(id, scope);
       assertCampaignScope(campaign, ctx.user);
+      if (data.mailboxId != null) {
+        const mailbox = await getMailboxById(data.mailboxId);
+        if (!mailbox || (scope.type === "tenant" && mailbox.organizationId !== scope.organizationId)) {
+          throw new Error("Selected mailbox is not available in this workspace");
+        }
+        if (data.fromEmail && data.fromEmail.toLowerCase() !== mailbox.email.toLowerCase()) {
+          throw new Error("From email must match the connected mailbox identity");
+        }
+      }
       await updateCampaign(id, data, scope);
       return { success: true };
     }),

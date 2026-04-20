@@ -1,8 +1,20 @@
 import nodemailer from "nodemailer";
 import { v4 as uuidv4 } from "uuid";
 import type { TenantQueryScope } from "../_core/authz";
-import { createEmailLog, updateEmailLog, recordOpenEvent, updateCampaign, getCampaignStats } from "../db";
+import {
+  countMailboxEmailsSentSince,
+  createEmailLog,
+  getCampaignStats,
+  getMailboxById,
+  getMailboxHealthByMailboxId,
+  getMailboxSendLimitsByMailboxId,
+  updateCampaign,
+  updateMailbox,
+  upsertMailboxHealth,
+} from "../db";
 import { notifyOwner } from "../_core/notification";
+import { buildProviderForMailbox } from "./providers";
+import { logMailboxEvent, logMailboxMetric } from "./observability";
 
 /** Scheduler / internal updates run without a user session; match legacy unscoped campaign writes. */
 const internalCampaignWriteScope: TenantQueryScope = { type: "platform" };
@@ -81,6 +93,24 @@ export interface SendEmailOptions {
   baseUrl: string;
 }
 
+async function enforceMailboxRateLimit(mailboxId: number) {
+  const limits = await getMailboxSendLimitsByMailboxId(mailboxId);
+  if (!limits) return;
+  const now = new Date();
+  const hourWindow = new Date(now.getTime() - 60 * 60 * 1000);
+  const dayWindow = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const [hourCount, dayCount] = await Promise.all([
+    countMailboxEmailsSentSince(mailboxId, hourWindow),
+    countMailboxEmailsSentSince(mailboxId, dayWindow),
+  ]);
+  if (hourCount >= limits.hourlyLimit) {
+    throw new Error(`Mailbox hourly limit reached (${limits.hourlyLimit}/hour)`);
+  }
+  if (dayCount >= limits.dailyLimit) {
+    throw new Error(`Mailbox daily limit reached (${limits.dailyLimit}/day)`);
+  }
+}
+
 export async function sendEmail(opts: SendEmailOptions): Promise<{ success: boolean; trackingId: string; error?: string }> {
   const { contact, campaign, step, campaignContactId, subject, body, baseUrl } = opts;
 
@@ -98,6 +128,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
     contactId: contact.id,
     sequenceStepId: step.id,
     campaignContactId,
+    mailboxId: campaign.mailboxId ?? null,
     subject,
     body: htmlBody,
     fromEmail: campaign.fromEmail ?? "outreach@behberg.com",
@@ -110,21 +141,56 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
   await createEmailLog(logData);
 
   try {
-    const transporter = getTransporter();
     const fromName = campaign.fromName ?? "Behberg";
-    const fromEmail = campaign.fromEmail ?? process.env.SMTP_USER ?? "outreach@behberg.com";
+    let fromEmail = campaign.fromEmail ?? process.env.SMTP_USER ?? "outreach@behberg.com";
+    let providerMessageId: string | undefined;
+    let providerThreadId: string | undefined;
 
-    await transporter.sendMail({
-      from: `"${fromName}" <${fromEmail}>`,
-      to: contact.email,
-      replyTo: campaign.replyTo ?? fromEmail,
-      subject,
-      html: htmlBody,
-      text: body, // Plain text fallback
-    });
+    if (campaign.mailboxId != null) {
+      const mailbox = await getMailboxById(campaign.mailboxId);
+      if (!mailbox) throw new Error("Selected mailbox no longer exists");
+      fromEmail = mailbox.email;
+      const health = await getMailboxHealthByMailboxId(campaign.mailboxId);
+      if (health?.reauthRequired) throw new Error("Mailbox requires re-authentication");
+      if (mailbox.status === "error" || mailbox.status === "disabled" || mailbox.status === "reauth_required") {
+        throw new Error(`Mailbox is not healthy (${mailbox.status})`);
+      }
 
-    // Mark as sent
-    await updateEmailLog(0, { status: "sent", sentAt: new Date() });
+      await enforceMailboxRateLimit(mailbox.id);
+      const provider = await buildProviderForMailbox(mailbox.id);
+      const providerResult = await provider.send({
+        fromName,
+        fromEmail,
+        replyTo: campaign.replyTo ?? fromEmail,
+        toEmail: contact.email,
+        subject,
+        html: htmlBody,
+        text: body,
+      });
+      providerMessageId = providerResult.providerMessageId;
+      providerThreadId = providerResult.providerThreadId;
+      await upsertMailboxHealth(mailbox.id, {
+        reauthRequired: false,
+        errorCode: null,
+        errorMessage: null,
+        lastSuccessAt: new Date(),
+      });
+      await updateMailbox(mailbox.id, { status: "connected" });
+      logMailboxMetric("mailbox_send_success_total", 1, {
+        provider: mailbox.provider,
+        mailboxId: String(mailbox.id),
+      });
+    } else {
+      const transporter = getTransporter();
+      await transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to: contact.email,
+        replyTo: campaign.replyTo ?? fromEmail,
+        subject,
+        html: htmlBody,
+        text: body, // Plain text fallback
+      });
+    }
 
     // Update via tracking ID since we don't have the log ID back
     const { getDb } = await import("../db");
@@ -132,7 +198,12 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
     if (db) {
       const { emailLogs } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      await db.update(emailLogs).set({ status: "sent", sentAt: new Date() }).where(eq(emailLogs.trackingId, trackingId));
+      await db.update(emailLogs).set({
+        status: "sent",
+        sentAt: new Date(),
+        providerMessageId: providerMessageId ?? null,
+        providerThreadId: providerThreadId ?? null,
+      }).where(eq(emailLogs.trackingId, trackingId));
     }
 
     // Increment campaign sent count
@@ -143,8 +214,31 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
     // Milestone notifications
     await checkMilestones(campaign.id, newSentCount, stats);
 
+    logMailboxEvent("mail_send_ok", {
+      campaignId: campaign.id,
+      mailboxId: campaign.mailboxId ?? null,
+      contactId: contact.id,
+    });
+
     return { success: true, trackingId };
   } catch (err: any) {
+    if (campaign.mailboxId != null) {
+      await upsertMailboxHealth(campaign.mailboxId, {
+        lastErrorAt: new Date(),
+        errorCode: "send_failed",
+        errorMessage: err.message,
+      });
+      await updateMailbox(campaign.mailboxId, { status: "error" });
+      logMailboxMetric("mailbox_send_error_total", 1, {
+        mailboxId: String(campaign.mailboxId),
+      });
+    }
+    logMailboxEvent("mail_send_failed", {
+      campaignId: campaign.id,
+      mailboxId: campaign.mailboxId ?? null,
+      contactId: contact.id,
+      error: err.message,
+    });
     // Mark as failed
     const { getDb } = await import("../db");
     const db = await getDb();

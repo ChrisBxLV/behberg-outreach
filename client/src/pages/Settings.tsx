@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -21,11 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   Mail, CheckCircle2, XCircle, RefreshCw,
   Settings2, Play, AlertCircle, Users, CreditCard, MailPlus,
-  Pencil, Trash2,
+  Pencil, Trash2, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -35,24 +36,28 @@ const SUBSCRIPTION_PLANS = [
     id: "free",
     name: "Free",
     priceEur: 0,
+    mailboxLimit: 1,
     summary: "Limited email sequencing, CSV uploads, and signals access.",
   },
   {
     id: "basic",
     name: "Basic",
     priceEur: 49,
+    mailboxLimit: 1,
     summary: "1 connected email, full sequencing, and limited enrichment.",
   },
   {
     id: "business_standard",
     name: "Business Standard",
     priceEur: 129,
+    mailboxLimit: 3,
     summary: "3 connected emails, premium signals, and automations.",
   },
   {
     id: "pro",
     name: "Pro",
     priceEur: 249,
+    mailboxLimit: 5,
     summary: "5 connected emails, unlimited enrichment, and beta access.",
   },
 ] as const;
@@ -62,7 +67,9 @@ export default function Settings() {
   const { user } = useAuth();
 
   const { data: smtpConfig } = trpc.settings.getSmtpConfig.useQuery();
+  const { data: mailboxes } = trpc.mailboxes.list.useQuery();
   const { data: appConfig } = trpc.settings.getAppConfig.useQuery();
+  const { data: mailboxOAuthConfig } = trpc.settings.getMailboxOAuthConfig.useQuery();
   const { data: orgMine, isLoading: isOrgMineLoading } = trpc.organization.mine.useQuery();
   const isOrgOwner = orgMine?.role === "owner";
   const canSeeMembers = Boolean(orgMine?.organization?.id);
@@ -121,6 +128,19 @@ export default function Settings() {
   >(null);
   const [editMemberName, setEditMemberName] = useState("");
   const [editMemberRole, setEditMemberRole] = useState<"owner" | "member">("member");
+  const [smtpMailboxForm, setSmtpMailboxForm] = useState({
+    email: "",
+    displayName: "",
+    host: "smtp.office365.com",
+    port: 587,
+    secure: false,
+    username: "",
+    password: "",
+  });
+  const [mailboxTestEmail, setMailboxTestEmail] = useState("");
+  const [showAdvancedSmtp, setShowAdvancedSmtp] = useState(false);
+  const [showManualMailboxSetup, setShowManualMailboxSetup] = useState(false);
+  const [activeSettingsTab, setActiveSettingsTab] = useState("organization");
   const requestPasswordResetSelf = trpc.organization.requestPasswordResetSelf.useMutation({
     onSuccess: (r) => {
       if (r.success && "emailed" in r && r.emailed) {
@@ -191,6 +211,122 @@ export default function Settings() {
     onError: (e) => toast.error(e.message),
   });
 
+  const startOAuthMutation = trpc.mailboxes.startConnectOAuth.useMutation({
+    onSuccess: (r) => {
+      window.location.href = r.authorizeUrl;
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const completeOAuthMutation = trpc.mailboxes.completeConnectOAuth.useMutation({
+    onSuccess: () => {
+      toast.success("Mailbox connected successfully.");
+      void utils.mailboxes.list.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const connectSmtpMailboxMutation = trpc.mailboxes.connectSmtp.useMutation({
+    onSuccess: () => {
+      toast.success("SMTP mailbox connected.");
+      setSmtpMailboxForm({
+        email: "",
+        displayName: "",
+        host: "smtp.office365.com",
+        port: 587,
+        secure: false,
+        username: "",
+        password: "",
+      });
+      void utils.mailboxes.list.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const setDefaultMailboxMutation = trpc.mailboxes.setDefault.useMutation({
+    onSuccess: () => {
+      toast.success("Default mailbox updated.");
+      void utils.mailboxes.list.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const disconnectMailboxMutation = trpc.mailboxes.disconnect.useMutation({
+    onSuccess: () => {
+      toast.success("Mailbox disconnected.");
+      void utils.mailboxes.list.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const testMailboxMutation = trpc.mailboxes.testSend.useMutation({
+    onSuccess: (r) => {
+      if (r.success) toast.success("Mailbox test email sent.");
+      else toast.error(r.error ?? "Mailbox test failed.");
+      void utils.mailboxes.list.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const provider = params.get("mailbox_oauth_provider");
+    const code = params.get("mailbox_oauth_code");
+    const state = params.get("mailbox_oauth_state");
+    const error = params.get("mailbox_oauth_error");
+    if (error) {
+      toast.error(`Mailbox OAuth failed: ${error}`);
+    }
+    if (provider && code && state && !completeOAuthMutation.isPending) {
+      completeOAuthMutation.mutate({
+        provider: provider as "google" | "microsoft",
+        code,
+        state,
+      });
+    }
+    if (provider || code || state || error) {
+      const nextUrl = `${window.location.pathname}`;
+      window.history.replaceState({}, "", nextUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const googleReady = Boolean(
+    mailboxOAuthConfig?.googleConfigured &&
+    mailboxOAuthConfig?.tokenEncryptionConfigured &&
+    mailboxOAuthConfig?.appBaseUrl,
+  );
+  const microsoftReady = Boolean(
+    mailboxOAuthConfig?.microsoftConfigured &&
+    mailboxOAuthConfig?.tokenEncryptionConfigured &&
+    mailboxOAuthConfig?.appBaseUrl,
+  );
+  const canStartAnyOAuth = googleReady || microsoftReady;
+  const canUseAdvancedSmtp = Boolean(
+    isOrgOwner || user?.role === "admin" || user?.role === "superadmin",
+  );
+  const connectedMailboxCount = mailboxes?.length ?? 0;
+  const currentPlan =
+    SUBSCRIPTION_PLANS.find((p) => p.id === orgMine?.organization?.subscriptionPlanId) ??
+    SUBSCRIPTION_PLANS[0];
+  const mailboxLimit = currentPlan.mailboxLimit;
+  const mailboxLimitReached = connectedMailboxCount >= mailboxLimit;
+
+  const startOAuthFor = (provider: "google" | "microsoft") => {
+    if (mailboxLimitReached) {
+      toast.error("Mailbox limit reached. Purchase additional licenses in Manage Subscription.");
+      return;
+    }
+    const ready = provider === "google" ? googleReady : microsoftReady;
+    if (!ready) {
+      toast.error(
+        `${provider === "google" ? "Google" : "Microsoft"} mailbox connection is temporarily unavailable. Please try again later or use SMTP connect below.`,
+      );
+      return;
+    }
+    startOAuthMutation.mutate({ provider });
+  };
+
   const membersBranch =
     isOrgMineLoading ? "loading" : canSeeMembers ? "card" : "no_org_or_role";
   const selectedPlan = SUBSCRIPTION_PLANS.find((plan) => plan.id === selectedPlanId) ?? SUBSCRIPTION_PLANS[0];
@@ -207,10 +343,10 @@ export default function Settings() {
           <p className="text-muted-foreground text-sm mt-0.5">Configure your integrations and platform settings</p>
         </div>
 
-        <Tabs defaultValue="organization">
+        <Tabs value={activeSettingsTab} onValueChange={setActiveSettingsTab}>
           <TabsList className="bg-muted/30 border border-border/50">
             <TabsTrigger value="organization">Organization</TabsTrigger>
-            <TabsTrigger value="smtp">Outlook SMTP</TabsTrigger>
+            <TabsTrigger value="smtp">Mailboxes</TabsTrigger>
             <TabsTrigger value="subscription">Manage Subscription</TabsTrigger>
             <TabsTrigger value="platform">Platform Info</TabsTrigger>
           </TabsList>
@@ -384,59 +520,311 @@ export default function Settings() {
                 <Mail className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-base">Outlook SMTP</CardTitle>
-                <CardDescription className="text-xs">Email sending via @behberg.com</CardDescription>
+                <CardTitle className="text-base">Connected Mailboxes</CardTitle>
+                <CardDescription className="text-xs">Connect Gmail or Microsoft instantly</CardDescription>
               </div>
               <div className="ml-auto">
-                {smtpConfig?.configured ? (
+                {canStartAnyOAuth ? (
                   <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />Configured
+                    <CheckCircle2 className="h-3 w-3 mr-1" />OAuth Ready
                   </Badge>
                 ) : (
                   <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">
-                    <AlertCircle className="h-3 w-3 mr-1" />Not Configured
+                    <AlertCircle className="h-3 w-3 mr-1" />OAuth Setup Needed
                   </Badge>
                 )}
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-muted/20 border border-border/30">
-              <div>
-                <p className="text-xs text-muted-foreground">Host</p>
-                <p className="text-sm font-medium mt-0.5">{smtpConfig?.host ?? "smtp.office365.com"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Port</p>
-                <p className="text-sm font-medium mt-0.5">{smtpConfig?.port ?? 587}</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-xs text-muted-foreground">Username</p>
-                <p className="text-sm font-medium mt-0.5">{smtpConfig?.user || "Not set"}</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <AlertCircle className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
-              <div className="text-xs text-blue-300">
-                <p className="font-medium mb-1">How to configure SMTP</p>
-                <p>Set <code className="bg-blue-500/20 px-1 rounded">SMTP_USER</code> and <code className="bg-blue-500/20 px-1 rounded">SMTP_PASS</code> environment variables in the Secrets panel. Generate an App Password from your Microsoft account at <strong>account.microsoft.com → Security → App passwords</strong>.</p>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                className="h-9 px-4"
+                onClick={() => startOAuthFor("google")}
+                disabled={startOAuthMutation.isPending || !googleReady || mailboxLimitReached}
+              >
+                Connect Gmail
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => testSmtpMutation.mutate()}
-                disabled={testSmtpMutation.isPending || !smtpConfig?.configured}
+                className="h-9 px-4"
+                onClick={() => startOAuthFor("microsoft")}
+                disabled={startOAuthMutation.isPending || !microsoftReady || mailboxLimitReached}
               >
-                {testSmtpMutation.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                Test Connection
+                Connect Microsoft
               </Button>
-              {!smtpConfig?.configured && (
-                <p className="text-xs text-muted-foreground self-center">Configure SMTP_USER and SMTP_PASS secrets first</p>
+            </div>
+
+            <div className="text-xs text-muted-foreground">
+              Connected mailbox licenses: <span className="font-medium text-foreground">{connectedMailboxCount}/{mailboxLimit}</span> on {currentPlan.name}
+            </div>
+
+            {mailboxLimitReached ? (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-center justify-between gap-3">
+                <p>
+                  You have reached your mailbox limit ({connectedMailboxCount}/{mailboxLimit}). Purchase additional licenses to connect more inboxes.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => setActiveSettingsTab("subscription")}
+                >
+                  Manage Subscription
+                </Button>
+              </div>
+            ) : null}
+
+            {!canStartAnyOAuth ? (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                Google and Microsoft direct connect are temporarily unavailable. You can still connect via SMTP below.
+              </div>
+            ) : null}
+
+            <div className="rounded-lg bg-muted/20 border border-border/30 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Connected inboxes</p>
+                <Badge variant="outline">{connectedMailboxCount}/{mailboxLimit}</Badge>
+              </div>
+              {connectedMailboxCount === 0 ? (
+                <div className="rounded-lg border border-dashed border-border/50 bg-background/30 p-4 text-sm text-muted-foreground">
+                  No inbox connected yet. Use Connect Gmail or Connect Microsoft above.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(mailboxes ?? []).map((mailbox) => (
+                    <div key={mailbox.id} className="rounded-lg border border-border/40 p-3 bg-background/40">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{mailbox.displayName ?? mailbox.email}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {mailbox.provider.toUpperCase()} · {mailbox.email}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={mailbox.status === "connected" ? "default" : "outline"}>
+                            {mailbox.status}
+                          </Badge>
+                          {mailbox.isDefault ? <Badge>Default</Badge> : null}
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {!mailbox.isDefault ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={setDefaultMailboxMutation.isPending}
+                            onClick={() => setDefaultMailboxMutation.mutate({ mailboxId: mailbox.id })}
+                          >
+                            Set default
+                          </Button>
+                        ) : null}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!mailboxTestEmail || testMailboxMutation.isPending}
+                          onClick={() =>
+                            testMailboxMutation.mutate({
+                              mailboxId: mailbox.id,
+                              toEmail: mailboxTestEmail,
+                            })
+                          }
+                        >
+                          Test send
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive"
+                          disabled={disconnectMailboxMutation.isPending}
+                          onClick={() => disconnectMailboxMutation.mutate({ mailboxId: mailbox.id })}
+                        >
+                          Disconnect
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
+            </div>
+
+            <div className="rounded-lg border border-border/40 bg-muted/10">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between px-4 py-3 text-left"
+                onClick={() => setShowManualMailboxSetup(prev => !prev)}
+              >
+                <div>
+                  <p className="text-sm font-medium">Connect other mailbox (manual)</p>
+                  <p className="text-xs text-muted-foreground">Use SMTP if your provider is not Google or Microsoft.</p>
+                </div>
+                {showManualMailboxSetup ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              </button>
+
+              {showManualMailboxSetup ? (
+                <div className="border-t border-border/40 p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Mailbox Email</p>
+                      <Input
+                        className="mt-1 h-8"
+                        value={smtpMailboxForm.email}
+                        onChange={(e) => setSmtpMailboxForm((prev) => ({ ...prev, email: e.target.value }))}
+                        placeholder="you@company.com"
+                      />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Display Name</p>
+                      <Input
+                        className="mt-1 h-8"
+                        value={smtpMailboxForm.displayName}
+                        onChange={(e) => setSmtpMailboxForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                        placeholder="Jane from Sales"
+                      />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">App Password</p>
+                      <Input
+                        className="mt-1 h-8"
+                        type="password"
+                        value={smtpMailboxForm.password}
+                        onChange={(e) => setSmtpMailboxForm((prev) => ({ ...prev, password: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <p className="text-[11px] text-muted-foreground">
+                        We auto-configure SMTP host, port, and username from your email.
+                      </p>
+                    </div>
+                  </div>
+
+                  {canUseAdvancedSmtp ? (
+                    <div className="rounded-lg border border-border/40 p-3 bg-background/40 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-medium">Admin SMTP override</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            Enable only if your provider requires non-standard SMTP settings.
+                          </p>
+                        </div>
+                        <Switch checked={showAdvancedSmtp} onCheckedChange={setShowAdvancedSmtp} />
+                      </div>
+                      {showAdvancedSmtp ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">SMTP Host</p>
+                            <Input
+                              className="mt-1 h-8"
+                              value={smtpMailboxForm.host}
+                              onChange={(e) => setSmtpMailboxForm((prev) => ({ ...prev, host: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">SMTP Port</p>
+                            <Input
+                              className="mt-1 h-8"
+                              type="number"
+                              value={smtpMailboxForm.port}
+                              onChange={(e) =>
+                                setSmtpMailboxForm((prev) => ({
+                                  ...prev,
+                                  port: Number.parseInt(e.target.value || "587", 10),
+                                }))
+                              }
+                            />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">SMTP Username</p>
+                            <Input
+                              className="mt-1 h-8"
+                              value={smtpMailboxForm.username}
+                              onChange={(e) => setSmtpMailboxForm((prev) => ({ ...prev, username: e.target.value }))}
+                            />
+                          </div>
+                          <div className="flex items-end">
+                            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Switch
+                                checked={smtpMailboxForm.secure}
+                                onCheckedChange={(checked) =>
+                                  setSmtpMailboxForm((prev) => ({ ...prev, secure: checked }))
+                                }
+                              />
+                              Use SSL/TLS
+                            </label>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <AlertCircle className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
+                    <div className="text-xs text-blue-300">
+                      <p className="font-medium mb-1">Quick connect tip</p>
+                      <p>Use your mailbox email and provider App Password. For Microsoft this is usually at <strong>account.microsoft.com → Security → App passwords</strong>. Gmail users can create one in Google Account security after enabling 2-Step Verification.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Input
+                      className="h-8 max-w-xs"
+                      value={mailboxTestEmail}
+                      onChange={(e) => setMailboxTestEmail(e.target.value)}
+                      placeholder="Test recipient email"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        connectSmtpMailboxMutation.mutate({
+                          email: smtpMailboxForm.email.trim(),
+                          displayName: smtpMailboxForm.displayName.trim() || undefined,
+                          ...(showAdvancedSmtp && canUseAdvancedSmtp
+                            ? {
+                                host: smtpMailboxForm.host.trim(),
+                                port: smtpMailboxForm.port,
+                                secure: smtpMailboxForm.secure,
+                                username: smtpMailboxForm.username.trim() || smtpMailboxForm.email.trim(),
+                              }
+                            : {}),
+                          password: smtpMailboxForm.password,
+                        })
+                      }
+                      disabled={
+                        connectSmtpMailboxMutation.isPending ||
+                        mailboxLimitReached ||
+                        !smtpMailboxForm.email ||
+                        !smtpMailboxForm.password
+                      }
+                    >
+                      Connect other mailbox
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => testSmtpMutation.mutate()}
+                      disabled={testSmtpMutation.isPending || !smtpConfig?.configured}
+                    >
+                      {testSmtpMutation.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+                      Test Connection
+                    </Button>
+                    {!smtpConfig?.configured && (
+                      <p className="text-xs text-muted-foreground self-center">Legacy global SMTP is not configured (optional).</p>
+                    )}
+                    {mailboxLimitReached ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0"
+                        onClick={() => setActiveSettingsTab("subscription")}
+                      >
+                        Purchase Licenses
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </CardContent>
         </Card>

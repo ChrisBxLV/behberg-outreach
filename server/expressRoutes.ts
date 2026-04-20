@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import multer from "multer";
 import { importCsvContacts } from "./services/csvImport";
-import { recordOpenEvent, unsubscribeByTrackingId } from "./db";
+import { applyProviderTrackingEvent, recordOpenEvent, unsubscribeByTrackingId } from "./db";
 import { startScheduler } from "./services/sequenceScheduler";
 import { resolveTenantQueryScope } from "./_core/authz";
 import { sdk } from "./_core/sdk";
@@ -25,6 +25,54 @@ const TRACKING_PIXEL = Buffer.from(
 );
 
 export function registerExpressRoutes(app: Express) {
+  const appBaseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
+
+  // ── Mailbox OAuth callbacks ────────────────────────────────────────────────
+  app.get("/api/mailboxes/oauth/:provider/callback", async (req, res) => {
+    const provider = String(req.params.provider ?? "").toLowerCase();
+    const code = String(req.query.code ?? "");
+    const state = String(req.query.state ?? "");
+    const error = String(req.query.error ?? "");
+    if (error) {
+      return res.redirect(
+        `${appBaseUrl}/app/settings?mailbox_oauth_error=${encodeURIComponent(error)}&provider=${provider}`,
+      );
+    }
+    if (!code || !state || (provider !== "google" && provider !== "microsoft")) {
+      return res.redirect(`${appBaseUrl}/app/settings?mailbox_oauth_error=invalid_callback`);
+    }
+    const redirectUrl =
+      `${appBaseUrl}/app/settings?mailbox_oauth_provider=${encodeURIComponent(provider)}` +
+      `&mailbox_oauth_code=${encodeURIComponent(code)}` +
+      `&mailbox_oauth_state=${encodeURIComponent(state)}`;
+    return res.redirect(redirectUrl);
+  });
+
+  // ── Mailbox webhook intake (normalized minimal path) ───────────────────────
+  app.post("/api/mailboxes/webhooks/:provider", async (req, res) => {
+    const provider = String(req.params.provider ?? "").toLowerCase();
+    const challenge = String(req.query.validationToken ?? "");
+    if (provider === "microsoft" && challenge) {
+      return res.status(200).send(challenge);
+    }
+    const providerMessageId = String((req.body?.providerMessageId ?? req.body?.messageId ?? "") || "");
+    const eventTypeRaw = String((req.body?.eventType ?? req.body?.type ?? "") || "").toLowerCase();
+    const eventType =
+      eventTypeRaw === "open" || eventTypeRaw === "reply" || eventTypeRaw === "bounce"
+        ? eventTypeRaw
+        : null;
+    if (providerMessageId && eventType) {
+      await applyProviderTrackingEvent({ providerMessageId, eventType });
+    }
+    console.info(`[MailWebhook] provider=${provider}`, {
+      googleResourceId: req.headers["x-goog-resource-id"] ?? null,
+      microsoftSubscriptionId: req.headers["x-ms-subscription-id"] ?? null,
+      providerMessageId: providerMessageId || null,
+      eventType: eventType || null,
+    });
+    res.status(202).json({ ok: true });
+  });
+
   // ── CSV Import ─────────────────────────────────────────────────────────────
   app.post("/api/import/csv", upload.single("file"), async (req, res) => {
     try {

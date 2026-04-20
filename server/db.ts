@@ -4,10 +4,12 @@ import { TRPCError } from "@trpc/server";
 import {
   users, organizations, contacts, importBatches, campaigns, sequenceSteps,
   campaignContacts, emailLogs, trackingEvents, loginChallenges,
-  signalProfiles, signals, signalInsights, signalIngestionRuns,
+  signalProfiles, signals, signalInsights, signalIngestionRuns, mailboxes,
+  mailboxOauthTokens, mailboxHealth, mailboxSendLimits, mailboxWebhookSubscriptions,
   type InsertUser, type InsertContact, type Contact, type InsertCampaign,
   type InsertSequenceStep, type InsertEmailLog, type InsertLoginChallenge,
   type InsertSignalProfile, type InsertSignal, type InsertSignalInsight,
+  type InsertMailbox, type InsertMailboxOauthToken,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { scopeForContactOrganizationId, type TenantQueryScope } from "./_core/authz";
@@ -389,6 +391,7 @@ export async function getOrganizationById(id: number) {
     return {
       id: row.id,
       name: row.name,
+      subscriptionPlanId: row.subscriptionPlanId ?? "free",
       createdAt: new Date(row.createdAt),
     };
   }
@@ -409,6 +412,7 @@ export async function getOrganizationById(id: number) {
     return {
       id: row.id,
       name: row.name,
+      subscriptionPlanId: row.subscriptionPlanId ?? "free",
       createdAt: new Date(row.createdAt),
     };
   }
@@ -1102,6 +1106,258 @@ export async function deleteCampaign(id: number, scope: TenantQueryScope) {
   await db.delete(campaigns).where(and(...conds));
 }
 
+// ─── Mailboxes ────────────────────────────────────────────────────────────────
+export type MailboxWithState = typeof mailboxes.$inferSelect & {
+  health: typeof mailboxHealth.$inferSelect | null;
+  limits: typeof mailboxSendLimits.$inferSelect | null;
+};
+
+export async function listMailboxesByOrganization(organizationId: number): Promise<MailboxWithState[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      mailbox: mailboxes,
+      health: mailboxHealth,
+      limits: mailboxSendLimits,
+    })
+    .from(mailboxes)
+    .leftJoin(mailboxHealth, eq(mailboxHealth.mailboxId, mailboxes.id))
+    .leftJoin(mailboxSendLimits, eq(mailboxSendLimits.mailboxId, mailboxes.id))
+    .where(eq(mailboxes.organizationId, organizationId))
+    .orderBy(desc(mailboxes.isDefault), asc(mailboxes.email));
+  return rows.map(r => ({ ...r.mailbox, health: r.health ?? null, limits: r.limits ?? null }));
+}
+
+export async function getDefaultMailboxByOrganization(organizationId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(mailboxes)
+    .where(and(eq(mailboxes.organizationId, organizationId), eq(mailboxes.isDefault, true)))
+    .limit(1);
+  return rows[0];
+}
+
+export async function getMailboxById(mailboxId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(mailboxes)
+    .where(eq(mailboxes.id, mailboxId))
+    .limit(1);
+  return rows[0];
+}
+
+export async function findMailboxByOrganizationAndEmail(
+  organizationId: number,
+  provider: "google" | "microsoft" | "smtp",
+  email: string,
+) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(mailboxes)
+    .where(
+      and(
+        eq(mailboxes.organizationId, organizationId),
+        eq(mailboxes.provider, provider),
+        eq(mailboxes.email, email.toLowerCase()),
+      ),
+    )
+    .limit(1);
+  return rows[0];
+}
+
+export async function createMailbox(data: InsertMailbox): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(mailboxes).values(data);
+  return Number((result as any).insertId ?? 0);
+}
+
+export async function updateMailbox(
+  mailboxId: number,
+  data: Partial<InsertMailbox>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(mailboxes).set(data).where(eq(mailboxes.id, mailboxId));
+}
+
+export async function upsertMailboxOauthToken(
+  mailboxId: number,
+  data: Omit<InsertMailboxOauthToken, "mailboxId">,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db
+    .select({ id: mailboxOauthTokens.id })
+    .from(mailboxOauthTokens)
+    .where(eq(mailboxOauthTokens.mailboxId, mailboxId))
+    .limit(1);
+
+  if (existing[0]?.id) {
+    await db
+      .update(mailboxOauthTokens)
+      .set(data)
+      .where(eq(mailboxOauthTokens.mailboxId, mailboxId));
+    return;
+  }
+
+  await db.insert(mailboxOauthTokens).values({ mailboxId, ...data });
+}
+
+export async function getMailboxOauthToken(mailboxId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(mailboxOauthTokens)
+    .where(eq(mailboxOauthTokens.mailboxId, mailboxId))
+    .limit(1);
+  return rows[0];
+}
+
+export async function upsertMailboxHealth(
+  mailboxId: number,
+  data: Partial<typeof mailboxHealth.$inferInsert>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await db
+    .select({ id: mailboxHealth.id })
+    .from(mailboxHealth)
+    .where(eq(mailboxHealth.mailboxId, mailboxId))
+    .limit(1);
+  if (existing[0]?.id) {
+    await db.update(mailboxHealth).set(data).where(eq(mailboxHealth.mailboxId, mailboxId));
+    return;
+  }
+  await db.insert(mailboxHealth).values({ mailboxId, ...data });
+}
+
+export async function upsertMailboxSendLimits(
+  mailboxId: number,
+  data: Partial<typeof mailboxSendLimits.$inferInsert>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await db
+    .select({ id: mailboxSendLimits.id })
+    .from(mailboxSendLimits)
+    .where(eq(mailboxSendLimits.mailboxId, mailboxId))
+    .limit(1);
+  if (existing[0]?.id) {
+    await db.update(mailboxSendLimits).set(data).where(eq(mailboxSendLimits.mailboxId, mailboxId));
+    return;
+  }
+  await db.insert(mailboxSendLimits).values({ mailboxId, ...data });
+}
+
+export async function setDefaultMailboxForOrganization(
+  organizationId: number,
+  mailboxId: number,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(mailboxes)
+    .set({ isDefault: false })
+    .where(eq(mailboxes.organizationId, organizationId));
+  await db
+    .update(mailboxes)
+    .set({ isDefault: true })
+    .where(and(eq(mailboxes.organizationId, organizationId), eq(mailboxes.id, mailboxId)));
+}
+
+export async function upsertMailboxWebhookSubscription(input: {
+  mailboxId: number;
+  providerSubscriptionId: string;
+  status?: "active" | "expired" | "error";
+  expiresAt?: Date | null;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await db
+    .select({ id: mailboxWebhookSubscriptions.id })
+    .from(mailboxWebhookSubscriptions)
+    .where(
+      and(
+        eq(mailboxWebhookSubscriptions.mailboxId, input.mailboxId),
+        eq(mailboxWebhookSubscriptions.providerSubscriptionId, input.providerSubscriptionId),
+      ),
+    )
+    .limit(1);
+  if (existing[0]?.id) {
+    await db
+      .update(mailboxWebhookSubscriptions)
+      .set({
+        status: input.status ?? "active",
+        expiresAt: input.expiresAt ?? null,
+      })
+      .where(eq(mailboxWebhookSubscriptions.id, existing[0].id));
+    return;
+  }
+  await db.insert(mailboxWebhookSubscriptions).values({
+    mailboxId: input.mailboxId,
+    providerSubscriptionId: input.providerSubscriptionId,
+    status: input.status ?? "active",
+    expiresAt: input.expiresAt ?? null,
+  });
+}
+
+export async function removeMailbox(mailboxId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(campaigns)
+    .set({ mailboxId: null })
+    .where(eq(campaigns.mailboxId, mailboxId));
+  await db.delete(mailboxes).where(eq(mailboxes.id, mailboxId));
+}
+
+export async function getMailboxHealthByMailboxId(mailboxId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(mailboxHealth)
+    .where(eq(mailboxHealth.mailboxId, mailboxId))
+    .limit(1);
+  return rows[0];
+}
+
+export async function getMailboxSendLimitsByMailboxId(mailboxId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(mailboxSendLimits)
+    .where(eq(mailboxSendLimits.mailboxId, mailboxId))
+    .limit(1);
+  return rows[0];
+}
+
+export async function countMailboxEmailsSentSince(mailboxId: number, since: Date): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const [row] = await db
+    .select({ n: count() })
+    .from(emailLogs)
+    .where(
+      and(
+        eq(emailLogs.mailboxId, mailboxId),
+        eq(emailLogs.status, "sent"),
+        gt(emailLogs.sentAt, since),
+      ),
+    );
+  return Number(row?.n ?? 0);
+}
+
 // ─── Sequence Steps ───────────────────────────────────────────────────────────
 export async function getSequenceSteps(campaignId: number) {
   const db = await getDb();
@@ -1336,6 +1592,91 @@ export async function markEmailReplied(
         .where(eq(campaignContacts.id, row.log.campaignContactId));
     }
   }
+}
+
+export async function getEmailLogByProviderMessageId(providerMessageId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(emailLogs)
+    .where(eq(emailLogs.providerMessageId, providerMessageId))
+    .limit(1);
+  return rows[0];
+}
+
+export async function applyProviderTrackingEvent(input: {
+  providerMessageId: string;
+  eventType: "open" | "reply" | "bounce";
+}) {
+  const db = await getDb();
+  if (!db) return false;
+  const log = await getEmailLogByProviderMessageId(input.providerMessageId);
+  if (!log) return false;
+
+  if (log.trackingId) {
+    await db.insert(trackingEvents).values({
+      trackingId: log.trackingId,
+      eventType: input.eventType,
+      ipAddress: null,
+      userAgent: `provider:${input.providerMessageId}`,
+    });
+  }
+
+  if (input.eventType === "open") {
+    await db
+      .update(emailLogs)
+      .set({
+        openedAt: log.openedAt ?? new Date(),
+        openCount: (log.openCount ?? 0) + 1,
+      })
+      .where(eq(emailLogs.id, log.id));
+    if (!log.openedAt) {
+      await db
+        .update(campaigns)
+        .set({ openCount: sql`${campaigns.openCount} + 1` })
+        .where(eq(campaigns.id, log.campaignId));
+    }
+    return true;
+  }
+
+  if (input.eventType === "reply") {
+    await db
+      .update(emailLogs)
+      .set({ repliedAt: log.repliedAt ?? new Date() })
+      .where(eq(emailLogs.id, log.id));
+    if (!log.repliedAt) {
+      await db
+        .update(campaigns)
+        .set({ replyCount: sql`${campaigns.replyCount} + 1` })
+        .where(eq(campaigns.id, log.campaignId));
+      if (log.campaignContactId) {
+        await db
+          .update(campaignContacts)
+          .set({ status: "replied" })
+          .where(eq(campaignContacts.id, log.campaignContactId));
+      }
+    }
+    return true;
+  }
+
+  await db
+    .update(emailLogs)
+    .set({ status: "bounced", bouncedAt: log.bouncedAt ?? new Date() })
+    .where(eq(emailLogs.id, log.id));
+  if (!log.bouncedAt) {
+    await db
+      .update(campaigns)
+      .set({ bounceCount: sql`${campaigns.bounceCount} + 1` })
+      .where(eq(campaigns.id, log.campaignId));
+    if (log.campaignContactId) {
+      await db
+        .update(campaignContacts)
+        .set({ status: "bounced" })
+        .where(eq(campaignContacts.id, log.campaignContactId));
+    }
+  }
+  return true;
 }
 
 export async function getCampaignStats(campaignId: number) {

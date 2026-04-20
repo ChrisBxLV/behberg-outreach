@@ -70,6 +70,7 @@ export default function CampaignDetail() {
   const { data: campaignContacts } = trpc.campaigns.contacts.useQuery({ campaignId });
   const { data: emailLogs } = trpc.campaigns.emailLogs.useQuery({ campaignId });
   const { data: allContacts } = trpc.contacts.list.useQuery({ limit: 200 });
+  const { data: mailboxes } = trpc.mailboxes.list.useQuery();
 
   const [steps, setSteps] = useState<SequenceStep[]>([]);
   const [selectedContactIds, setSelectedContactIds] = useState<number[]>([]);
@@ -202,6 +203,8 @@ export default function CampaignDetail() {
 
   const openRate = (campaign.sentCount ?? 0) > 0 ? Math.round(((campaign.openCount ?? 0) / (campaign.sentCount ?? 1)) * 100) : 0;
   const replyRate = (campaign.sentCount ?? 0) > 0 ? Math.round(((campaign.replyCount ?? 0) / (campaign.sentCount ?? 1)) * 100) : 0;
+  const campaignMailbox = (mailboxes ?? []).find((m) => m.id === campaign.mailboxId);
+  const launchBlocked = !campaign.mailboxId || !campaignMailbox || campaignMailbox.status !== "connected";
 
   return (
     <DashboardLayout>
@@ -553,12 +556,23 @@ export default function CampaignDetail() {
                 This will activate the campaign and begin sending emails to all enrolled contacts according to your sequence schedule.
               </p>
               <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                <p className="text-xs text-amber-300">Make sure your sequence steps are saved and your SMTP is configured before launching.</p>
+                <p className="text-xs text-amber-300">
+                  Make sure your sequence steps are saved and a healthy mailbox is connected before launching.
+                </p>
+                {launchBlocked ? (
+                  <p className="text-xs text-red-300 mt-2">
+                    Launch blocked: assign a connected mailbox to this campaign in the campaign editor.
+                  </p>
+                ) : (
+                  <p className="text-xs text-emerald-300 mt-2">
+                    Mailbox ready: {campaignMailbox?.email}
+                  </p>
+                )}
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowLaunchDialog(false)}>Cancel</Button>
-              <Button className="bg-primary text-primary-foreground" onClick={() => launchMutation.mutate({ campaignId })} disabled={launchMutation.isPending}>
+              <Button className="bg-primary text-primary-foreground" onClick={() => launchMutation.mutate({ campaignId })} disabled={launchMutation.isPending || launchBlocked}>
                 <Play className="h-4 w-4 mr-2" />Launch
               </Button>
             </DialogFooter>
