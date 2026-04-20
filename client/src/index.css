@@ -147,6 +147,29 @@
   }
 }
 
+@layer components {
+  [data-glow] {
+    --glow-x: 50%;
+    --glow-y: 50%;
+    background-image: none;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    transition:
+      background-image 120ms ease,
+      box-shadow 120ms ease,
+      border-color 120ms ease;
+  }
+
+  [data-glow]:hover,
+  [data-glow]:focus-visible {
+    background-image: radial-gradient(
+      160px circle at var(--glow-x) var(--glow-y),
+      oklch(from var(--primary) l c h / 0.28),
+      transparent 62%
+    );
+  }
+}
+
 .data-particles-layer {
   position: fixed;
   inset: 0;

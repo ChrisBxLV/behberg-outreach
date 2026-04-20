@@ -86,9 +86,17 @@ function StatCard({
 }) {
   return (
     <Card
+      data-glow={onClick ? "" : undefined}
       className={[
         "border-border/50 bg-card/80 backdrop-blur-sm",
-        onClick ? "cursor-pointer hover:bg-card/90 transition-colors" : "",
+        onClick
+          ? [
+              "cursor-pointer transition-colors",
+              "relative overflow-hidden",
+              "hover:bg-card/90",
+              "hover:shadow-[0_18px_50px_-28px_oklch(from_var(--primary)_l_c_h_/_0.7)]",
+            ].join(" ")
+          : "",
       ].join(" ")}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -101,13 +109,17 @@ function StatCard({
           : undefined
       }
     >
-      <CardContent className="p-6 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted-foreground font-medium">{title}</p>
-          <p className="text-3xl font-bold mt-1 tabular-nums">{value}</p>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm text-muted-foreground font-medium leading-tight whitespace-nowrap truncate">
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-6 pb-6 pt-0 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-3xl font-bold tabular-nums">{value}</p>
           {hint ? <p className="text-xs text-muted-foreground mt-1">{hint}</p> : null}
         </div>
-        <div className="p-3 rounded-xl bg-primary/10 text-primary">
+        <div className="shrink-0 self-start p-3 rounded-xl bg-primary/10 text-primary">
           <Icon className="h-5 w-5" />
         </div>
       </CardContent>
@@ -627,13 +639,13 @@ export default function SuperadminDashboard() {
               />
               <StatCard title="Users" value={t?.users ?? 0} icon={Users} onClick={() => goTab("users")} />
               <StatCard
-                title="Contacts (all orgs)"
+                title="Contacts (ALL ORGS)"
                 value={t?.contacts ?? 0}
                 icon={BarChart3}
                 onClick={() => setLocation("/app/contacts")}
               />
               <StatCard
-                title="Campaigns (all orgs)"
+                title="Campaigns (ALL ORGS)"
                 value={t?.campaigns ?? 0}
                 icon={Mail}
                 onClick={() => setLocation("/app/campaigns")}

@@ -56,6 +56,22 @@ const trpcClient = trpc.createClient({
 
 loadAnalytics();
 
+if (typeof window !== "undefined") {
+  const updateGlow = (e: PointerEvent) => {
+    const target = (e.target as HTMLElement | null)?.closest?.("[data-glow]") as
+      | HTMLElement
+      | null;
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    target.style.setProperty("--glow-x", `${x}px`);
+    target.style.setProperty("--glow-y", `${y}px`);
+  };
+
+  window.addEventListener("pointermove", updateGlow, { passive: true });
+}
+
 createRoot(document.getElementById("root")!).render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
