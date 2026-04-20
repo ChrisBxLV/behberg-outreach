@@ -516,8 +516,15 @@ export default function CampaignDetail() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 pb-2 border-b border-border/50">
                     <Checkbox
-                      checked={selectedContactIds.length === availableContacts.length}
+                      checked={
+                        availableContacts.length > 0 && selectedContactIds.length > 0
+                          ? (selectedContactIds.length === availableContacts.length ? true : "indeterminate")
+                          : false
+                      }
                       onCheckedChange={checked => setSelectedContactIds(checked ? availableContacts.map(c => c.id) : [])}
+                      disabled={availableContacts.length === 0}
+                      aria-label="Select all available contacts"
+                      className="border-muted-foreground/60 bg-background/80"
                     />
                     <span className="text-sm font-medium">Select all ({availableContacts.length})</span>
                   </div>
@@ -526,6 +533,8 @@ export default function CampaignDetail() {
                       <Checkbox
                         checked={selectedContactIds.includes(contact.id)}
                         onCheckedChange={checked => setSelectedContactIds(prev => checked ? [...prev, contact.id] : prev.filter(id => id !== contact.id))}
+                        aria-label={`Select contact ${contact.fullName ?? contact.email ?? contact.id}`}
+                        className="border-muted-foreground/60 bg-background/80"
                       />
                       <div>
                         <p className="text-sm font-medium">{contact.fullName ?? `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim()}</p>

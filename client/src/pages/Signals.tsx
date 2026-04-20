@@ -349,7 +349,7 @@ export default function Signals() {
                       ))}
                     </div>
                     <Separator />
-                    <div>
+                    <div className="flex flex-wrap gap-2">
                       {item.website_url ? (
                         <Button size="sm" variant="outline" asChild>
                           <a

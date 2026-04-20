@@ -253,8 +253,15 @@ export default function Contacts() {
                 <tr className="border-b border-border/50">
                   <th className="p-4 w-10">
                     <Checkbox
-                      checked={contacts.length > 0 && selectedIds.length === contacts.length}
+                      checked={
+                        contacts.length > 0 && selectedIds.length > 0
+                          ? (selectedIds.length === contacts.length ? true : "indeterminate")
+                          : false
+                      }
                       onCheckedChange={toggleSelectAll}
+                      disabled={contacts.length === 0}
+                      aria-label="Select all contacts on this page"
+                      className="border-muted-foreground/60 bg-background/80"
                     />
                   </th>
                   <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Contact</th>
@@ -291,6 +298,8 @@ export default function Contacts() {
                         <Checkbox
                           checked={selectedIds.includes(contact.id)}
                           onCheckedChange={() => toggleSelect(contact.id)}
+                          aria-label={`Select contact ${contact.fullName ?? contact.email ?? contact.id}`}
+                          className="border-muted-foreground/60 bg-background/80"
                         />
                       </td>
                       <td className="p-4">

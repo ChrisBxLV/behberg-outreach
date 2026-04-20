@@ -240,13 +240,20 @@ export default function Prospecting() {
                     <tr className="border-b border-border/50">
                       <th className="p-3 w-10">
                         <Checkbox
-                          checked={allSelected}
+                          checked={
+                            rows.length > 0 && selectedIds.length > 0
+                              ? (allSelected ? true : "indeterminate")
+                              : false
+                          }
                           onCheckedChange={v => {
                             const checked = Boolean(v);
                             const next: Record<string, boolean> = {};
                             for (const r of rows) next[r.id] = checked;
                             setSelected(next);
                           }}
+                          disabled={rows.length === 0}
+                          aria-label="Select all prospects on this page"
+                          className="border-muted-foreground/60 bg-background/80"
                         />
                       </th>
                       <th className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -270,6 +277,8 @@ export default function Prospecting() {
                           <Checkbox
                             checked={Boolean(selected[r.id])}
                             onCheckedChange={v => setSelected(s => ({ ...s, [r.id]: Boolean(v) }))}
+                            aria-label={`Select prospect ${r.fullName ?? r.company}`}
+                            className="border-muted-foreground/60 bg-background/80"
                           />
                         </td>
                         <td className="p-3 align-top">
