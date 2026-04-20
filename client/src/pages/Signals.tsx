@@ -4,12 +4,15 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Radar, RefreshCw } from "lucide-react";
+import { Radar, RefreshCw, Sparkles, TimerReset, TrendingUp, UserRoundCheck } from "lucide-react";
+import { useLocation } from "wouter";
 
 type SignalFilters = {
   search?: string;
@@ -55,7 +58,9 @@ function sourceHeadlineFromItem(item: unknown): string | null {
 
 export default function Signals() {
   const utils = trpc.useUtils();
-  const [filters, setFilters] = useState<SignalFilters>({});
+  const [, setLocation] = useLocation();
+  const [showSignalsProModal, setShowSignalsProModal] = useState(false);
+  const [signalsProEnabled, setSignalsProEnabled] = useState(false);
   const [profileForm, setProfileForm] = useState({
     selectedTags: [] as string[],
     selectedSignalTypes: [] as string[],
@@ -65,15 +70,12 @@ export default function Signals() {
 
   const { data: taxonomy } = trpc.signals.taxonomy.useQuery();
   const { data: profile, isLoading: profileLoading } = trpc.signals.getProfile.useQuery();
-  const { data: facets } = trpc.signals.listFacets.useQuery(undefined, {
-    enabled: true,
-  });
+  const { data: orgMine } = trpc.organization.mine.useQuery();
+  const subscriptionPlanId = orgMine?.organization?.subscriptionPlanId ?? "free";
+  const hasSignalsProAccess = ["business_standard", "pro", "enterprise"].includes(subscriptionPlanId);
   const { data: feed, isLoading: feedLoading } = trpc.signals.listSignals.useQuery(
     {
       limit: 40,
-      search: filters.search,
-      tag: filters.tag,
-      signalType: filters.signalType,
     },
     { enabled: true },
   );
@@ -102,7 +104,6 @@ export default function Signals() {
   const resetFeedMutation = trpc.signals.resetFeed.useMutation({
     onSuccess: () => {
       toast.success("Signals feed reset. Complete setup to start again.");
-      setFilters({});
       setProfileForm(v => ({
         ...v,
         selectedTags: [],
@@ -286,27 +287,35 @@ export default function Signals() {
         ) : (
           <>
             <Card className="border-border/50 bg-card/80">
-              <CardHeader>
-                <CardTitle className="text-base">Filters</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <Select
-                    value={filters.signalType ?? "__all__"}
-                    onValueChange={signalType =>
-                      setFilters(v => ({ ...v, signalType: signalType === "__all__" ? undefined : signalType }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Signal type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all__">All</SelectItem>
-                      <SelectItem value="funding">Funding</SelectItem>
-                      <SelectItem value="product_launch">Product launch</SelectItem>
-                      <SelectItem value="hiring_spike">Hiring</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold flex items-center gap-2">
+                      Signals PRO
+                      <Badge variant="secondary" className="text-[10px]">Business Standard+</Badge>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Unlock LLM-powered event intelligence with instant outreach actions and decision-maker matching.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {signalsProEnabled && (
+                      <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                        Enabled
+                      </Badge>
+                    )}
+                    <Switch
+                      checked={signalsProEnabled}
+                      onCheckedChange={(nextChecked) => {
+                        if (nextChecked) {
+                          setShowSignalsProModal(true);
+                          return;
+                        }
+                        setSignalsProEnabled(false);
+                      }}
+                      aria-label="Enable Signals Pro"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -339,16 +348,7 @@ export default function Signals() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="secondary">{item.signalType.replaceAll("_", " ")}</Badge>
-                      {(item.tags ?? []).slice(0, 4).map(tag => (
-                        <Badge key={`${item.id}-${tag}`} variant="outline">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                    <Separator />
+                  <CardContent className="space-y-2">
                     <div className="flex flex-wrap gap-2">
                       {item.website_url ? (
                         <Button size="sm" variant="outline" asChild>
@@ -378,6 +378,103 @@ export default function Signals() {
           </>
         )}
       </div>
+      <Dialog open={showSignalsProModal} onOpenChange={setShowSignalsProModal}>
+        <DialogContent className="border-border bg-card sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Turn Breaking News Into Pipeline with Signals PRO
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Signals PRO connects your AI assistant to live news and extracts high-intent moments your team can act on instantly.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <div className="rounded-lg border border-primary/30 bg-primary/10 p-3">
+              <p className="text-xs uppercase tracking-wide text-primary/90">Competitive Advantage</p>
+              <p className="mt-1 font-semibold text-primary">
+                Out-time your competition: contact buyers while the story is still breaking, not after everyone else has already reached out.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="flex items-center gap-2 text-primary">
+                  <TimerReset className="h-4 w-4" />
+                  <span className="text-xs font-semibold uppercase tracking-wide">Speed</span>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  LLM monitors news and extracts hot events in real time.
+                </p>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="flex items-center gap-2 text-primary">
+                  <UserRoundCheck className="h-4 w-4" />
+                  <span className="text-xs font-semibold uppercase tracking-wide">Precision</span>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Decision-maker matching ties every event to the best contact.
+                </p>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="flex items-center gap-2 text-primary">
+                  <TrendingUp className="h-4 w-4" />
+                  <span className="text-xs font-semibold uppercase tracking-wide">Pipeline</span>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Launch outreach instantly with event-aware messaging that converts.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border/60 p-3">
+              <p className="font-medium">What your team can do in one click:</p>
+              <ul className="mt-2 space-y-2 text-muted-foreground">
+                <li>- Add the matched contact directly to a sequence with a relevant pitch angle.</li>
+                <li>- Message the contact immediately while timing and intent are strongest.</li>
+                <li>- Keep a daily flow of fresh opportunities before competitors react.</li>
+              </ul>
+            </div>
+            {!hasSignalsProAccess ? (
+              <p className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-primary">
+                Your current plan is <span className="font-semibold">{subscriptionPlanId.replaceAll("_", " ")}</span>. Upgrade to <span className="font-semibold">Business Standard</span> to unlock Signals PRO.
+              </p>
+            ) : (
+              <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-emerald-300">
+                Your plan includes Signals PRO. Continue to enable premium signal intelligence now.
+              </p>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowSignalsProModal(false)}>
+              Not now
+            </Button>
+            {hasSignalsProAccess ? (
+              <Button
+                className="bg-primary text-primary-foreground"
+                onClick={() => {
+                  setSignalsProEnabled(true);
+                  setShowSignalsProModal(false);
+                  toast.success("Signals PRO enabled.");
+                }}
+              >
+                Continue with Signals Pro
+              </Button>
+            ) : (
+              <Button
+                className="bg-primary text-primary-foreground"
+                onClick={() => {
+                  setShowSignalsProModal(false);
+                  setLocation("/app/settings");
+                  toast.message("Upgrade to Business Standard to enable Signals PRO.");
+                }}
+              >
+                Upgrade to Business Standard
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
