@@ -41,6 +41,7 @@ import { signalsRouter } from "./routers/signals";
 import { prospectingRouter } from "./routers/prospecting";
 import { platformRouter } from "./routers/platform";
 import { mailboxesRouter } from "./routers/mailboxes";
+import { emailVerificationRouter } from "./routers/emailVerification";
 
 export const appRouter = router({
   system: systemRouter,
@@ -826,6 +827,7 @@ export const appRouter = router({
   prospecting: prospectingRouter,
   platform: platformRouter,
   mailboxes: mailboxesRouter,
+  emailVerification: emailVerificationRouter,
 });
 
 export type AppRouter = typeof appRouter;
