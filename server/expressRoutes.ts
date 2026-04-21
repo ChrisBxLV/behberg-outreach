@@ -5,6 +5,7 @@ import { applyProviderTrackingEvent, recordOpenEvent, unsubscribeByTrackingId } 
 import { startScheduler } from "./services/sequenceScheduler";
 import { resolveTenantQueryScope } from "./_core/authz";
 import { sdk } from "./_core/sdk";
+import { inferRequestOrigin } from "./_core/requestOrigin";
 import { completeMailboxOAuthConnect } from "./services/mailboxConnectFlow";
 
 const upload = multer({
@@ -26,10 +27,15 @@ const TRACKING_PIXEL = Buffer.from(
 );
 
 export function registerExpressRoutes(app: Express) {
-  const appBaseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
-
   // ── Mailbox OAuth callbacks ────────────────────────────────────────────────
   app.get("/api/mailboxes/oauth/:provider/callback", async (req, res) => {
+    const appBaseUrl =
+      process.env.APP_BASE_URL?.trim() ||
+      inferRequestOrigin({
+        protocol: req.protocol,
+        headers: req.headers as any,
+      }) ||
+      "https://krot.io";
     const provider = String(req.params.provider ?? "").toLowerCase();
     const code = String(req.query.code ?? "");
     const state = String(req.query.state ?? "");
@@ -42,6 +48,7 @@ export function registerExpressRoutes(app: Express) {
       state,
       code: code || undefined,
       providerError: error || undefined,
+      appBaseUrl,
     });
     const params = new URLSearchParams();
     if (result.attemptId) params.set("mailbox_oauth_attempt", result.attemptId);

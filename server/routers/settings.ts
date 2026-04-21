@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { inferRequestOrigin } from "../_core/requestOrigin";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getProviderReadinessReasons } from "../services/mailboxConnectFlow";
 
@@ -20,11 +21,15 @@ export const settingsRouter = router({
   }),
 
   getMailboxOAuthConfig: protectedProcedure.query(async ({ ctx }) => {
-    const appBaseUrl = process.env.APP_BASE_URL ?? "";
+    const inferredBaseUrl = inferRequestOrigin({
+      protocol: ctx.req.protocol,
+      headers: ctx.req.headers as any,
+    });
+    const appBaseUrl = process.env.APP_BASE_URL?.trim() || inferredBaseUrl;
     const encryptionSecret =
       process.env.MAILBOX_TOKEN_ENCRYPTION_KEY?.trim() || process.env.JWT_SECRET?.trim();
-    const googleReasons = getProviderReadinessReasons("google");
-    const microsoftReasons = getProviderReadinessReasons("microsoft");
+    const googleReasons = getProviderReadinessReasons("google", appBaseUrl);
+    const microsoftReasons = getProviderReadinessReasons("microsoft", appBaseUrl);
     const hasOrganizationContext = Boolean(ctx.user.organizationId);
     if (!hasOrganizationContext) {
       googleReasons.push("organization_context_required");
@@ -32,12 +37,8 @@ export const settingsRouter = router({
     }
     return {
       appBaseUrl,
-      googleConfigured: Boolean(
-        process.env.GOOGLE_MAIL_CLIENT_ID?.trim() && process.env.GOOGLE_MAIL_CLIENT_SECRET?.trim(),
-      ),
-      microsoftConfigured: Boolean(
-        process.env.MS_MAIL_CLIENT_ID?.trim() && process.env.MS_MAIL_CLIENT_SECRET?.trim(),
-      ),
+      googleConfigured: !googleReasons.includes("missing_provider_config"),
+      microsoftConfigured: !microsoftReasons.includes("missing_provider_config"),
       tokenEncryptionConfigured: Boolean(encryptionSecret),
       hasOrganizationContext,
       googleCallbackUrl: appBaseUrl

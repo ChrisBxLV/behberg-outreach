@@ -18,8 +18,46 @@ type ProviderConfig = {
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 
-export function getMailboxOAuthProviderConfig(provider: MailboxOAuthProvider): ProviderConfig {
-  const appBaseUrl = process.env.APP_BASE_URL?.trim() ?? "";
+function readGoogleClientId(): string {
+  return (
+    process.env.GOOGLE_MAIL_CLIENT_ID?.trim() ||
+    process.env.GOOGLE_CLIENT_ID?.trim() ||
+    ""
+  );
+}
+
+function readGoogleClientSecret(): string {
+  return (
+    process.env.GOOGLE_MAIL_CLIENT_SECRET?.trim() ||
+    process.env.GOOGLE_CLIENT_SECRET?.trim() ||
+    process.env.GOOGLE_SECRET?.trim() ||
+    ""
+  );
+}
+
+function readMicrosoftClientId(): string {
+  return (
+    process.env.MS_MAIL_CLIENT_ID?.trim() ||
+    process.env.MS_APP_CLIENT_ID?.trim() ||
+    process.env.MICROSOFT_CLIENT_ID?.trim() ||
+    ""
+  );
+}
+
+function readMicrosoftClientSecret(): string {
+  return (
+    process.env.MS_MAIL_CLIENT_SECRET?.trim() ||
+    process.env.MS_SECRET?.trim() ||
+    process.env.MICROSOFT_CLIENT_SECRET?.trim() ||
+    ""
+  );
+}
+
+export function getMailboxOAuthProviderConfig(
+  provider: MailboxOAuthProvider,
+  options?: { appBaseUrl?: string },
+): ProviderConfig {
+  const appBaseUrl = options?.appBaseUrl?.trim() || process.env.APP_BASE_URL?.trim() || "";
   if (!appBaseUrl) {
     throw new Error("mailbox OAuth APP_BASE_URL is not configured");
   }
@@ -27,8 +65,8 @@ export function getMailboxOAuthProviderConfig(provider: MailboxOAuthProvider): P
     return {
       authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
       tokenUrl: "https://oauth2.googleapis.com/token",
-      clientId: process.env.GOOGLE_MAIL_CLIENT_ID ?? "",
-      clientSecret: process.env.GOOGLE_MAIL_CLIENT_SECRET ?? "",
+      clientId: readGoogleClientId(),
+      clientSecret: readGoogleClientSecret(),
       redirectUri: `${appBaseUrl}/api/mailboxes/oauth/google/callback`,
       scopes: [
         "https://mail.google.com/",
@@ -41,8 +79,8 @@ export function getMailboxOAuthProviderConfig(provider: MailboxOAuthProvider): P
   return {
     authorizeUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
     tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-    clientId: process.env.MS_MAIL_CLIENT_ID ?? "",
-    clientSecret: process.env.MS_MAIL_CLIENT_SECRET ?? "",
+    clientId: readMicrosoftClientId(),
+    clientSecret: readMicrosoftClientSecret(),
     redirectUri: `${appBaseUrl}/api/mailboxes/oauth/microsoft/callback`,
     scopes: [
       "offline_access",
@@ -59,8 +97,11 @@ export function buildMailboxOAuthAuthorizeUrl(input: {
   state: string;
   prompt?: "consent" | "select_account";
   loginHint?: string;
+  appBaseUrl?: string;
 }) {
-  const cfg = getMailboxOAuthProviderConfig(input.provider);
+  const cfg = getMailboxOAuthProviderConfig(input.provider, {
+    appBaseUrl: input.appBaseUrl,
+  });
   if (!cfg.clientId || !cfg.clientSecret) {
     throw new Error(`${input.provider} mailbox OAuth is not configured`);
   }
@@ -87,8 +128,11 @@ export function buildMailboxOAuthAuthorizeUrl(input: {
 export async function exchangeMailboxOAuthCode(input: {
   provider: MailboxOAuthProvider;
   code: string;
+  appBaseUrl?: string;
 }): Promise<ExchangeResult> {
-  const cfg = getMailboxOAuthProviderConfig(input.provider);
+  const cfg = getMailboxOAuthProviderConfig(input.provider, {
+    appBaseUrl: input.appBaseUrl,
+  });
   const body = new URLSearchParams();
   body.set("client_id", cfg.clientId);
   body.set("client_secret", cfg.clientSecret);
@@ -128,7 +172,9 @@ export async function refreshMailboxOAuthAccessToken(input: {
   provider: MailboxOAuthProvider;
   refreshToken: string;
 }): Promise<ExchangeResult> {
-  const cfg = getMailboxOAuthProviderConfig(input.provider);
+  const cfg = getMailboxOAuthProviderConfig(input.provider, {
+    appBaseUrl: process.env.APP_BASE_URL?.trim() || "https://krot.io",
+  });
   const body = new URLSearchParams();
   body.set("client_id", cfg.clientId);
   body.set("client_secret", cfg.clientSecret);

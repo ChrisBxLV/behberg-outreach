@@ -42,9 +42,22 @@ export function tokenEncryptionConfigured(): boolean {
 
 function providerConfigured(provider: MailboxOAuthProvider): boolean {
   if (provider === "google") {
-    return Boolean(process.env.GOOGLE_MAIL_CLIENT_ID?.trim() && process.env.GOOGLE_MAIL_CLIENT_SECRET?.trim());
+    const id = process.env.GOOGLE_MAIL_CLIENT_ID?.trim() || process.env.GOOGLE_CLIENT_ID?.trim();
+    const secret =
+      process.env.GOOGLE_MAIL_CLIENT_SECRET?.trim() ||
+      process.env.GOOGLE_CLIENT_SECRET?.trim() ||
+      process.env.GOOGLE_SECRET?.trim();
+    return Boolean(id && secret);
   }
-  return Boolean(process.env.MS_MAIL_CLIENT_ID?.trim() && process.env.MS_MAIL_CLIENT_SECRET?.trim());
+  const id =
+    process.env.MS_MAIL_CLIENT_ID?.trim() ||
+    process.env.MS_APP_CLIENT_ID?.trim() ||
+    process.env.MICROSOFT_CLIENT_ID?.trim();
+  const secret =
+    process.env.MS_MAIL_CLIENT_SECRET?.trim() ||
+    process.env.MS_SECRET?.trim() ||
+    process.env.MICROSOFT_CLIENT_SECRET?.trim();
+  return Boolean(id && secret);
 }
 
 function mailboxLimitForPlan(planId: string | null | undefined): number {
@@ -77,9 +90,14 @@ async function assertMailboxLimitAvailable(organizationId: number): Promise<void
   }
 }
 
-export function getProviderReadinessReasons(provider: MailboxOAuthProvider): string[] {
+export function getProviderReadinessReasons(
+  provider: MailboxOAuthProvider,
+  appBaseUrlOverride?: string,
+): string[] {
   const reasons: string[] = [];
-  if (!process.env.APP_BASE_URL?.trim()) reasons.push("missing_app_base_url");
+  if (!(appBaseUrlOverride?.trim() || process.env.APP_BASE_URL?.trim())) {
+    reasons.push("missing_app_base_url");
+  }
   if (!providerConfigured(provider)) reasons.push("missing_provider_config");
   if (!tokenEncryptionConfigured()) reasons.push("missing_encryption_secret");
   return reasons;
@@ -89,8 +107,9 @@ export async function startMailboxOAuthConnect(input: {
   provider: MailboxOAuthProvider;
   organizationId: number;
   userId: number;
+  appBaseUrl?: string;
 }) {
-  const reasons = getProviderReadinessReasons(input.provider);
+  const reasons = getProviderReadinessReasons(input.provider, input.appBaseUrl);
   if (reasons.length > 0) {
     logMailboxMetric("mailbox_oauth_start_connect_total", 1, {
       provider: input.provider,
@@ -112,6 +131,7 @@ export async function startMailboxOAuthConnect(input: {
     provider: input.provider,
     state,
     prompt: "consent",
+    appBaseUrl: input.appBaseUrl,
   });
   await createMailboxOauthConnectAttempt({
     attemptId,
@@ -153,6 +173,7 @@ export async function completeMailboxOAuthConnect(input: {
   code?: string;
   state: string;
   providerError?: string;
+  appBaseUrl?: string;
 }) {
   const attempt = await getMailboxOauthConnectAttemptByState(input.state);
   if (!attempt || attempt.provider !== input.provider) {
@@ -224,6 +245,7 @@ export async function completeMailboxOAuthConnect(input: {
     const exchanged = await exchangeMailboxOAuthCode({
       provider: input.provider,
       code: input.code,
+      appBaseUrl: input.appBaseUrl,
     });
     const profile = await getMailboxPrimaryEmail({
       provider: input.provider,

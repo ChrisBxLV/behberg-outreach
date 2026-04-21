@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { dataScopeOrganizationId } from "../_core/orgScope";
 import { encryptSecret } from "../_core/secrets";
+import { inferRequestOrigin } from "../_core/requestOrigin";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
   createMailbox,
@@ -128,6 +129,10 @@ export const mailboxesRouter = router({
         provider: input.provider,
         organizationId: ctx.user.organizationId!,
         userId: ctx.user.id,
+        appBaseUrl: inferRequestOrigin({
+          protocol: ctx.req.protocol,
+          headers: ctx.req.headers as any,
+        }) || undefined,
       });
     }),
 
@@ -145,6 +150,10 @@ export const mailboxesRouter = router({
         provider: input.provider,
         code: input.code,
         state: input.state,
+        appBaseUrl: inferRequestOrigin({
+          protocol: ctx.req.protocol,
+          headers: ctx.req.headers as any,
+        }) || undefined,
       });
       if (!result.ok) {
         throw new TRPCError({
