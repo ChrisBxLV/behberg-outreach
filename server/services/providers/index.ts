@@ -1,6 +1,7 @@
 import { decryptSecret, encryptSecret } from "../../_core/secrets";
 import { getMailboxById, getMailboxOauthToken, upsertMailboxOauthToken } from "../../db";
 import { refreshMailboxOAuthAccessToken } from "../mailboxOAuth";
+import { MicrosoftGraphProvider } from "./microsoftGraphProvider";
 import { OauthSmtpProvider } from "./oauthSmtpProvider";
 import { SmtpProvider } from "./smtpProvider";
 import type { MailProvider } from "./types";
@@ -29,7 +30,7 @@ export async function buildProviderForMailbox(mailboxId: number): Promise<MailPr
     });
   }
 
-  if (tokenRow.encryptedAccessToken && tokenRow.smtpHost && tokenRow.smtpPort && tokenRow.smtpUsername) {
+  if (tokenRow.encryptedAccessToken) {
     let accessToken = decryptSecret(tokenRow.encryptedAccessToken);
     if (!accessToken) throw new Error("OAuth access token missing");
     const refreshToken = decryptSecret(tokenRow.encryptedRefreshToken ?? null);
@@ -53,6 +54,17 @@ export async function buildProviderForMailbox(mailboxId: number): Promise<MailPr
         }
         throw new Error(`OAuth refresh failed: ${message}`);
       }
+    }
+
+    if (mailbox.provider === "microsoft") {
+      return new MicrosoftGraphProvider({
+        accessToken,
+        mailboxEmail: mailbox.email,
+      });
+    }
+
+    if (!tokenRow.smtpHost || !tokenRow.smtpPort || !tokenRow.smtpUsername) {
+      throw new Error("OAuth SMTP settings are missing");
     }
     return new OauthSmtpProvider({
       host: tokenRow.smtpHost,
