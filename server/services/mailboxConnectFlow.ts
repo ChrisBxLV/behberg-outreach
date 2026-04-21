@@ -39,6 +39,53 @@ export type MailboxOAuthFailureReason =
   | "mailbox_limit_reached"
   | "unknown";
 
+type AttemptStatus = "pending" | "processing" | "succeeded" | "failed" | "cancelled";
+
+type FallbackAttempt = {
+  attemptId: string;
+  state: string;
+  provider: MailboxOAuthProvider;
+  organizationId: number;
+  userId: number;
+  status: AttemptStatus;
+  errorCode: string | null;
+  errorMessage: string | null;
+  mailboxId: number | null;
+  expiresAt: Date;
+  consumedAt: Date | null;
+};
+
+const fallbackAttemptsByState = new Map<string, FallbackAttempt>();
+const fallbackAttemptsByAttemptId = new Map<string, FallbackAttempt>();
+
+function saveFallbackAttempt(attempt: FallbackAttempt): void {
+  fallbackAttemptsByState.set(attempt.state, attempt);
+  fallbackAttemptsByAttemptId.set(attempt.attemptId, attempt);
+}
+
+function getFallbackAttemptByState(state: string): FallbackAttempt | undefined {
+  return fallbackAttemptsByState.get(state);
+}
+
+function getFallbackAttemptByAttemptId(attemptId: string): FallbackAttempt | undefined {
+  return fallbackAttemptsByAttemptId.get(attemptId);
+}
+
+function patchFallbackAttempt(
+  attemptId: string,
+  patch: Partial<
+    Pick<FallbackAttempt, "status" | "errorCode" | "errorMessage" | "mailboxId" | "consumedAt">
+  >,
+): void {
+  const existing = fallbackAttemptsByAttemptId.get(attemptId);
+  if (!existing) return;
+  const next: FallbackAttempt = {
+    ...existing,
+    ...patch,
+  };
+  saveFallbackAttempt(next);
+}
+
 export function tokenEncryptionConfigured(): boolean {
   return Boolean(
     process.env.MAILBOX_TOKEN_ENCRYPTION_KEY?.trim() ||
@@ -145,6 +192,7 @@ export async function startMailboxOAuthConnect(input: {
     prompt: "consent",
     appBaseUrl: input.appBaseUrl,
   });
+  let usingFallbackAttemptStore = false;
   try {
     await createMailboxOauthConnectAttempt({
       attemptId,
@@ -156,45 +204,43 @@ export async function startMailboxOAuthConnect(input: {
       expiresAt: authorize.expiresAt,
     });
   } catch (error: any) {
-    const message = String(error?.message ?? error?.sqlMessage ?? "").toLowerCase();
-    const code = String(error?.code ?? "");
-    const errno = Number(error?.errno ?? 0);
-    const isConstraintError =
-      message.includes("foreign key") ||
-      message.includes("constraint") ||
-      code === "ER_NO_REFERENCED_ROW_2" ||
-      code === "ER_ROW_IS_REFERENCED_2" ||
-      errno === 1452 ||
-      errno === 1451;
-    if (isConstraintError) {
-      logMailboxMetric("mailbox_oauth_start_connect_total", 1, {
-        provider: input.provider,
-        result: "invalid_org_context",
-      });
-      throw new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message:
-          "Organization/user linkage is invalid in the database. Re-assign the user to an existing organization and retry.",
-      });
-    }
+    usingFallbackAttemptStore = true;
+    saveFallbackAttempt({
+      attemptId,
+      state,
+      provider: input.provider,
+      organizationId: input.organizationId,
+      userId: input.userId,
+      status: "pending",
+      errorCode: null,
+      errorMessage: null,
+      mailboxId: null,
+      expiresAt: authorize.expiresAt,
+      consumedAt: null,
+    });
     logMailboxMetric("mailbox_oauth_start_connect_total", 1, {
       provider: input.provider,
-      result: "db_insert_failed",
+      result: "db_insert_failed_fallback",
     });
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Failed to start mailbox connect. Please retry in a moment.",
+    logMailboxEvent("mailbox_oauth_start", {
+      provider: input.provider,
+      organizationId: input.organizationId,
+      userId: input.userId,
+      attemptId,
+      store: "fallback",
+      dbError: String(error?.message ?? error?.sqlMessage ?? "unknown"),
     });
   }
   logMailboxMetric("mailbox_oauth_start_connect_total", 1, {
     provider: input.provider,
-    result: "ok",
+    result: usingFallbackAttemptStore ? "ok_fallback" : "ok",
   });
   logMailboxEvent("mailbox_oauth_start", {
     provider: input.provider,
     organizationId: input.organizationId,
     userId: input.userId,
     attemptId,
+    store: usingFallbackAttemptStore ? "fallback" : "db",
   });
   return {
     attemptId,
@@ -219,7 +265,10 @@ export async function completeMailboxOAuthConnect(input: {
   providerError?: string;
   appBaseUrl?: string;
 }) {
-  const attempt = await getMailboxOauthConnectAttemptByState(input.state);
+  const dbAttempt = await getMailboxOauthConnectAttemptByState(input.state);
+  const fallbackAttempt = dbAttempt ? undefined : getFallbackAttemptByState(input.state);
+  const attempt = dbAttempt ?? fallbackAttempt;
+  const usingFallbackAttemptStore = Boolean(!dbAttempt && fallbackAttempt);
   if (!attempt || attempt.provider !== input.provider) {
     return {
       ok: false as const,
@@ -230,12 +279,21 @@ export async function completeMailboxOAuthConnect(input: {
   }
   const now = new Date();
   if (attempt.expiresAt <= now || attempt.status !== "pending") {
-    await updateMailboxOauthConnectAttempt(attempt.attemptId, {
-      status: "failed",
-      errorCode: "invalid_or_expired_state",
-      errorMessage: "OAuth session expired before completion.",
-      consumedAt: now,
-    });
+    if (usingFallbackAttemptStore) {
+      patchFallbackAttempt(attempt.attemptId, {
+        status: "failed",
+        errorCode: "invalid_or_expired_state",
+        errorMessage: "OAuth session expired before completion.",
+        consumedAt: now,
+      });
+    } else {
+      await updateMailboxOauthConnectAttempt(attempt.attemptId, {
+        status: "failed",
+        errorCode: "invalid_or_expired_state",
+        errorMessage: "OAuth session expired before completion.",
+        consumedAt: now,
+      });
+    }
     return {
       ok: false as const,
       reason: "invalid_or_expired_state" as MailboxOAuthFailureReason,
@@ -245,12 +303,21 @@ export async function completeMailboxOAuthConnect(input: {
   }
 
   if (input.providerError) {
-    await updateMailboxOauthConnectAttempt(attempt.attemptId, {
-      status: "cancelled",
-      errorCode: "provider_denied",
-      errorMessage: `Provider denied consent: ${input.providerError}`,
-      consumedAt: now,
-    });
+    if (usingFallbackAttemptStore) {
+      patchFallbackAttempt(attempt.attemptId, {
+        status: "cancelled",
+        errorCode: "provider_denied",
+        errorMessage: `Provider denied consent: ${input.providerError}`,
+        consumedAt: now,
+      });
+    } else {
+      await updateMailboxOauthConnectAttempt(attempt.attemptId, {
+        status: "cancelled",
+        errorCode: "provider_denied",
+        errorMessage: `Provider denied consent: ${input.providerError}`,
+        consumedAt: now,
+      });
+    }
     logMailboxMetric("mailbox_oauth_complete_total", 1, {
       provider: input.provider,
       result: "provider_denied",
@@ -264,12 +331,21 @@ export async function completeMailboxOAuthConnect(input: {
   }
 
   if (!input.code?.trim()) {
-    await updateMailboxOauthConnectAttempt(attempt.attemptId, {
-      status: "failed",
-      errorCode: "invalid_or_expired_state",
-      errorMessage: "OAuth callback did not include an authorization code.",
-      consumedAt: now,
-    });
+    if (usingFallbackAttemptStore) {
+      patchFallbackAttempt(attempt.attemptId, {
+        status: "failed",
+        errorCode: "invalid_or_expired_state",
+        errorMessage: "OAuth callback did not include an authorization code.",
+        consumedAt: now,
+      });
+    } else {
+      await updateMailboxOauthConnectAttempt(attempt.attemptId, {
+        status: "failed",
+        errorCode: "invalid_or_expired_state",
+        errorMessage: "OAuth callback did not include an authorization code.",
+        consumedAt: now,
+      });
+    }
     return {
       ok: false as const,
       reason: "invalid_or_expired_state" as MailboxOAuthFailureReason,
@@ -278,12 +354,21 @@ export async function completeMailboxOAuthConnect(input: {
     };
   }
 
-  await updateMailboxOauthConnectAttempt(attempt.attemptId, {
-    status: "processing",
-    consumedAt: now,
-    errorCode: null,
-    errorMessage: null,
-  });
+  if (usingFallbackAttemptStore) {
+    patchFallbackAttempt(attempt.attemptId, {
+      status: "processing",
+      consumedAt: now,
+      errorCode: null,
+      errorMessage: null,
+    });
+  } else {
+    await updateMailboxOauthConnectAttempt(attempt.attemptId, {
+      status: "processing",
+      consumedAt: now,
+      errorCode: null,
+      errorMessage: null,
+    });
+  }
 
   try {
     const exchanged = await exchangeMailboxOAuthCode({
@@ -343,12 +428,21 @@ export async function completeMailboxOAuthConnect(input: {
     if (!all.some(m => m.isDefault)) {
       await setDefaultMailboxForOrganization(attempt.organizationId, mailboxId);
     }
-    await updateMailboxOauthConnectAttempt(attempt.attemptId, {
-      status: "succeeded",
-      mailboxId,
-      errorCode: null,
-      errorMessage: null,
-    });
+    if (usingFallbackAttemptStore) {
+      patchFallbackAttempt(attempt.attemptId, {
+        status: "succeeded",
+        mailboxId,
+        errorCode: null,
+        errorMessage: null,
+      });
+    } else {
+      await updateMailboxOauthConnectAttempt(attempt.attemptId, {
+        status: "succeeded",
+        mailboxId,
+        errorCode: null,
+        errorMessage: null,
+      });
+    }
     logMailboxEvent("mailbox_connected", {
       organizationId: attempt.organizationId,
       mailboxId,
@@ -381,11 +475,19 @@ export async function completeMailboxOAuthConnect(input: {
           : reason === "provider_profile_failed"
             ? "Connected account did not return a valid mailbox profile."
             : "Mailbox connection failed. Please try again.";
-    await updateMailboxOauthConnectAttempt(attempt.attemptId, {
-      status: "failed",
-      errorCode: reason,
-      errorMessage: String((error as any)?.message ?? "unknown"),
-    });
+    if (usingFallbackAttemptStore) {
+      patchFallbackAttempt(attempt.attemptId, {
+        status: "failed",
+        errorCode: reason,
+        errorMessage: String((error as any)?.message ?? "unknown"),
+      });
+    } else {
+      await updateMailboxOauthConnectAttempt(attempt.attemptId, {
+        status: "failed",
+        errorCode: reason,
+        errorMessage: String((error as any)?.message ?? "unknown"),
+      });
+    }
     logMailboxMetric("mailbox_oauth_complete_total", 1, {
       provider: input.provider,
       result: reason,
@@ -411,7 +513,9 @@ export async function getMailboxOAuthConnectResult(input: {
   organizationId: number | null;
   userId: number;
 }) {
-  const attempt = await getMailboxOauthConnectAttemptByAttemptId(input.attemptId);
+  const attempt =
+    (await getMailboxOauthConnectAttemptByAttemptId(input.attemptId)) ??
+    getFallbackAttemptByAttemptId(input.attemptId);
   if (!attempt) {
     throw new TRPCError({ code: "NOT_FOUND", message: "OAuth connect attempt not found." });
   }
