@@ -79,23 +79,28 @@ function oauthReasonLabel(reason: string): string {
 
 function oauthFailureToast(message: string): string {
   const text = message.toLowerCase();
+  const aadCodeMatch = message.match(/AADSTS\d{5}/i);
+  const aadCode = aadCodeMatch?.[0]?.toUpperCase() ?? null;
   if (text.includes("organization context required")) {
     return "Create or join an organization before connecting a mailbox.";
   }
   if (text.includes("mailbox limit reached")) {
     return "Mailbox limit reached. Purchase additional licenses in Manage Subscription.";
   }
-  if (text.includes("token exchange")) {
-    return "Provider token exchange failed. Retry Connect and approve all permissions.";
-  }
-  if (text.includes("invalid or expired")) {
-    return "OAuth session expired. Click Connect again.";
-  }
   if (text.includes("invalid_client") || text.includes("aadsts7000215")) {
     return "Microsoft OAuth client secret is invalid. Use the Secret VALUE (not Secret ID) in MS client secret env.";
   }
   if (text.includes("redirect_uri") || text.includes("aadsts50011")) {
     return "Microsoft redirect URI mismatch. Ensure callback is https://krot.io/api/mailboxes/oauth/microsoft/callback";
+  }
+  if (text.includes("invalid or expired")) {
+    return "OAuth session expired. Click Connect again.";
+  }
+  if (text.includes("token exchange")) {
+    if (aadCode) {
+      return `Provider token exchange failed (${aadCode}).`;
+    }
+    return "Provider token exchange failed. Retry Connect and approve all permissions.";
   }
   return message;
 }
