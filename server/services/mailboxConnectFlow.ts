@@ -156,15 +156,35 @@ export async function startMailboxOAuthConnect(input: {
       expiresAt: authorize.expiresAt,
     });
   } catch (error: any) {
-    const message = String(error?.message ?? "").toLowerCase();
-    if (message.includes("foreign key")) {
+    const message = String(error?.message ?? error?.sqlMessage ?? "").toLowerCase();
+    const code = String(error?.code ?? "");
+    const errno = Number(error?.errno ?? 0);
+    const isConstraintError =
+      message.includes("foreign key") ||
+      message.includes("constraint") ||
+      code === "ER_NO_REFERENCED_ROW_2" ||
+      code === "ER_ROW_IS_REFERENCED_2" ||
+      errno === 1452 ||
+      errno === 1451;
+    if (isConstraintError) {
+      logMailboxMetric("mailbox_oauth_start_connect_total", 1, {
+        provider: input.provider,
+        result: "invalid_org_context",
+      });
       throw new TRPCError({
         code: "PRECONDITION_FAILED",
         message:
           "Organization/user linkage is invalid in the database. Re-assign the user to an existing organization and retry.",
       });
     }
-    throw error;
+    logMailboxMetric("mailbox_oauth_start_connect_total", 1, {
+      provider: input.provider,
+      result: "db_insert_failed",
+    });
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Failed to start mailbox connect. Please retry in a moment.",
+    });
   }
   logMailboxMetric("mailbox_oauth_start_connect_total", 1, {
     provider: input.provider,
