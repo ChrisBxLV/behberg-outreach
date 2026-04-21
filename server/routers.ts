@@ -255,7 +255,9 @@ export const appRouter = router({
           return { success: false as const, reason: "service_unavailable" as const };
         }
 
-        let user = await getUserByEmail(loginId);
+        const openId = `login:${loginId}`;
+        let user = await getUserByOpenId(openId);
+        if (!user) user = await getUserByEmail(loginId);
         const onAllowlist = parseAllowlistLogins().has(loginId);
         const isOrgCredentialUser = Boolean(
           user &&
@@ -283,8 +285,6 @@ export const appRouter = router({
           return { success: false as const, reason: "invalid_credentials" as const };
         }
 
-        const openId = `login:${loginId}`;
-
         // Seed the default admin once (for dev convenience).
         if (!user && loginId === ENV.defaultAdminLogin.toLowerCase()) {
           if (password !== ENV.defaultAdminPassword) {
@@ -302,7 +302,8 @@ export const appRouter = router({
             passwordHash: hash,
             lastSignedIn: new Date(),
           });
-          user = await getUserByEmail(loginId);
+          user = await getUserByOpenId(openId);
+          if (!user) user = await getUserByEmail(loginId);
 
           // #region agent log
           agentDebugLog({
@@ -358,7 +359,10 @@ export const appRouter = router({
             orgMemberRole: user.orgMemberRole ?? null,
             lastSignedIn: new Date(),
           });
-          const refreshed = (await getUserByEmail(loginId)) ?? user;
+          const refreshed =
+            (await getUserByOpenId(openId)) ??
+            (await getUserByEmail(loginId)) ??
+            user;
           // #region agent log
           agentDebugLog({
             runId: "post-fix",
@@ -522,6 +526,7 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const loginId = input.loginId;
+        const openId = `login:${loginId}`;
         const db = await getDb();
         if (!db && !ENV.useDevFileAuth) {
           // #region agent log
@@ -541,7 +546,7 @@ export const appRouter = router({
 
         const allowed = parseAllowlistLogins().has(loginId);
         // Org-created credentials should be able to verify OTP even if not on the admin allowlist.
-        const existingUser = await getUserByEmail(loginId);
+        const existingUser = (await getUserByOpenId(openId)) ?? (await getUserByEmail(loginId));
         if (existingUser?.accountDisabled) {
           return { success: false as const, reason: "invalid_code" as const };
         }
@@ -587,7 +592,6 @@ export const appRouter = router({
           return { success: false as const, reason: "invalid_code" as const };
         }
 
-        const openId = `login:${loginId}`;
         await upsertUser({
           openId: existingUser?.openId ?? openId,
           email: loginId,
@@ -646,12 +650,13 @@ export const appRouter = router({
       .input(z.object({ loginId: z.string().trim().min(1).max(320) }))
       .mutation(async ({ ctx, input }) => {
         const loginId = input.loginId.trim().toLowerCase();
+        const openId = `login:${loginId}`;
         const db = await getDb();
         if (!db && !ENV.useDevFileAuth) {
           return { success: false as const, reason: "service_unavailable" as const };
         }
 
-        const user = await getUserByEmail(loginId);
+        const user = (await getUserByOpenId(openId)) ?? (await getUserByEmail(loginId));
         const canReset = Boolean(
           user && !user.accountDisabled && user.passwordSalt && user.passwordHash,
         );
@@ -712,6 +717,7 @@ export const appRouter = router({
       )
       .mutation(async ({ input }) => {
         const loginId = input.loginId.trim().toLowerCase();
+        const openId = `login:${loginId}`;
         const db = await getDb();
         if (!db && !ENV.useDevFileAuth) {
           return { success: false as const, reason: "service_unavailable" as const };
@@ -729,7 +735,7 @@ export const appRouter = router({
           return { success: false as const, reason: "invalid_code" as const };
         }
 
-        const user = await getUserByEmail(loginId);
+        const user = (await getUserByOpenId(openId)) ?? (await getUserByEmail(loginId));
         if (!user?.openId) {
           return { success: false as const, reason: "invalid_code" as const };
         }
