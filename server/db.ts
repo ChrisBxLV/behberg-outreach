@@ -1159,7 +1159,7 @@ export async function findMailboxByOrganizationAndEmail(
   const db = await getDb();
   if (!db) return undefined;
   const rows = await db
-    .select()
+    .select({ id: mailboxes.id })
     .from(mailboxes)
     .where(
       and(
