@@ -2,11 +2,13 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { dataScopeOrganizationId } from "../_core/orgScope";
 import { protectedProcedure, router } from "../_core/trpc";
+import { assertEmailCheckerAccess } from "../_core/subscription";
 import {
   startProspectingV1Run,
   getProspectingV1Status,
   importProspectingV1Selected,
 } from "../services/prospectingV1Service";
+import { verifyTopEmailGuesses } from "../services/emailChecker";
 
 export const prospectingRouter = router({
   runV1: protectedProcedure
@@ -68,6 +70,50 @@ export const prospectingRouter = router({
         candidateIds: input.candidateIds,
       });
       return { success: true, imported } as const;
+    }),
+
+  checkEmailsV1: protectedProcedure
+    .input(
+      z.object({
+        runId: z.string().uuid(),
+        candidateId: z.string().trim().min(1).max(64),
+        maxToCheck: z.number().int().min(1).max(10).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const orgId = dataScopeOrganizationId(ctx.user);
+      if (orgId == null) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+      }
+
+      await assertEmailCheckerAccess(orgId);
+
+      const s = getProspectingV1Status(input.runId);
+      if (!s || s.organizationId !== orgId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+      }
+      if (s.state !== "done") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Run not completed yet." });
+      }
+
+      const candidate = s.result.items.find(i => i.id === input.candidateId);
+      if (!candidate) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Candidate not found" });
+      }
+      if (candidate.guessedEmails.length === 0) {
+        return { checked: [], bestEmail: null } as const;
+      }
+
+      const { results, best } = await verifyTopEmailGuesses({
+        guesses: candidate.guessedEmails,
+        expectedCompanyDomain: candidate.domain,
+        maxToCheck: input.maxToCheck,
+      });
+
+      return {
+        checked: results,
+        bestEmail: best,
+      } as const;
     }),
 });
 

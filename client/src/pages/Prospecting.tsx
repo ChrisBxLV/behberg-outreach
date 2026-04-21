@@ -22,6 +22,13 @@ type ProspectRow = {
   guessedEmails: Array<{ email: string; confidence: number; reason: string }>;
 };
 
+type EmailCheck = {
+  email: string;
+  status: "unknown" | "valid" | "invalid" | "catch_all" | "risky";
+  confidence: number;
+  reason: string;
+};
+
 export default function Prospecting() {
   const utils = trpc.useUtils();
   const [industry, setIndustry] = useState("iGaming");
@@ -32,6 +39,9 @@ export default function Prospecting() {
 
   const [runId, setRunId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [emailChecks, setEmailChecks] = useState<
+    Record<string, { checked: EmailCheck[]; bestEmail: EmailCheck | null }>
+  >({});
 
   const titleSuggestions = useMemo(() => getDecisionMakerAutocompleteTitles(), []);
 
@@ -49,6 +59,7 @@ export default function Prospecting() {
     onSuccess: data => {
       setRunId(data.runId);
       setSelected({});
+      setEmailChecks({});
       toast.success("Search started");
     },
     onError: e => toast.error(e.message),
@@ -72,6 +83,20 @@ export default function Prospecting() {
     onError: e => toast.error(e.message),
   });
 
+  const { data: orgMine } = trpc.organization.mine.useQuery();
+  const subscriptionPlanId = orgMine?.organization?.subscriptionPlanId ?? "free";
+  const hasEmailCheckerAccess = ["basic", "business_standard", "pro"].includes(subscriptionPlanId);
+
+  const checkEmailsMutation = trpc.prospecting.checkEmailsV1.useMutation({
+    onSuccess: (res, vars) => {
+      setEmailChecks(prev => ({ ...prev, [vars.candidateId]: res }));
+      toast.success(res.bestEmail?.email ? `Best email: ${res.bestEmail.email}` : "Email check complete");
+    },
+    onError: e => {
+      toast.error(e.message);
+    },
+  });
+
   const rows: ProspectRow[] =
     (statusQuery.data && "result" in statusQuery.data ? statusQuery.data.result?.items : []) ?? [];
   const doneStats =
@@ -84,6 +109,21 @@ export default function Prospecting() {
 
   const allSelected = rows.length > 0 && rows.every(r => selected[r.id]);
   const selectedIds = rows.filter(r => selected[r.id]).map(r => r.id);
+
+  const selectedRows = useMemo(() => rows.filter(r => selected[r.id]), [rows, selected]);
+
+  async function checkSelectedEmails() {
+    if (!runId) return;
+    if (!hasEmailCheckerAccess) {
+      toast.error("Email Checker is available on paid plans (Basic and up).");
+      return;
+    }
+    for (const r of selectedRows) {
+      if (emailChecks[r.id]) continue;
+      // eslint-disable-next-line no-await-in-loop
+      await checkEmailsMutation.mutateAsync({ runId, candidateId: r.id, maxToCheck: 3 });
+    }
+  }
 
   return (
     <DashboardLayout>
@@ -169,6 +209,36 @@ export default function Prospecting() {
                 If blank, we seed companies from your Signals feed (filtered by Industry/Country keywords).
               </p>
             </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label>Email Checker (paid)</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Verify the best guessed email using DNS/MX checks (Basic and up).
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={
+                    !runId ||
+                    selectedIds.length === 0 ||
+                    checkEmailsMutation.isPending ||
+                    statusQuery.data?.state !== "done" ||
+                    !hasEmailCheckerAccess
+                  }
+                  onClick={() => void checkSelectedEmails()}
+                >
+                  Check selected ({selectedIds.length})
+                </Button>
+              </div>
+              {!hasEmailCheckerAccess && (
+                <p className="text-xs text-amber-500">
+                  Upgrade to Basic (or higher) to unlock Email Checker.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -217,13 +287,28 @@ export default function Prospecting() {
               <CardTitle className="text-base">Prospects</CardTitle>
               <CardDescription>Select prospects and import to Contacts.</CardDescription>
             </div>
-            <Button
-              variant="outline"
-              disabled={!runId || selectedIds.length === 0 || importMutation.isPending}
-              onClick={() => runId && importMutation.mutate({ runId, candidateIds: selectedIds })}
-            >
-              Import selected ({selectedIds.length})
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                disabled={
+                  !runId ||
+                  selectedIds.length === 0 ||
+                  checkEmailsMutation.isPending ||
+                  statusQuery.data?.state !== "done" ||
+                  !hasEmailCheckerAccess
+                }
+                onClick={() => void checkSelectedEmails()}
+              >
+                Check emails
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!runId || selectedIds.length === 0 || importMutation.isPending}
+                onClick={() => runId && importMutation.mutate({ runId, candidateIds: selectedIds })}
+              >
+                Import selected ({selectedIds.length})
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {rows.length === 0 ? (
@@ -271,8 +356,12 @@ export default function Prospecting() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(r => (
-                      <tr key={r.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
+                    {rows.map(r => {
+                      const check = emailChecks[r.id];
+                      const byEmail = new Map((check?.checked ?? []).map(c => [c.email, c]));
+                      const bestEmail = check?.bestEmail?.email ?? null;
+                      return (
+                        <tr key={r.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
                         <td className="p-3 align-top">
                           <Checkbox
                             checked={Boolean(selected[r.id])}
@@ -320,17 +409,48 @@ export default function Prospecting() {
                             <div className="space-y-1">
                               {r.guessedEmails.slice(0, 3).map(g => (
                                 <div key={g.email} className="flex items-center justify-between gap-2">
-                                  <span className="text-sm font-mono">{g.email}</span>
-                                  <Badge variant="secondary" className="text-xs">
-                                    {Math.round(g.confidence * 100)}%
-                                  </Badge>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-sm font-mono truncate">
+                                      {g.email}
+                                      {bestEmail && g.email === bestEmail ? " (best)" : ""}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {byEmail.get(g.email) ? (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {byEmail.get(g.email)!.status.replace("_", " ")}{" "}
+                                        {Math.round(byEmail.get(g.email)!.confidence * 100)}%
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {Math.round(g.confidence * 100)}%
+                                      </Badge>
+                                    )}
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={
+                                        !runId ||
+                                        checkEmailsMutation.isPending ||
+                                        statusQuery.data?.state !== "done" ||
+                                        !hasEmailCheckerAccess
+                                      }
+                                      onClick={() =>
+                                        runId && checkEmailsMutation.mutate({ runId, candidateId: r.id, maxToCheck: 3 })
+                                      }
+                                    >
+                                      Check
+                                    </Button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
                           )}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
