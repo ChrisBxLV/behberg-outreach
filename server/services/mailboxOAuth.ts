@@ -128,6 +128,7 @@ export function getMailboxOAuthProviderConfig(
       "openid",
       "email",
       "profile",
+      "User.Read",
       "https://outlook.office.com/SMTP.Send",
     ],
   };
