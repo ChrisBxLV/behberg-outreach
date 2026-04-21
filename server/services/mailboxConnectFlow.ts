@@ -21,6 +21,8 @@ import {
   exchangeMailboxOAuthCode,
   getMailboxPrimaryEmail,
   getProviderSmtpDefaults,
+  resolveGoogleOAuthEnv,
+  resolveMicrosoftOAuthEnv,
   type MailboxOAuthProvider,
 } from "./mailboxOAuth";
 import { logMailboxEvent, logMailboxMetric } from "./observability";
@@ -42,22 +44,11 @@ export function tokenEncryptionConfigured(): boolean {
 
 function providerConfigured(provider: MailboxOAuthProvider): boolean {
   if (provider === "google") {
-    const id = process.env.GOOGLE_MAIL_CLIENT_ID?.trim() || process.env.GOOGLE_CLIENT_ID?.trim();
-    const secret =
-      process.env.GOOGLE_MAIL_CLIENT_SECRET?.trim() ||
-      process.env.GOOGLE_CLIENT_SECRET?.trim() ||
-      process.env.GOOGLE_SECRET?.trim();
-    return Boolean(id && secret);
+    const cfg = resolveGoogleOAuthEnv();
+    return Boolean(cfg.clientId && cfg.clientSecret);
   }
-  const id =
-    process.env.MS_MAIL_CLIENT_ID?.trim() ||
-    process.env.MS_APP_CLIENT_ID?.trim() ||
-    process.env.MICROSOFT_CLIENT_ID?.trim();
-  const secret =
-    process.env.MS_MAIL_CLIENT_SECRET?.trim() ||
-    process.env.MS_SECRET?.trim() ||
-    process.env.MICROSOFT_CLIENT_SECRET?.trim();
-  return Boolean(id && secret);
+  const cfg = resolveMicrosoftOAuthEnv();
+  return Boolean(cfg.clientId && cfg.clientSecret);
 }
 
 function mailboxLimitForPlan(planId: string | null | undefined): number {

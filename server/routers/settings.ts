@@ -2,6 +2,7 @@ import { z } from "zod";
 import { inferRequestOrigin } from "../_core/requestOrigin";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getProviderReadinessReasons } from "../services/mailboxConnectFlow";
+import { resolveGoogleOAuthEnv, resolveMicrosoftOAuthEnv } from "../services/mailboxOAuth";
 
 export const settingsRouter = router({
   getSmtpConfig: protectedProcedure.query(async () => {
@@ -30,6 +31,8 @@ export const settingsRouter = router({
       process.env.MAILBOX_TOKEN_ENCRYPTION_KEY?.trim() || process.env.JWT_SECRET?.trim();
     const googleReasons = getProviderReadinessReasons("google", appBaseUrl);
     const microsoftReasons = getProviderReadinessReasons("microsoft", appBaseUrl);
+    const googleEnv = resolveGoogleOAuthEnv();
+    const microsoftEnv = resolveMicrosoftOAuthEnv();
     const hasOrganizationContext = Boolean(ctx.user.organizationId);
     if (!hasOrganizationContext) {
       googleReasons.push("organization_context_required");
@@ -50,6 +53,12 @@ export const settingsRouter = router({
       readinessReasons: {
         google: googleReasons,
         microsoft: microsoftReasons,
+      },
+      credentialSource: {
+        googleClientId: googleEnv.clientIdSource,
+        googleClientSecret: googleEnv.clientSecretSource,
+        microsoftClientId: microsoftEnv.clientIdSource,
+        microsoftClientSecret: microsoftEnv.clientSecretSource,
       },
     };
   }),

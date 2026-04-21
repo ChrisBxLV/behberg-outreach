@@ -18,39 +18,67 @@ type ProviderConfig = {
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 
-function readGoogleClientId(): string {
-  return (
-    process.env.GOOGLE_MAIL_CLIENT_ID?.trim() ||
-    process.env.GOOGLE_CLIENT_ID?.trim() ||
-    ""
-  );
+function firstEnv(...keys: string[]): { value: string; source: string | null } {
+  for (const key of keys) {
+    const raw = process.env[key];
+    const value = raw?.trim() ?? "";
+    if (value) return { value, source: key };
+  }
+  return { value: "", source: null };
 }
 
-function readGoogleClientSecret(): string {
-  return (
-    process.env.GOOGLE_MAIL_CLIENT_SECRET?.trim() ||
-    process.env.GOOGLE_CLIENT_SECRET?.trim() ||
-    process.env.GOOGLE_SECRET?.trim() ||
-    ""
+export function resolveGoogleOAuthEnv(): {
+  clientId: string;
+  clientSecret: string;
+  clientIdSource: string | null;
+  clientSecretSource: string | null;
+} {
+  const clientId = firstEnv(
+    "GOOGLE_MAIL_CLIENT_ID",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_OAUTH_CLIENT_ID",
+    "GOOGLE_CLINT_ID",
+    "GOOGLE_MAIL_CLINT_ID",
   );
+  const clientSecret = firstEnv(
+    "GOOGLE_MAIL_CLIENT_SECRET",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_OAUTH_CLIENT_SECRET",
+    "GOOGLE_SECRET",
+  );
+  return {
+    clientId: clientId.value,
+    clientSecret: clientSecret.value,
+    clientIdSource: clientId.source,
+    clientSecretSource: clientSecret.source,
+  };
 }
 
-function readMicrosoftClientId(): string {
-  return (
-    process.env.MS_MAIL_CLIENT_ID?.trim() ||
-    process.env.MS_APP_CLIENT_ID?.trim() ||
-    process.env.MICROSOFT_CLIENT_ID?.trim() ||
-    ""
+export function resolveMicrosoftOAuthEnv(): {
+  clientId: string;
+  clientSecret: string;
+  clientIdSource: string | null;
+  clientSecretSource: string | null;
+} {
+  const clientId = firstEnv(
+    "MS_MAIL_CLIENT_ID",
+    "MS_APP_CLIENT_ID",
+    "MS_CLIENT_ID",
+    "MICROSOFT_CLIENT_ID",
   );
-}
-
-function readMicrosoftClientSecret(): string {
-  return (
-    process.env.MS_MAIL_CLIENT_SECRET?.trim() ||
-    process.env.MS_SECRET?.trim() ||
-    process.env.MICROSOFT_CLIENT_SECRET?.trim() ||
-    ""
+  const clientSecret = firstEnv(
+    "MS_MAIL_CLIENT_SECRET",
+    "MS_APP_CLIENT_SECRET",
+    "MS_CLIENT_SECRET",
+    "MS_SECRET",
+    "MICROSOFT_CLIENT_SECRET",
   );
+  return {
+    clientId: clientId.value,
+    clientSecret: clientSecret.value,
+    clientIdSource: clientId.source,
+    clientSecretSource: clientSecret.source,
+  };
 }
 
 export function getMailboxOAuthProviderConfig(
@@ -62,11 +90,12 @@ export function getMailboxOAuthProviderConfig(
     throw new Error("mailbox OAuth APP_BASE_URL is not configured");
   }
   if (provider === "google") {
+    const google = resolveGoogleOAuthEnv();
     return {
       authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
       tokenUrl: "https://oauth2.googleapis.com/token",
-      clientId: readGoogleClientId(),
-      clientSecret: readGoogleClientSecret(),
+      clientId: google.clientId,
+      clientSecret: google.clientSecret,
       redirectUri: `${appBaseUrl}/api/mailboxes/oauth/google/callback`,
       scopes: [
         "https://mail.google.com/",
@@ -76,11 +105,12 @@ export function getMailboxOAuthProviderConfig(
       ],
     };
   }
+  const microsoft = resolveMicrosoftOAuthEnv();
   return {
     authorizeUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
     tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-    clientId: readMicrosoftClientId(),
-    clientSecret: readMicrosoftClientSecret(),
+    clientId: microsoft.clientId,
+    clientSecret: microsoft.clientSecret,
     redirectUri: `${appBaseUrl}/api/mailboxes/oauth/microsoft/callback`,
     scopes: [
       "offline_access",
