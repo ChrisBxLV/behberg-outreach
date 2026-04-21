@@ -8,6 +8,7 @@ import {
   getMailboxOauthConnectAttemptByAttemptId,
   getMailboxOauthConnectAttemptByState,
   getOrganizationById,
+  getUserById,
   listMailboxesByOrganization,
   setDefaultMailboxForOrganization,
   updateMailbox,
@@ -104,6 +105,22 @@ export async function startMailboxOAuthConnect(input: {
   userId: number;
   appBaseUrl?: string;
 }) {
+  const [org, user] = await Promise.all([
+    getOrganizationById(input.organizationId),
+    getUserById(input.userId),
+  ]);
+  if (!org || !user || user.organizationId !== input.organizationId) {
+    logMailboxMetric("mailbox_oauth_start_connect_total", 1, {
+      provider: input.provider,
+      result: "invalid_org_context",
+    });
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message:
+        "Organization context is invalid for this account. Sign out and sign in again, then retry.",
+    });
+  }
+
   const reasons = getProviderReadinessReasons(input.provider, input.appBaseUrl);
   if (reasons.length > 0) {
     logMailboxMetric("mailbox_oauth_start_connect_total", 1, {
@@ -128,15 +145,27 @@ export async function startMailboxOAuthConnect(input: {
     prompt: "consent",
     appBaseUrl: input.appBaseUrl,
   });
-  await createMailboxOauthConnectAttempt({
-    attemptId,
-    state,
-    provider: input.provider,
-    organizationId: input.organizationId,
-    userId: input.userId,
-    status: "pending",
-    expiresAt: authorize.expiresAt,
-  });
+  try {
+    await createMailboxOauthConnectAttempt({
+      attemptId,
+      state,
+      provider: input.provider,
+      organizationId: input.organizationId,
+      userId: input.userId,
+      status: "pending",
+      expiresAt: authorize.expiresAt,
+    });
+  } catch (error: any) {
+    const message = String(error?.message ?? "").toLowerCase();
+    if (message.includes("foreign key")) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message:
+          "Organization/user linkage is invalid in the database. Re-assign the user to an existing organization and retry.",
+      });
+    }
+    throw error;
+  }
   logMailboxMetric("mailbox_oauth_start_connect_total", 1, {
     provider: input.provider,
     result: "ok",
