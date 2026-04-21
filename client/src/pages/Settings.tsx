@@ -91,6 +91,12 @@ function oauthFailureToast(message: string): string {
   if (text.includes("invalid or expired")) {
     return "OAuth session expired. Click Connect again.";
   }
+  if (text.includes("invalid_client") || text.includes("aadsts7000215")) {
+    return "Microsoft OAuth client secret is invalid. Use the Secret VALUE (not Secret ID) in MS client secret env.";
+  }
+  if (text.includes("redirect_uri") || text.includes("aadsts50011")) {
+    return "Microsoft redirect URI mismatch. Ensure callback is https://krot.io/api/mailboxes/oauth/microsoft/callback";
+  }
   return message;
 }
 
@@ -319,6 +325,11 @@ export default function Settings() {
             return;
           }
           const resolvedReason = result.reason ?? reason ?? "unknown";
+          const detail = String(result.message ?? "").trim();
+          if (detail) {
+            toast.error(oauthFailureToast(detail));
+            return;
+          }
           toast.error(`Mailbox connect failed: ${oauthReasonLabel(resolvedReason)}`);
         })
         .catch((e: any) => toast.error(oauthFailureToast(String(e?.message ?? "Mailbox connect failed"))));
