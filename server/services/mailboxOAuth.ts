@@ -39,12 +39,16 @@ export function resolveGoogleOAuthEnv(): {
     "GOOGLE_OAUTH_CLIENT_ID",
     "GOOGLE_CLINT_ID",
     "GOOGLE_MAIL_CLINT_ID",
+    "GOOGLECLIENTID",
+    "GOOGLECLINTID",
   );
   const clientSecret = firstEnv(
     "GOOGLE_MAIL_CLIENT_SECRET",
     "GOOGLE_CLIENT_SECRET",
     "GOOGLE_OAUTH_CLIENT_SECRET",
     "GOOGLE_SECRET",
+    "GOOGLECLIENTSECRET",
+    "GOOGLESECRET",
   );
   return {
     clientId: clientId.value,
@@ -65,6 +69,9 @@ export function resolveMicrosoftOAuthEnv(): {
     "MS_APP_CLIENT_ID",
     "MS_CLIENT_ID",
     "MICROSOFT_CLIENT_ID",
+    "MSMAILCLIENTID",
+    "MSAPPCLIENTID",
+    "MSCLIENTID",
   );
   const clientSecret = firstEnv(
     "MS_MAIL_CLIENT_SECRET",
@@ -72,6 +79,10 @@ export function resolveMicrosoftOAuthEnv(): {
     "MS_CLIENT_SECRET",
     "MS_SECRET",
     "MICROSOFT_CLIENT_SECRET",
+    "MSMAILCLIENTSECRET",
+    "MSAPPCLIENTSECRET",
+    "MSCLIENTSECRET",
+    "MSSECRET",
   );
   return {
     clientId: clientId.value,

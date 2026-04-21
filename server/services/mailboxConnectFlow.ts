@@ -39,7 +39,11 @@ export type MailboxOAuthFailureReason =
   | "unknown";
 
 export function tokenEncryptionConfigured(): boolean {
-  return Boolean(process.env.MAILBOX_TOKEN_ENCRYPTION_KEY?.trim() || process.env.JWT_SECRET?.trim());
+  return Boolean(
+    process.env.MAILBOX_TOKEN_ENCRYPTION_KEY?.trim() ||
+    process.env.MAILBOXTOKENENCRYPTIONKEY?.trim() ||
+    process.env.JWT_SECRET?.trim(),
+  );
 }
 
 function providerConfigured(provider: MailboxOAuthProvider): boolean {
