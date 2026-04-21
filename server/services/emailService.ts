@@ -93,6 +93,11 @@ export interface SendEmailOptions {
   baseUrl: string;
 }
 
+function isMailboxReauthError(errorMessage: string): boolean {
+  const lower = errorMessage.toLowerCase();
+  return lower.includes("reauth_required") || lower.includes("invalid_grant") || lower.includes("requires re-authentication");
+}
+
 async function enforceMailboxRateLimit(mailboxId: number) {
   const limits = await getMailboxSendLimitsByMailboxId(mailboxId);
   if (!limits) return;
@@ -223,12 +228,15 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
     return { success: true, trackingId };
   } catch (err: any) {
     if (campaign.mailboxId != null) {
+      const reason = String(err?.message ?? "send_failed");
+      const reauthRequired = isMailboxReauthError(reason);
       await upsertMailboxHealth(campaign.mailboxId, {
         lastErrorAt: new Date(),
-        errorCode: "send_failed",
-        errorMessage: err.message,
+        errorCode: reauthRequired ? "reauth_required" : "send_failed",
+        errorMessage: reason,
+        reauthRequired,
       });
-      await updateMailbox(campaign.mailboxId, { status: "error" });
+      await updateMailbox(campaign.mailboxId, { status: reauthRequired ? "reauth_required" : "error" });
       logMailboxMetric("mailbox_send_error_total", 1, {
         mailboxId: String(campaign.mailboxId),
       });

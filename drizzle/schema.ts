@@ -9,6 +9,7 @@ import {
   float,
   json,
   bigint,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
 // ─── Organizations (multi-tenant workspace) ───────────────────────────────────
@@ -161,25 +162,35 @@ export type Campaign = typeof campaigns.$inferSelect;
 export type InsertCampaign = typeof campaigns.$inferInsert;
 
 // ─── Mailboxes ────────────────────────────────────────────────────────────────
-export const mailboxes = mysqlTable("mailboxes", {
-  id: int("id").autoincrement().primaryKey(),
-  organizationId: int("organizationId")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
-  connectedByUserId: int("connectedByUserId").references(() => users.id, {
-    onDelete: "set null",
-    onUpdate: "cascade",
+export const mailboxes = mysqlTable(
+  "mailboxes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    organizationId: int("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    connectedByUserId: int("connectedByUserId").references(() => users.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    provider: mysqlEnum("provider", ["google", "microsoft", "smtp"]).notNull(),
+    email: varchar("email", { length: 320 }).notNull(),
+    displayName: varchar("displayName", { length: 200 }),
+    status: mysqlEnum("status", ["connected", "reauth_required", "error", "disabled"])
+      .default("connected")
+      .notNull(),
+    isDefault: boolean("isDefault").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    orgProviderEmailUnique: uniqueIndex("mailboxes_org_provider_email_unique").on(
+      table.organizationId,
+      table.provider,
+      table.email,
+    ),
   }),
-  provider: mysqlEnum("provider", ["google", "microsoft", "smtp"]).notNull(),
-  email: varchar("email", { length: 320 }).notNull(),
-  displayName: varchar("displayName", { length: 200 }),
-  status: mysqlEnum("status", ["connected", "reauth_required", "error", "disabled"])
-    .default("connected")
-    .notNull(),
-  isDefault: boolean("isDefault").default(false).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+);
 
 export type Mailbox = typeof mailboxes.$inferSelect;
 export type InsertMailbox = typeof mailboxes.$inferInsert;
@@ -205,6 +216,35 @@ export const mailboxOauthTokens = mysqlTable("mailbox_oauth_tokens", {
 
 export type MailboxOauthToken = typeof mailboxOauthTokens.$inferSelect;
 export type InsertMailboxOauthToken = typeof mailboxOauthTokens.$inferInsert;
+
+export const mailboxOauthConnectAttempts = mysqlTable("mailbox_oauth_connect_attempts", {
+  id: int("id").autoincrement().primaryKey(),
+  attemptId: varchar("attemptId", { length: 64 }).notNull().unique(),
+  state: varchar("state", { length: 128 }).notNull().unique(),
+  provider: mysqlEnum("provider", ["google", "microsoft"]).notNull(),
+  organizationId: int("organizationId")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  userId: int("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  status: mysqlEnum("status", ["pending", "processing", "succeeded", "failed", "cancelled"])
+    .default("pending")
+    .notNull(),
+  errorCode: varchar("errorCode", { length: 128 }),
+  errorMessage: text("errorMessage"),
+  mailboxId: int("mailboxId").references(() => mailboxes.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+  expiresAt: timestamp("expiresAt").notNull(),
+  consumedAt: timestamp("consumedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MailboxOauthConnectAttempt = typeof mailboxOauthConnectAttempts.$inferSelect;
+export type InsertMailboxOauthConnectAttempt = typeof mailboxOauthConnectAttempts.$inferInsert;
 
 export const mailboxHealth = mysqlTable("mailbox_health", {
   id: int("id").autoincrement().primaryKey(),

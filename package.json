@@ -14,7 +14,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/mysql-migrate.mjs",
     "db:migrate:kit": "drizzle-kit migrate",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "verify:live:mailbox-oauth": "node scripts/verify-live-mailbox-oauth.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "@shared/const";
+import type { User } from "../drizzle/schema";
 import { randomInt } from "node:crypto";
 import { passwordResetChallengeKey } from "./auth/passwordResetChallenge";
 import { hashOtp, hashPassword, makePasswordSalt, verifyPassword } from "./auth/password";
@@ -42,6 +43,23 @@ import { prospectingRouter } from "./routers/prospecting";
 import { platformRouter } from "./routers/platform";
 import { mailboxesRouter } from "./routers/mailboxes";
 
+function safeAuthMeUser(user: User) {
+  return {
+    id: user.id,
+    openId: user.openId,
+    email: user.email,
+    name: user.name,
+    loginMethod: user.loginMethod,
+    role: user.role,
+    organizationId: user.organizationId,
+    orgMemberRole: user.orgMemberRole,
+    accountDisabled: user.accountDisabled,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    lastSignedIn: user.lastSignedIn,
+  };
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -49,7 +67,7 @@ export const appRouter = router({
       const u = opts.ctx.user;
       if (!u) return null;
       return {
-        ...u,
+        ...safeAuthMeUser(u),
         isPlatformOperator: isPlatformOperatorUser(u),
         /** Same as `DEFAULT_ADMIN_LOGIN` / `auth.loginOptions.defaultAdminLogin` — bundled so the client nav does not race a second request. */
         defaultOperatorLogin: ENV.defaultAdminLogin,

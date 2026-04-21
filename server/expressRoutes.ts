@@ -5,6 +5,7 @@ import { applyProviderTrackingEvent, recordOpenEvent, unsubscribeByTrackingId } 
 import { startScheduler } from "./services/sequenceScheduler";
 import { resolveTenantQueryScope } from "./_core/authz";
 import { sdk } from "./_core/sdk";
+import { completeMailboxOAuthConnect } from "./services/mailboxConnectFlow";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -33,19 +34,20 @@ export function registerExpressRoutes(app: Express) {
     const code = String(req.query.code ?? "");
     const state = String(req.query.state ?? "");
     const error = String(req.query.error ?? "");
-    if (error) {
-      return res.redirect(
-        `${appBaseUrl}/app/settings?mailbox_oauth_error=${encodeURIComponent(error)}&provider=${provider}`,
-      );
-    }
-    if (!code || !state || (provider !== "google" && provider !== "microsoft")) {
+    if (!state || (provider !== "google" && provider !== "microsoft")) {
       return res.redirect(`${appBaseUrl}/app/settings?mailbox_oauth_error=invalid_callback`);
     }
-    const redirectUrl =
-      `${appBaseUrl}/app/settings?mailbox_oauth_provider=${encodeURIComponent(provider)}` +
-      `&mailbox_oauth_code=${encodeURIComponent(code)}` +
-      `&mailbox_oauth_state=${encodeURIComponent(state)}`;
-    return res.redirect(redirectUrl);
+    const result = await completeMailboxOAuthConnect({
+      provider: provider as "google" | "microsoft",
+      state,
+      code: code || undefined,
+      providerError: error || undefined,
+    });
+    const params = new URLSearchParams();
+    if (result.attemptId) params.set("mailbox_oauth_attempt", result.attemptId);
+    params.set("mailbox_oauth_status", result.ok ? "success" : "error");
+    if (!result.ok && result.reason) params.set("mailbox_oauth_reason", result.reason);
+    return res.redirect(`${appBaseUrl}/app/settings?${params.toString()}`);
   });
 
   // ── Mailbox webhook intake (normalized minimal path) ───────────────────────

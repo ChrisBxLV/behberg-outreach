@@ -5,11 +5,11 @@ import {
   users, organizations, contacts, importBatches, campaigns, sequenceSteps,
   campaignContacts, emailLogs, trackingEvents, loginChallenges,
   signalProfiles, signals, signalInsights, signalIngestionRuns, mailboxes,
-  mailboxOauthTokens, mailboxHealth, mailboxSendLimits, mailboxWebhookSubscriptions,
+  mailboxOauthTokens, mailboxOauthConnectAttempts, mailboxHealth, mailboxSendLimits, mailboxWebhookSubscriptions,
   type InsertUser, type InsertContact, type Contact, type InsertCampaign,
   type InsertSequenceStep, type InsertEmailLog, type InsertLoginChallenge,
   type InsertSignalProfile, type InsertSignal, type InsertSignalInsight,
-  type InsertMailbox, type InsertMailboxOauthToken,
+  type InsertMailbox, type InsertMailboxOauthToken, type InsertMailboxOauthConnectAttempt,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { scopeForContactOrganizationId, type TenantQueryScope } from "./_core/authz";
@@ -1220,6 +1220,48 @@ export async function getMailboxOauthToken(mailboxId: number) {
     .where(eq(mailboxOauthTokens.mailboxId, mailboxId))
     .limit(1);
   return rows[0];
+}
+
+export async function createMailboxOauthConnectAttempt(
+  data: InsertMailboxOauthConnectAttempt,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(mailboxOauthConnectAttempts).values(data);
+}
+
+export async function getMailboxOauthConnectAttemptByState(state: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(mailboxOauthConnectAttempts)
+    .where(eq(mailboxOauthConnectAttempts.state, state))
+    .limit(1);
+  return rows[0];
+}
+
+export async function getMailboxOauthConnectAttemptByAttemptId(attemptId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(mailboxOauthConnectAttempts)
+    .where(eq(mailboxOauthConnectAttempts.attemptId, attemptId))
+    .limit(1);
+  return rows[0];
+}
+
+export async function updateMailboxOauthConnectAttempt(
+  attemptId: string,
+  data: Partial<InsertMailboxOauthConnectAttempt>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(mailboxOauthConnectAttempts)
+    .set(data)
+    .where(eq(mailboxOauthConnectAttempts.attemptId, attemptId));
 }
 
 export async function upsertMailboxHealth(
