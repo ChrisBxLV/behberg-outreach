@@ -78,6 +78,20 @@
       "when": 1774299600000,
       "tag": "0010_organizations_subscription_plan",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1774301400000,
+      "tag": "0011_mailbox_connectivity",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1774303200000,
+      "tag": "0012_mailbox_oauth_connect_attempts",
+      "breakpoints": true
     }
   ]
 }

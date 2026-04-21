@@ -5,6 +5,8 @@ import { applyProviderTrackingEvent, recordOpenEvent, unsubscribeByTrackingId } 
 import { startScheduler } from "./services/sequenceScheduler";
 import { resolveTenantQueryScope } from "./_core/authz";
 import { sdk } from "./_core/sdk";
+import { inferRequestOrigin } from "./_core/requestOrigin";
+import { completeMailboxOAuthConnect } from "./services/mailboxConnectFlow";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -25,27 +27,48 @@ const TRACKING_PIXEL = Buffer.from(
 );
 
 export function registerExpressRoutes(app: Express) {
-  const appBaseUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
-
   // ── Mailbox OAuth callbacks ────────────────────────────────────────────────
   app.get("/api/mailboxes/oauth/:provider/callback", async (req, res) => {
+    const appBaseUrl =
+      process.env.APP_BASE_URL?.trim() ||
+      inferRequestOrigin({
+        protocol: req.protocol,
+        headers: req.headers as any,
+      }) ||
+      "https://krot.io";
     const provider = String(req.params.provider ?? "").toLowerCase();
     const code = String(req.query.code ?? "");
     const state = String(req.query.state ?? "");
     const error = String(req.query.error ?? "");
-    if (error) {
-      return res.redirect(
-        `${appBaseUrl}/app/settings?mailbox_oauth_error=${encodeURIComponent(error)}&provider=${provider}`,
-      );
-    }
-    if (!code || !state || (provider !== "google" && provider !== "microsoft")) {
+    if (!state || (provider !== "google" && provider !== "microsoft")) {
       return res.redirect(`${appBaseUrl}/app/settings?mailbox_oauth_error=invalid_callback`);
     }
-    const redirectUrl =
-      `${appBaseUrl}/app/settings?mailbox_oauth_provider=${encodeURIComponent(provider)}` +
-      `&mailbox_oauth_code=${encodeURIComponent(code)}` +
-      `&mailbox_oauth_state=${encodeURIComponent(state)}`;
-    return res.redirect(redirectUrl);
+    try {
+      const result = await completeMailboxOAuthConnect({
+        provider: provider as "google" | "microsoft",
+        state,
+        code: code || undefined,
+        providerError: error || undefined,
+        appBaseUrl,
+      });
+      const params = new URLSearchParams();
+      if (result.attemptId) params.set("mailbox_oauth_attempt", result.attemptId);
+      params.set("mailbox_oauth_status", result.ok ? "success" : "error");
+      if (!result.ok && result.reason) params.set("mailbox_oauth_reason", result.reason);
+      return res.redirect(`${appBaseUrl}/app/settings?${params.toString()}`);
+    } catch (callbackError: any) {
+      console.error("[Mailbox OAuth] callback completion failed", {
+        provider,
+        stateLength: state.length,
+        hasCode: Boolean(code),
+        error: String(callbackError?.message ?? callbackError ?? "unknown"),
+      });
+      const params = new URLSearchParams({
+        mailbox_oauth_status: "error",
+        mailbox_oauth_reason: "unknown",
+      });
+      return res.redirect(`${appBaseUrl}/app/settings?${params.toString()}`);
+    }
   });
 
   // ── Mailbox webhook intake (normalized minimal path) ───────────────────────

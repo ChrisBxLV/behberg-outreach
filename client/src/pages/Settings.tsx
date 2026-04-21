@@ -62,6 +62,49 @@ const SUBSCRIPTION_PLANS = [
   },
 ] as const;
 
+function oauthReasonLabel(reason: string): string {
+  switch (reason) {
+    case "missing_app_base_url":
+      return "Platform APP_BASE_URL is not configured.";
+    case "missing_provider_config":
+      return "OAuth client credentials are missing for this provider.";
+    case "missing_encryption_secret":
+      return "Token encryption secret is missing.";
+    case "organization_context_required":
+      return "You need an organization workspace to connect mailboxes.";
+    default:
+      return reason.replaceAll("_", " ");
+  }
+}
+
+function oauthFailureToast(message: string): string {
+  const text = message.toLowerCase();
+  const aadCodeMatch = message.match(/AADSTS\d{5}/i);
+  const aadCode = aadCodeMatch?.[0]?.toUpperCase() ?? null;
+  if (text.includes("organization context required")) {
+    return "Create or join an organization before connecting a mailbox.";
+  }
+  if (text.includes("mailbox limit reached")) {
+    return "Mailbox limit reached. Purchase additional licenses in Manage Subscription.";
+  }
+  if (text.includes("invalid_client") || text.includes("aadsts7000215")) {
+    return "Microsoft OAuth client secret is invalid. Use the Secret VALUE (not Secret ID) in MS client secret env.";
+  }
+  if (text.includes("redirect_uri") || text.includes("aadsts50011")) {
+    return "Microsoft redirect URI mismatch. Ensure callback is https://krot.io/api/mailboxes/oauth/microsoft/callback";
+  }
+  if (text.includes("invalid or expired")) {
+    return "OAuth session expired. Click Connect again.";
+  }
+  if (text.includes("token exchange")) {
+    if (aadCode) {
+      return `Provider token exchange failed (${aadCode}).`;
+    }
+    return "Provider token exchange failed. Retry Connect and approve all permissions.";
+  }
+  return message;
+}
+
 export default function Settings() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
@@ -69,7 +112,7 @@ export default function Settings() {
   const { data: smtpConfig } = trpc.settings.getSmtpConfig.useQuery();
   const { data: mailboxes } = trpc.mailboxes.list.useQuery();
   const { data: appConfig } = trpc.settings.getAppConfig.useQuery();
-  const { data: mailboxOAuthConfig } = trpc.settings.getMailboxOAuthConfig.useQuery();
+  const { data: mailboxOAuthConfig, isLoading: mailboxOAuthConfigLoading } = trpc.settings.getMailboxOAuthConfig.useQuery();
   const { data: orgMine, isLoading: isOrgMineLoading } = trpc.organization.mine.useQuery();
   const isOrgOwner = orgMine?.role === "owner";
   const canSeeMembers = Boolean(orgMine?.organization?.id);
@@ -215,7 +258,7 @@ export default function Settings() {
     onSuccess: (r) => {
       window.location.href = r.authorizeUrl;
     },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(oauthFailureToast(e.message)),
   });
 
   const completeOAuthMutation = trpc.mailboxes.completeConnectOAuth.useMutation({
@@ -223,7 +266,7 @@ export default function Settings() {
       toast.success("Mailbox connected successfully.");
       void utils.mailboxes.list.invalidate();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(oauthFailureToast(e.message)),
   });
 
   const connectSmtpMailboxMutation = trpc.mailboxes.connectSmtp.useMutation({
@@ -270,36 +313,65 @@ export default function Settings() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const attemptId = params.get("mailbox_oauth_attempt");
+    const status = params.get("mailbox_oauth_status");
+    const reason = params.get("mailbox_oauth_reason");
     const provider = params.get("mailbox_oauth_provider");
     const code = params.get("mailbox_oauth_code");
     const state = params.get("mailbox_oauth_state");
     const error = params.get("mailbox_oauth_error");
-    if (error) {
-      toast.error(`Mailbox OAuth failed: ${error}`);
-    }
-    if (provider && code && state && !completeOAuthMutation.isPending) {
+
+    if (attemptId) {
+      void utils.mailboxes.getConnectResult.fetch({ attemptId })
+        .then((result) => {
+          if (result.status === "succeeded") {
+            toast.success("Mailbox connected successfully.");
+            void utils.mailboxes.list.invalidate();
+            return;
+          }
+          const resolvedReason = result.reason ?? reason ?? "unknown";
+          const detail = String(result.message ?? "").trim();
+          if (detail) {
+            toast.error(oauthFailureToast(detail));
+            return;
+          }
+          toast.error(`Mailbox connect failed: ${oauthReasonLabel(resolvedReason)}`);
+        })
+        .catch((e: any) => toast.error(oauthFailureToast(String(e?.message ?? "Mailbox connect failed"))));
+    } else if (error) {
+      toast.error(`Mailbox OAuth failed: ${oauthReasonLabel(error)}`);
+    } else if (provider && code && state && !completeOAuthMutation.isPending) {
+      // Backward-compatible completion for old callback URLs.
       completeOAuthMutation.mutate({
         provider: provider as "google" | "microsoft",
         code,
         state,
       });
+    } else if (status === "error" && reason) {
+      toast.error(`Mailbox OAuth failed: ${oauthReasonLabel(reason)}`);
     }
-    if (provider || code || state || error) {
+
+    if (attemptId || status || reason || provider || code || state || error) {
       const nextUrl = `${window.location.pathname}`;
       window.history.replaceState({}, "", nextUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const hasOrgContext = Boolean(mailboxOAuthConfig?.hasOrganizationContext);
+  const googleReasons = mailboxOAuthConfig?.readinessReasons?.google ?? [];
+  const microsoftReasons = mailboxOAuthConfig?.readinessReasons?.microsoft ?? [];
   const googleReady = Boolean(
     mailboxOAuthConfig?.googleConfigured &&
     mailboxOAuthConfig?.tokenEncryptionConfigured &&
-    mailboxOAuthConfig?.appBaseUrl,
+    mailboxOAuthConfig?.appBaseUrl &&
+    hasOrgContext,
   );
   const microsoftReady = Boolean(
     mailboxOAuthConfig?.microsoftConfigured &&
     mailboxOAuthConfig?.tokenEncryptionConfigured &&
-    mailboxOAuthConfig?.appBaseUrl,
+    mailboxOAuthConfig?.appBaseUrl &&
+    hasOrgContext,
   );
   const canStartAnyOAuth = googleReady || microsoftReady;
   const canUseAdvancedSmtp = Boolean(
@@ -313,15 +385,23 @@ export default function Settings() {
   const mailboxLimitReached = connectedMailboxCount >= mailboxLimit;
 
   const startOAuthFor = (provider: "google" | "microsoft") => {
+    if (mailboxOAuthConfigLoading) {
+      toast.message("Checking mailbox OAuth readiness...");
+      return;
+    }
     if (mailboxLimitReached) {
       toast.error("Mailbox limit reached. Purchase additional licenses in Manage Subscription.");
       return;
     }
+    if (!hasOrgContext) {
+      toast.error("Create or join an organization before connecting a mailbox.");
+      return;
+    }
     const ready = provider === "google" ? googleReady : microsoftReady;
     if (!ready) {
-      toast.error(
-        `${provider === "google" ? "Google" : "Microsoft"} mailbox connection is temporarily unavailable. Please try again later or use SMTP connect below.`,
-      );
+      const reasons = provider === "google" ? googleReasons : microsoftReasons;
+      const firstReason = reasons[0] ?? "unknown";
+      toast.error(`${provider === "google" ? "Google" : "Microsoft"} connect unavailable: ${oauthReasonLabel(firstReason)}`);
       return;
     }
     startOAuthMutation.mutate({ provider });
@@ -542,7 +622,7 @@ export default function Settings() {
                 size="sm"
                 className="h-9 px-4"
                 onClick={() => startOAuthFor("google")}
-                disabled={startOAuthMutation.isPending || !googleReady || mailboxLimitReached}
+                disabled={startOAuthMutation.isPending || mailboxLimitReached || completeOAuthMutation.isPending}
               >
                 Connect Gmail
               </Button>
@@ -551,7 +631,7 @@ export default function Settings() {
                 variant="outline"
                 className="h-9 px-4"
                 onClick={() => startOAuthFor("microsoft")}
-                disabled={startOAuthMutation.isPending || !microsoftReady || mailboxLimitReached}
+                disabled={startOAuthMutation.isPending || mailboxLimitReached || completeOAuthMutation.isPending}
               >
                 Connect Microsoft
               </Button>
@@ -578,8 +658,14 @@ export default function Settings() {
             ) : null}
 
             {!canStartAnyOAuth ? (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-                Google and Microsoft direct connect are temporarily unavailable. You can still connect via SMTP below.
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 space-y-2">
+                <p className="font-medium">Direct OAuth connect is currently blocked by setup requirements.</p>
+                <p className="text-amber-100/90">
+                  Google: {googleReasons.length > 0 ? googleReasons.map(oauthReasonLabel).join(" ") : "Ready."}
+                </p>
+                <p className="text-amber-100/90">
+                  Microsoft: {microsoftReasons.length > 0 ? microsoftReasons.map(oauthReasonLabel).join(" ") : "Ready."}
+                </p>
               </div>
             ) : null}
 

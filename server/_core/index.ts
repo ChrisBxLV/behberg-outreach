@@ -111,13 +111,16 @@ async function startServer() {
         "[Auth] DATABASE_URL is not set: using dev file store at .data/local-auth.json (users + login codes only).",
       );
     }
+    const encryptionSecretConfigured = Boolean(
+      process.env.MAILBOX_TOKEN_ENCRYPTION_KEY?.trim() || process.env.JWT_SECRET?.trim(),
+    );
     const missingOAuthEnv = [
       !process.env.APP_BASE_URL?.trim() ? "APP_BASE_URL" : null,
       !process.env.GOOGLE_MAIL_CLIENT_ID?.trim() ? "GOOGLE_MAIL_CLIENT_ID" : null,
       !process.env.GOOGLE_MAIL_CLIENT_SECRET?.trim() ? "GOOGLE_MAIL_CLIENT_SECRET" : null,
       !process.env.MS_MAIL_CLIENT_ID?.trim() ? "MS_MAIL_CLIENT_ID" : null,
       !process.env.MS_MAIL_CLIENT_SECRET?.trim() ? "MS_MAIL_CLIENT_SECRET" : null,
-      !process.env.MAILBOX_TOKEN_ENCRYPTION_KEY?.trim() ? "MAILBOX_TOKEN_ENCRYPTION_KEY" : null,
+      !encryptionSecretConfigured ? "MAILBOX_TOKEN_ENCRYPTION_KEY or JWT_SECRET" : null,
     ].filter(Boolean);
     if (missingOAuthEnv.length > 0) {
       console.warn(`[MailboxOAuth] Missing env: ${missingOAuthEnv.join(", ")}`);

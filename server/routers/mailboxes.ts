@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { dataScopeOrganizationId } from "../_core/orgScope";
 import { encryptSecret } from "../_core/secrets";
+import { inferRequestOrigin } from "../_core/requestOrigin";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
   createMailbox,
@@ -17,13 +18,10 @@ import {
   upsertMailboxSendLimits,
 } from "../db";
 import {
-  buildMailboxOAuthAuthorizeUrl,
-  consumeMailboxOAuthState,
-  exchangeMailboxOAuthCode,
-  getMailboxPrimaryEmail,
-  getProviderSmtpDefaults,
-  type MailboxOAuthProvider,
-} from "../services/mailboxOAuth";
+  completeMailboxOAuthConnect,
+  getMailboxOAuthConnectResult,
+  startMailboxOAuthConnect,
+} from "../services/mailboxConnectFlow";
 import { buildProviderForMailbox } from "../services/providers";
 import { logMailboxEvent } from "../services/observability";
 
@@ -127,29 +125,15 @@ export const mailboxesRouter = router({
     .input(z.object({ provider: z.enum(["google", "microsoft"]) }))
     .mutation(async ({ ctx, input }) => {
       assertOrganizationMember(ctx.user);
-      const orgId = ctx.user.organizationId!;
-      const userId = ctx.user.id;
-      let result: { authorizeUrl: string; state: string } | { url: string; state: string };
-      try {
-        result = buildMailboxOAuthAuthorizeUrl({
-          provider: input.provider,
-          organizationId: orgId,
-          userId,
-        });
-      } catch (err: any) {
-        const msg = String(err?.message ?? "");
-        if (msg.includes("mailbox OAuth is not configured")) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message:
-              `${input.provider} mailbox OAuth is not configured. Set APP_BASE_URL, ` +
-              `${input.provider === "google" ? "GOOGLE_MAIL_CLIENT_ID/GOOGLE_MAIL_CLIENT_SECRET" : "MS_MAIL_CLIENT_ID/MS_MAIL_CLIENT_SECRET"}, ` +
-              "and MAILBOX_TOKEN_ENCRYPTION_KEY, then restart server.",
-          });
-        }
-        throw err;
-      }
-      return { authorizeUrl: result.url, state: result.state };
+      return startMailboxOAuthConnect({
+        provider: input.provider,
+        organizationId: ctx.user.organizationId!,
+        userId: ctx.user.id,
+        appBaseUrl: inferRequestOrigin({
+          protocol: ctx.req.protocol,
+          headers: ctx.req.headers as any,
+        }) || undefined,
+      });
     }),
 
   completeConnectOAuth: protectedProcedure
@@ -162,74 +146,36 @@ export const mailboxesRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertOrganizationMember(ctx.user);
-      const state = consumeMailboxOAuthState(input.state, input.provider as MailboxOAuthProvider);
-      if (state.organizationId !== ctx.user.organizationId || state.userId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "OAuth session does not belong to this user." });
-      }
-
-      const exchanged = await exchangeMailboxOAuthCode({
-        provider: input.provider as MailboxOAuthProvider,
-        code: input.code,
-      });
-      const profile = await getMailboxPrimaryEmail({
-        provider: input.provider as MailboxOAuthProvider,
-        accessToken: exchanged.accessToken,
-      });
-
-      const existing = await findMailboxByOrganizationAndEmail(
-        ctx.user.organizationId!,
-        input.provider,
-        profile.email,
-      );
-      if (!existing) {
-        await assertMailboxLimitAvailable(ctx.user.organizationId!);
-      }
-      const smtpDefaults = getProviderSmtpDefaults(input.provider as MailboxOAuthProvider);
-      const mailboxId = existing?.id
-        ? existing.id
-        : await createMailbox({
-            organizationId: ctx.user.organizationId!,
-            connectedByUserId: ctx.user.id,
-            provider: input.provider,
-            email: profile.email,
-            displayName: profile.displayName,
-            status: "connected",
-            isDefault: false,
-          });
-
-      await updateMailbox(mailboxId, {
-        displayName: profile.displayName,
-        status: "connected",
-      });
-      await upsertMailboxOauthToken(mailboxId, {
-        encryptedAccessToken: encryptSecret(exchanged.accessToken),
-        encryptedRefreshToken: exchanged.refreshToken ? encryptSecret(exchanged.refreshToken) : null,
-        accessTokenExpiresAt: exchanged.expiresAt,
-        scopes: exchanged.scopes,
-        providerAccountId: profile.providerAccountId,
-        smtpHost: smtpDefaults.host,
-        smtpPort: smtpDefaults.port,
-        smtpSecure: smtpDefaults.secure,
-        smtpUsername: profile.email,
-      });
-      await upsertMailboxHealth(mailboxId, {
-        reauthRequired: false,
-        errorCode: null,
-        errorMessage: null,
-        lastSuccessAt: new Date(),
-      });
-      await upsertMailboxSendLimits(mailboxId, {});
-
-      const all = await listMailboxesByOrganization(ctx.user.organizationId!);
-      if (!all.some(m => m.isDefault)) {
-        await setDefaultMailboxForOrganization(ctx.user.organizationId!, mailboxId);
-      }
-      logMailboxEvent("mailbox_connected", {
-        organizationId: ctx.user.organizationId,
-        mailboxId,
+      const result = await completeMailboxOAuthConnect({
         provider: input.provider,
+        code: input.code,
+        state: input.state,
+        appBaseUrl: inferRequestOrigin({
+          protocol: ctx.req.protocol,
+          headers: ctx.req.headers as any,
+        }) || undefined,
       });
-      return { success: true, mailboxId };
+      if (!result.ok) {
+        throw new TRPCError({
+          code:
+            result.reason === "mailbox_limit_reached" ? "PRECONDITION_FAILED" :
+            result.reason === "invalid_or_expired_state" ? "BAD_REQUEST" :
+            "PRECONDITION_FAILED",
+          message: result.message,
+        });
+      }
+      return { success: true, mailboxId: result.mailboxId, attemptId: result.attemptId };
+    }),
+
+  getConnectResult: protectedProcedure
+    .input(z.object({ attemptId: z.string().min(8) }))
+    .query(async ({ ctx, input }) => {
+      assertOrganizationMember(ctx.user);
+      return getMailboxOAuthConnectResult({
+        attemptId: input.attemptId,
+        organizationId: ctx.user.organizationId,
+        userId: ctx.user.id,
+      });
     }),
 
   connectSmtp: protectedProcedure
@@ -390,19 +336,21 @@ export const mailboxesRouter = router({
         });
         return { success: true as const };
       } catch (err: any) {
+        const message = String(err?.message ?? "unknown");
+        const reauthRequired = message.toLowerCase().includes("reauth_required") || message.toLowerCase().includes("invalid_grant");
         await upsertMailboxHealth(mailbox.id, {
-          reauthRequired: false,
-          errorCode: "test_send_failed",
-          errorMessage: err?.message ?? "unknown",
+          reauthRequired,
+          errorCode: reauthRequired ? "reauth_required" : "test_send_failed",
+          errorMessage: message,
           lastErrorAt: new Date(),
         });
-        await updateMailbox(mailbox.id, { status: "error" });
+        await updateMailbox(mailbox.id, { status: reauthRequired ? "reauth_required" : "error" });
         logMailboxEvent("mailbox_test_send_failed", {
           organizationId: ctx.user.organizationId,
           mailboxId: mailbox.id,
-          error: err?.message ?? "unknown",
+          error: message,
         });
-        return { success: false as const, error: err?.message ?? "Unknown mailbox error" };
+        return { success: false as const, error: message || "Unknown mailbox error" };
       }
     }),
 });

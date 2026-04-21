@@ -1,4 +1,6 @@
 type MailboxEventName =
+  | "mailbox_oauth_start"
+  | "mailbox_oauth_complete"
   | "mailbox_connected"
   | "mailbox_disconnected"
   | "mailbox_default_changed"
