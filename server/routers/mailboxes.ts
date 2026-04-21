@@ -144,7 +144,7 @@ export const mailboxesRouter = router({
             message:
               `${input.provider} mailbox OAuth is not configured. Set APP_BASE_URL, ` +
               `${input.provider === "google" ? "GOOGLE_MAIL_CLIENT_ID/GOOGLE_MAIL_CLIENT_SECRET" : "MS_MAIL_CLIENT_ID/MS_MAIL_CLIENT_SECRET"}, ` +
-              "and MAILBOX_TOKEN_ENCRYPTION_KEY, then restart server.",
+              "and MAILBOX_TOKEN_ENCRYPTION_KEY (or JWT_SECRET fallback), then restart server.",
           });
         }
         throw err;

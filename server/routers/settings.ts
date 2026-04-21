@@ -20,6 +20,8 @@ export const settingsRouter = router({
 
   getMailboxOAuthConfig: protectedProcedure.query(async () => {
     const appBaseUrl = process.env.APP_BASE_URL ?? "";
+    const encryptionSecret =
+      process.env.MAILBOX_TOKEN_ENCRYPTION_KEY?.trim() || process.env.JWT_SECRET?.trim();
     return {
       appBaseUrl,
       googleConfigured: Boolean(
@@ -28,7 +30,7 @@ export const settingsRouter = router({
       microsoftConfigured: Boolean(
         process.env.MS_MAIL_CLIENT_ID?.trim() && process.env.MS_MAIL_CLIENT_SECRET?.trim(),
       ),
-      tokenEncryptionConfigured: Boolean(process.env.MAILBOX_TOKEN_ENCRYPTION_KEY?.trim()),
+      tokenEncryptionConfigured: Boolean(encryptionSecret),
       googleCallbackUrl: `${appBaseUrl || "http://localhost:3000"}/api/mailboxes/oauth/google/callback`,
       microsoftCallbackUrl: `${appBaseUrl || "http://localhost:3000"}/api/mailboxes/oauth/microsoft/callback`,
     };
