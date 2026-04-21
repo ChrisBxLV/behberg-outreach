@@ -521,25 +521,26 @@ export async function completeMailboxOAuthConnect(input: {
     };
   } catch (error) {
     const reason = classifyCompletionError(error);
+    const rawErrorMessage = String((error as any)?.message ?? "unknown");
     const message =
       reason === "mailbox_limit_reached"
         ? "Mailbox limit reached. Purchase additional licenses to connect more inboxes."
         : reason === "provider_exchange_failed"
-          ? "Could not complete provider token exchange. Please retry connect."
+          ? rawErrorMessage
           : reason === "provider_profile_failed"
-            ? "Connected account did not return a valid mailbox profile."
+            ? rawErrorMessage
             : "Mailbox connection failed. Please try again.";
     if (usingFallbackAttemptStore) {
       patchFallbackAttempt(attempt.attemptId, {
         status: "failed",
         errorCode: reason,
-        errorMessage: String((error as any)?.message ?? "unknown"),
+        errorMessage: rawErrorMessage,
       });
     } else {
       await safeUpdateAttempt(attempt.attemptId, {
         status: "failed",
         errorCode: reason,
-        errorMessage: String((error as any)?.message ?? "unknown"),
+        errorMessage: rawErrorMessage,
       });
     }
     logMailboxMetric("mailbox_oauth_complete_total", 1, {
