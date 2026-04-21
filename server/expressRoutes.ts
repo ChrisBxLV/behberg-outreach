@@ -43,18 +43,32 @@ export function registerExpressRoutes(app: Express) {
     if (!state || (provider !== "google" && provider !== "microsoft")) {
       return res.redirect(`${appBaseUrl}/app/settings?mailbox_oauth_error=invalid_callback`);
     }
-    const result = await completeMailboxOAuthConnect({
-      provider: provider as "google" | "microsoft",
-      state,
-      code: code || undefined,
-      providerError: error || undefined,
-      appBaseUrl,
-    });
-    const params = new URLSearchParams();
-    if (result.attemptId) params.set("mailbox_oauth_attempt", result.attemptId);
-    params.set("mailbox_oauth_status", result.ok ? "success" : "error");
-    if (!result.ok && result.reason) params.set("mailbox_oauth_reason", result.reason);
-    return res.redirect(`${appBaseUrl}/app/settings?${params.toString()}`);
+    try {
+      const result = await completeMailboxOAuthConnect({
+        provider: provider as "google" | "microsoft",
+        state,
+        code: code || undefined,
+        providerError: error || undefined,
+        appBaseUrl,
+      });
+      const params = new URLSearchParams();
+      if (result.attemptId) params.set("mailbox_oauth_attempt", result.attemptId);
+      params.set("mailbox_oauth_status", result.ok ? "success" : "error");
+      if (!result.ok && result.reason) params.set("mailbox_oauth_reason", result.reason);
+      return res.redirect(`${appBaseUrl}/app/settings?${params.toString()}`);
+    } catch (callbackError: any) {
+      console.error("[Mailbox OAuth] callback completion failed", {
+        provider,
+        stateLength: state.length,
+        hasCode: Boolean(code),
+        error: String(callbackError?.message ?? callbackError ?? "unknown"),
+      });
+      const params = new URLSearchParams({
+        mailbox_oauth_status: "error",
+        mailbox_oauth_reason: "unknown",
+      });
+      return res.redirect(`${appBaseUrl}/app/settings?${params.toString()}`);
+    }
   });
 
   // ── Mailbox webhook intake (normalized minimal path) ───────────────────────
