@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -75,6 +76,61 @@ function oauthReasonLabel(reason: string): string {
     default:
       return reason.replaceAll("_", " ");
   }
+}
+
+function MailboxSuppressionsPanel({ mailboxId }: { mailboxId: number }) {
+  const utils = trpc.useUtils();
+  const { data: rows, isLoading } = trpc.mailboxes.listSuppressions.useQuery({ mailboxId });
+  const removeMutation = trpc.mailboxes.removeSuppression.useMutation({
+    onSuccess: () => {
+      void utils.mailboxes.listSuppressions.invalidate({ mailboxId });
+      toast.success("Removed from suppression list.");
+    },
+    onError: e => toast.error(e.message),
+  });
+  const exportCsv = async () => {
+    const csv = await utils.mailboxes.exportSuppressionsCsv.fetch({ mailboxId });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `suppressions-mailbox-${mailboxId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  if (isLoading) {
+    return <p className="text-xs text-muted-foreground">Loading suppressions…</p>;
+  }
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => void exportCsv()}>
+          Export CSV
+        </Button>
+      </div>
+      {(rows?.length ?? 0) === 0 ? (
+        <p className="text-xs text-muted-foreground">No suppressed addresses for this mailbox.</p>
+      ) : (
+        <ul className="text-xs space-y-1 max-h-28 overflow-y-auto border border-border/40 rounded-md p-2 bg-background/30">
+          {(rows ?? []).map(r => (
+            <li key={r.id} className="flex items-center justify-between gap-2">
+              <span className="truncate">{r.recipientEmail}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] shrink-0"
+                disabled={removeMutation.isPending}
+                onClick={() => removeMutation.mutate({ id: r.id })}
+              >
+                Remove
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function oauthFailureToast(message: string): string {
@@ -184,6 +240,8 @@ export default function Settings() {
   const [showAdvancedSmtp, setShowAdvancedSmtp] = useState(false);
   const [showManualMailboxSetup, setShowManualMailboxSetup] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState("organization");
+  const logoUploadMailboxIdRef = useRef<number | null>(null);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
   const requestPasswordResetSelf = trpc.organization.requestPasswordResetSelf.useMutation({
     onSuccess: (r) => {
       if (r.success && "emailed" in r && r.emailed) {
@@ -310,6 +368,32 @@ export default function Settings() {
     },
     onError: e => toast.error(e.message),
   });
+
+  const updateSignatureMutation = trpc.mailboxes.updateSignature.useMutation({
+    onSuccess: () => {
+      toast.success("Signature saved.");
+      void utils.mailboxes.list.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const [sigDraft, setSigDraft] = useState<Record<number, { html: string; logo: string }>>({});
+
+  useEffect(() => {
+    if (!mailboxes?.length) return;
+    setSigDraft(prev => {
+      const n = { ...prev };
+      for (const m of mailboxes) {
+        if (n[m.id] === undefined) {
+          n[m.id] = {
+            html: (m as { signatureHtml?: string | null }).signatureHtml ?? "",
+            logo: (m as { signatureLogoUrl?: string | null }).signatureLogoUrl ?? "",
+          };
+        }
+      }
+      return n;
+    });
+  }, [mailboxes]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -728,6 +812,96 @@ export default function Settings() {
                           onClick={() => disconnectMailboxMutation.mutate({ mailboxId: mailbox.id })}
                         >
                           Disconnect
+                        </Button>
+                      </div>
+                      <div className="mt-4 space-y-2 border-t border-border/30 pt-3">
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Unsubscribe applies per connected mailbox. Anyone who shares this mailbox shares the same suppression list.
+                        </p>
+                        <MailboxSuppressionsPanel mailboxId={mailbox.id} />
+                        <p className="text-xs font-medium text-muted-foreground">Email signature (appended to every sequence message)</p>
+                        <input
+                          ref={logoFileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async e => {
+                            const mid = logoUploadMailboxIdRef.current;
+                            logoUploadMailboxIdRef.current = null;
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (!mid || !file) return;
+                            try {
+                              const fd = new FormData();
+                              fd.append("file", file);
+                              fd.append("mailboxId", String(mid));
+                              const res = await fetch(`${window.location.origin}/api/mailboxes/signature-asset`, {
+                                method: "POST",
+                                body: fd,
+                                credentials: "include",
+                              });
+                              const j = (await res.json()) as { url?: string; error?: string };
+                              if (!res.ok) {
+                                throw new Error(j.error ?? "Upload failed");
+                              }
+                              if (j.url) {
+                                setSigDraft(prev => ({
+                                  ...prev,
+                                  [mid]: { ...(prev[mid] ?? { html: "", logo: "" }), logo: j.url! },
+                                }));
+                                toast.success("Logo uploaded. Click Save signature to apply.");
+                              }
+                            } catch (err: any) {
+                              toast.error(err?.message ?? "Upload failed");
+                            }
+                          }}
+                        />
+                        <div className="flex flex-wrap gap-2 items-center">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => {
+                              logoUploadMailboxIdRef.current = mailbox.id;
+                              logoFileInputRef.current?.click();
+                            }}
+                          >
+                            Upload logo
+                          </Button>
+                          <span className="text-[11px] text-muted-foreground">or paste</span>
+                        </div>
+                        <Input
+                          className="h-8 text-sm"
+                          placeholder="Logo image URL (optional, https…)"
+                          value={sigDraft[mailbox.id]?.logo ?? ""}
+                          onChange={e => setSigDraft(prev => ({
+                            ...prev,
+                            [mailbox.id]: { ...(prev[mailbox.id] ?? { html: "", logo: "" }), logo: e.target.value },
+                          }))}
+                        />
+                        <Textarea
+                          className="min-h-[72px] text-sm"
+                          placeholder="Regards,&#10;Your name&#10;Your title"
+                          value={sigDraft[mailbox.id]?.html ?? ""}
+                          onChange={e => setSigDraft(prev => ({
+                            ...prev,
+                            [mailbox.id]: { ...(prev[mailbox.id] ?? { html: "", logo: "" }), html: e.target.value },
+                          }))}
+                        />
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={updateSignatureMutation.isPending}
+                          onClick={() => updateSignatureMutation.mutate({
+                            mailboxId: mailbox.id,
+                            signatureHtml: sigDraft[mailbox.id]?.html || null,
+                            signatureLogoUrl: sigDraft[mailbox.id]?.logo?.trim()
+                              ? sigDraft[mailbox.id]!.logo.trim()
+                              : "",
+                          })}
+                        >
+                          Save signature
                         </Button>
                       </div>
                     </div>

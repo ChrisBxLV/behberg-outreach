@@ -4,6 +4,8 @@ import type { TenantQueryScope } from "../_core/authz";
 import {
   countMailboxEmailsSentSince,
   createEmailLog,
+  getEmailLogByIdempotencyKey,
+  updateEmailLog,
   getCampaignStats,
   getMailboxById,
   getMailboxHealthByMailboxId,
@@ -15,6 +17,7 @@ import {
 import { notifyOwner } from "../_core/notification";
 import { buildProviderForMailbox } from "./providers";
 import { logMailboxEvent, logMailboxMetric } from "./observability";
+import { createUnsubscribeToken } from "./unsubscribeToken";
 
 /** Scheduler / internal updates run without a user session; match legacy unscoped campaign writes. */
 const internalCampaignWriteScope: TenantQueryScope = { type: "platform" };
@@ -49,7 +52,14 @@ export function resetTransporter() {
   _transporter = null;
 }
 
-export function interpolateTemplate(template: string, contact: Partial<Contact>): string {
+export type InterpolateContext = { senderName?: string };
+
+export function interpolateTemplate(
+  template: string,
+  contact: Partial<Contact>,
+  ctx?: InterpolateContext,
+): string {
+  const sender = (ctx?.senderName ?? "").trim();
   return template
     .replace(/\{\{firstName\}\}/g, contact.firstName ?? contact.fullName?.split(" ")[0] ?? "there")
     .replace(/\{\{lastName\}\}/g, contact.lastName ?? "")
@@ -58,29 +68,96 @@ export function interpolateTemplate(template: string, contact: Partial<Contact>)
     .replace(/\{\{title\}\}/g, contact.title ?? "")
     .replace(/\{\{industry\}\}/g, contact.industry ?? "")
     .replace(/\{\{location\}\}/g, contact.location ?? "")
-    .replace(/\{\{email\}\}/g, contact.email ?? "");
+    .replace(/\{\{email\}\}/g, contact.email ?? "")
+    .replace(/\{\{senderName\}\}/g, sender || "Your name");
 }
 
 function buildTrackingPixel(trackingId: string, baseUrl: string): string {
   return `<img src="${baseUrl}/api/track/${trackingId}.gif" width="1" height="1" style="display:none" alt="" />`;
 }
 
-function wrapInHtml(body: string, trackingPixel: string): string {
-  // Convert plain text line breaks to HTML, append tracking pixel
+function escapeHtmlAttr(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function stripSimpleHtmlForText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export type WrapInHtmlOptions = {
+  /** Trusted HTML from mailbox settings */
+  signatureHtml?: string | null;
+  /** Public URL: shown as small gray Unsubscribe (one-click) */
+  unsubscribeUrl?: string | null;
+  /** Optional logo above signature */
+  signatureLogoUrl?: string | null;
+};
+
+function wrapInHtml(body: string, trackingPixel: string, opts?: WrapInHtmlOptions): string {
   const htmlBody = body
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/\n/g, "<br>");
 
+  const logo = (opts?.signatureLogoUrl ?? "").trim();
+  const logoBlock = logo
+    ? `<p style="margin:0 0 12px;"><img src="${escapeHtmlAttr(logo)}" alt="" style="max-height:40px;max-width:200px;" /></p>`
+    : "";
+
+  const sig = (opts?.signatureHtml ?? "").trim();
+  const sigBlock =
+    logoBlock || sig
+      ? `<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e5e5;">${logoBlock}${sig}</div>`
+      : "";
+
+  const u = (opts?.unsubscribeUrl ?? "").trim();
+  const unsubBlock = u
+    ? `<p style="margin:24px 0 0;font-size:12px;color:#9ca3af;line-height:1.4;">` +
+      `<a href="${escapeHtmlAttr(u)}" style="color:#9ca3af;text-decoration:underline;">Unsubscribe</a> ` +
+      `from future messages from this sender.</p>`
+    : "";
+
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; font-size: 14px; line-height: 1.5; color: #111827; margin: 0; padding: 0; text-align: left; background: #fff;">
+<div style="margin: 0; padding: 0 2px; max-width: 100%; text-align: left;">
 ${htmlBody}
+${sigBlock}
 ${trackingPixel}
+${unsubBlock}
+</div>
 </body>
 </html>`;
+}
+
+function buildPlainTextWithFooter(
+  body: string,
+  opts?: { signatureHtml?: string | null; signatureLogoUrl?: string | null; unsubscribeUrl?: string | null },
+): string {
+  const parts: string[] = [body];
+  if ((opts?.signatureHtml ?? "").trim() || (opts?.signatureLogoUrl ?? "").trim()) {
+    if ((opts?.signatureLogoUrl ?? "").trim()) {
+      parts.push("", opts!.signatureLogoUrl!);
+    }
+    if ((opts?.signatureHtml ?? "").trim()) {
+      parts.push("", stripSimpleHtmlForText(opts!.signatureHtml!));
+    }
+  }
+  if ((opts?.unsubscribeUrl ?? "").trim()) {
+    parts.push("", `Unsubscribe: ${opts!.unsubscribeUrl!}`);
+  }
+  return parts.join("\n");
 }
 
 export interface SendEmailOptions {
@@ -123,27 +200,85 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
     return { success: false, trackingId: "", error: "Contact has no email address" };
   }
 
-  const trackingId = uuidv4();
-  const trackingPixel = buildTrackingPixel(trackingId, baseUrl);
-  const htmlBody = wrapInHtml(body, trackingPixel);
+  const idempotencyKey = `${campaignContactId}:${step.id}`;
+  const existingPre = await getEmailLogByIdempotencyKey(idempotencyKey);
+  if (existingPre?.status === "sent") {
+    return { success: true, trackingId: existingPre.trackingId ?? "" };
+  }
+  if (existingPre?.status === "queued") {
+    return { success: false, trackingId: existingPre.trackingId ?? "", error: "Send already in progress for this step" };
+  }
+  if (existingPre?.status === "bounced") {
+    return { success: false, trackingId: existingPre.trackingId ?? "", error: "Cannot resend: previous send bounced" };
+  }
 
-  // Create email log entry
-  const logData = {
-    campaignId: campaign.id,
-    contactId: contact.id,
-    sequenceStepId: step.id,
-    campaignContactId,
-    mailboxId: campaign.mailboxId ?? null,
-    subject,
-    body: htmlBody,
-    fromEmail: campaign.fromEmail ?? "outreach@behberg.com",
-    toEmail: contact.email,
-    status: "queued" as const,
-    trackingId,
-    scheduledAt: new Date(),
+  const effectiveTrackingId =
+    existingPre?.status === "failed" && existingPre.trackingId ? existingPre.trackingId : uuidv4();
+
+  const trackingPixel = buildTrackingPixel(effectiveTrackingId, baseUrl);
+  const base = baseUrl.replace(/\/$/, "");
+
+  let signatureHtml: string | null | undefined;
+  let signatureLogoUrl: string | null | undefined;
+  let unsubscribeUrl: string | undefined;
+
+  if (campaign.mailboxId != null) {
+    const mb = await getMailboxById(campaign.mailboxId);
+    if (mb) {
+      signatureHtml = mb.signatureHtml ?? undefined;
+      signatureLogoUrl = mb.signatureLogoUrl ?? undefined;
+      try {
+        const token = createUnsubscribeToken({
+          mailboxId: mb.id,
+          contactId: contact.id,
+          email: contact.email.trim().toLowerCase(),
+        });
+        unsubscribeUrl = `${base}/api/public/unsubscribe?token=${encodeURIComponent(token)}`;
+      } catch (e: any) {
+        console.warn("[Email] Unsubscribe link skipped:", e?.message ?? e);
+      }
+    }
+  }
+
+  const wrapOpts: WrapInHtmlOptions = {
+    signatureHtml,
+    signatureLogoUrl,
+    unsubscribeUrl: unsubscribeUrl ?? null,
   };
+  const htmlBody = wrapInHtml(body, trackingPixel, wrapOpts);
+  const plainText = buildPlainTextWithFooter(body, wrapOpts);
 
-  await createEmailLog(logData);
+  if (existingPre?.status === "failed" && existingPre.id) {
+    await updateEmailLog(existingPre.id, { status: "queued", errorMessage: null, body: htmlBody, subject });
+  } else {
+    const logData = {
+      campaignId: campaign.id,
+      contactId: contact.id,
+      sequenceStepId: step.id,
+      campaignContactId,
+      mailboxId: campaign.mailboxId ?? null,
+      subject,
+      body: htmlBody,
+      fromEmail: campaign.fromEmail ?? "outreach@behberg.com",
+      toEmail: contact.email,
+      status: "queued" as const,
+      trackingId: effectiveTrackingId,
+      idempotencyKey,
+      scheduledAt: new Date(),
+    };
+
+    try {
+      await createEmailLog(logData);
+    } catch (e: any) {
+      if (e?.code === "ER_DUP_ENTRY" || String(e?.message ?? "").toLowerCase().includes("duplicate")) {
+        const again = await getEmailLogByIdempotencyKey(idempotencyKey);
+        if (again?.status === "sent") {
+          return { success: true, trackingId: again.trackingId ?? "" };
+        }
+      }
+      throw e;
+    }
+  }
 
   try {
     const fromName = campaign.fromName ?? "Behberg";
@@ -170,7 +305,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
         toEmail: contact.email,
         subject,
         html: htmlBody,
-        text: body,
+        text: plainText,
       });
       providerMessageId = providerResult.providerMessageId;
       providerThreadId = providerResult.providerThreadId;
@@ -193,7 +328,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
         replyTo: campaign.replyTo ?? fromEmail,
         subject,
         html: htmlBody,
-        text: body, // Plain text fallback
+        text: plainText,
       });
     }
 
@@ -208,7 +343,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
         sentAt: new Date(),
         providerMessageId: providerMessageId ?? null,
         providerThreadId: providerThreadId ?? null,
-      }).where(eq(emailLogs.trackingId, trackingId));
+      }).where(eq(emailLogs.trackingId, effectiveTrackingId));
     }
 
     // Increment campaign sent count
@@ -225,7 +360,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
       contactId: contact.id,
     });
 
-    return { success: true, trackingId };
+    return { success: true, trackingId: effectiveTrackingId };
   } catch (err: any) {
     if (campaign.mailboxId != null) {
       const reason = String(err?.message ?? "send_failed");
@@ -255,10 +390,10 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
       const { eq } = await import("drizzle-orm");
       await db.update(emailLogs)
         .set({ status: "failed", errorMessage: err.message })
-        .where(eq(emailLogs.trackingId, trackingId));
+        .where(eq(emailLogs.trackingId, effectiveTrackingId));
     }
 
-    return { success: false, trackingId, error: err.message };
+    return { success: false, trackingId: effectiveTrackingId, error: err.message };
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,6 +77,14 @@ export default function CampaignDetail() {
   const [showEnrollDialog, setShowEnrollDialog] = useState(false);
   const [showLaunchDialog, setShowLaunchDialog] = useState(false);
   const [generatingFor, setGeneratingFor] = useState<number | null>(null);
+  const [campaignTab, setCampaignTab] = useState("sequence");
+  type ResponseFilter = "all" | "positive" | "negative" | "unsub" | "other";
+  const [responseFilter, setResponseFilter] = useState<ResponseFilter>("all");
+
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "responses") setCampaignTab("responses");
+  }, [campaignId]);
 
   useEffect(() => {
     if (campaign?.steps) {
@@ -206,6 +214,22 @@ export default function CampaignDetail() {
   const campaignMailbox = (mailboxes ?? []).find((m) => m.id === campaign.mailboxId);
   const launchBlocked = !campaign.mailboxId || !campaignMailbox || campaignMailbox.status !== "connected";
 
+  const responseRows = useMemo(() => {
+    const rows = emailLogs ?? [];
+    return rows.filter(r => r.log.repliedAt);
+  }, [emailLogs]);
+
+  const filteredResponses = useMemo(() => {
+    return responseRows.filter(r => {
+      const s = r.log.replySentiment as string | null | undefined;
+      if (responseFilter === "all") return true;
+      if (responseFilter === "positive") return s === "positive";
+      if (responseFilter === "negative") return s === "negative";
+      if (responseFilter === "unsub") return s === "unsubscribe_intent";
+      return s === "neutral" || s === "unknown" || !s;
+    });
+  }, [responseRows, responseFilter]);
+
   return (
     <DashboardLayout>
       <div className="space-y-6 p-2">
@@ -272,10 +296,11 @@ export default function CampaignDetail() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="sequence">
-          <TabsList className="bg-muted/30 border border-border/50">
+        <Tabs value={campaignTab} onValueChange={setCampaignTab}>
+          <TabsList className="bg-muted/30 border border-border/50 flex-wrap h-auto gap-1 py-1">
             <TabsTrigger value="sequence">Sequence Builder</TabsTrigger>
             <TabsTrigger value="contacts">Contacts ({campaignContacts?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="responses">Responses ({responseRows.length})</TabsTrigger>
             <TabsTrigger value="logs">Email Logs ({emailLogs?.length ?? 0})</TabsTrigger>
           </TabsList>
 
@@ -385,7 +410,7 @@ export default function CampaignDetail() {
                       {/* Body */}
                       <div>
                         <Label className="text-xs text-muted-foreground">Email Body</Label>
-                        <Textarea className="mt-1 bg-muted/30 border-border/50 text-sm font-mono" rows={6} value={step.bodyTemplate} onChange={e => updateStep(idx, { bodyTemplate: e.target.value })} placeholder="Email body..." />
+                        <Textarea className="mt-1 bg-muted/30 border-border/50 text-sm" rows={6} value={step.bodyTemplate} onChange={e => updateStep(idx, { bodyTemplate: e.target.value })} placeholder="Email body..." />
                       </div>
 
                       {/* LLM Toggle */}
@@ -433,6 +458,7 @@ export default function CampaignDetail() {
                             item.cc.status === "completed" ? "bg-emerald-500/20 text-emerald-300" :
                             item.cc.status === "active" ? "bg-blue-500/20 text-blue-300" :
                             item.cc.status === "replied" ? "bg-purple-500/20 text-purple-300" :
+                            item.cc.status === "positive_reply" ? "bg-emerald-500/20 text-emerald-300" :
                             item.cc.status === "bounced" ? "bg-red-500/20 text-red-300" :
                             "bg-slate-500/20 text-slate-300"
                           }`}>{item.cc.status}</Badge>
@@ -440,6 +466,77 @@ export default function CampaignDetail() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="responses" className="mt-4">
+            <Card className="border-border/50 bg-card/80">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Inbound replies</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">Filter by detected intent (rules + AI when configured).</p>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {([
+                    ["all", "All"],
+                    ["positive", "Positive"],
+                    ["negative", "Negative"],
+                    ["unsub", "Unsubscribe"],
+                    ["other", "Neutral / unknown"],
+                  ] as const).map(([id, label]) => (
+                    <Button
+                      key={id}
+                      type="button"
+                      size="sm"
+                      variant={responseFilter === id ? "default" : "outline"}
+                      className="h-7 text-xs"
+                      onClick={() => setResponseFilter(id)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!filteredResponses.length ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No replies in this filter yet</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border/50 text-xs text-muted-foreground">
+                          <th className="p-3 text-left">Contact</th>
+                          <th className="p-3 text-left">Sentiment</th>
+                          <th className="p-3 text-left">Snippet</th>
+                          <th className="p-3 text-left">Replied</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredResponses.map(item => (
+                          <tr key={item.log.id} className="border-b border-border/30 hover:bg-muted/20">
+                            <td className="p-3">
+                              <p className="font-medium">{item.contact?.fullName ?? item.contact?.email ?? "—"}</p>
+                              <p className="text-xs text-muted-foreground">{item.contact?.email}</p>
+                            </td>
+                            <td className="p-3">
+                              <Badge variant="outline" className="text-xs capitalize">
+                                {(item.log.replySentiment as string) ?? "—"}
+                              </Badge>
+                            </td>
+                            <td className="p-3 max-w-xs text-xs text-muted-foreground line-clamp-3">
+                              {item.log.replySnippet ?? "—"}
+                            </td>
+                            <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
+                              {item.log.repliedAt ? new Date(item.log.repliedAt).toLocaleString() : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </CardContent>
@@ -466,6 +563,7 @@ export default function CampaignDetail() {
                           <th className="p-3 text-left">Contact</th>
                           <th className="p-3 text-left">Subject</th>
                           <th className="p-3 text-left">Status</th>
+                          <th className="p-3 text-left">Reply</th>
                           <th className="p-3 text-left">Sent At</th>
                           <th className="p-3 text-left">Actions</th>
                         </tr>
@@ -481,6 +579,9 @@ export default function CampaignDetail() {
                             <td className="p-3">
                               <Badge className={`text-xs ${EMAIL_LOG_STATUS_COLORS[item.log.repliedAt ? "replied" : item.log.status] ?? ""}`}>{item.log.repliedAt ? "replied" : item.log.status}</Badge>
                               {(item.log.openCount ?? 0) > 0 && <span className="text-xs text-muted-foreground ml-2">{item.log.openCount}x opened</span>}
+                            </td>
+                            <td className="p-3 text-xs capitalize text-muted-foreground">
+                              {item.log.repliedAt ? (item.log.replySentiment as string) ?? "—" : "—"}
                             </td>
                             <td className="p-3 text-xs text-muted-foreground">
                               {item.log.sentAt ? new Date(item.log.sentAt).toLocaleString() : "—"}

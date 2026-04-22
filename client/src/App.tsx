@@ -18,6 +18,7 @@ import SignUp from "./pages/SignUp";
 import Onboarding from "./pages/Onboarding";
 import Prospecting from "./pages/Prospecting";
 import SuperadminDashboard from "./pages/SuperadminDashboard";
+import Unsubscribe from "./pages/Unsubscribe";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/signup" component={SignUp} />
       <Route path="/login/verify" component={LoginVerify} />
       <Route path="/onboarding" component={Onboarding} />
+      <Route path="/unsubscribe" component={Unsubscribe} />
       <Route path="/app" component={Home} />
       <Route path="/app/contacts" component={Contacts} />
       <Route path="/app/campaigns" component={Campaigns} />

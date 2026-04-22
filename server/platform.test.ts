@@ -58,6 +58,9 @@ vi.mock("./db", () => ({
   updateEmailLog: vi.fn().mockResolvedValue(undefined),
   getEmailLogByTrackingId: vi.fn().mockResolvedValue(null),
   getDueEmailJobs: vi.fn().mockResolvedValue([]),
+  isRecipientUnsubscribedFromMailbox: vi.fn().mockResolvedValue(false),
+  getNewPositiveRepliesSummary: vi.fn().mockResolvedValue({ count: 0, campaigns: [] }),
+  setUserPositiveRepliesLastSeen: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ─── Mock services ─────────────────────────────────────────────────────────────
@@ -80,6 +83,10 @@ vi.mock("./services/sequenceScheduler", () => ({
   processEmailQueue: vi.fn().mockResolvedValue({ processed: 0, errors: 0 }),
 }));
 
+vi.mock("./services/replyIngestion", () => ({
+  ingestEmailReply: vi.fn().mockResolvedValue(undefined),
+}));
+
 // ─── Test helpers ──────────────────────────────────────────────────────────────
 function makeCtx(): TrpcContext {
   return {
@@ -100,6 +107,7 @@ function makeCtx(): TrpcContext {
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
+      positiveRepliesLastSeenAt: null,
     },
     req: { protocol: "https", headers: {} } as TrpcContext["req"],
     res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
@@ -222,6 +230,7 @@ describe("platform superadmin", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
+      positiveRepliesLastSeenAt: null,
     } as User);
     const base = makeCtx();
     const caller = appRouter.createCaller({
@@ -262,6 +271,7 @@ describe("platform superadmin", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
+      positiveRepliesLastSeenAt: null,
     } as User);
     const base = makeCtx();
     const caller = appRouter.createCaller({
@@ -450,6 +460,7 @@ describe("campaigns", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       organizationId: 1,
+      mailboxId: 1,
     } as any);
     vi.mocked(db.getContactById).mockImplementation(async (id: number) => ({
       id,

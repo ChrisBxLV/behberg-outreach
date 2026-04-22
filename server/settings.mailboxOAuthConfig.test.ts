@@ -23,6 +23,7 @@ function makeCtx(organizationId: number | null): TrpcContext {
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
+      positiveRepliesLastSeenAt: null,
     },
     req: { protocol: "https", headers: {} } as TrpcContext["req"],
     res: {} as TrpcContext["res"],

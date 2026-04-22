@@ -10,6 +10,9 @@ import {
   getMailboxById,
   getOrganizationById,
   listMailboxesByOrganization,
+  formatSuppressionsCsv,
+  listSuppressionsForMailbox,
+  removeSuppressionById,
   removeMailbox,
   setDefaultMailboxForOrganization,
   updateMailbox,
@@ -17,6 +20,7 @@ import {
   upsertMailboxOauthToken,
   upsertMailboxSendLimits,
 } from "../db";
+import { sanitizeSignatureHtml } from "../services/signatureSanitize";
 import {
   completeMailboxOAuthConnect,
   getMailboxOAuthConnectResult,
@@ -352,5 +356,81 @@ export const mailboxesRouter = router({
         });
         return { success: false as const, error: message || "Unknown mailbox error" };
       }
+    }),
+
+  updateSignature: protectedProcedure
+    .input(
+      z.object({
+        mailboxId: z.number(),
+        signatureHtml: z.string().max(24_000).nullable().optional(),
+        signatureLogoUrl: z
+          .string()
+          .url()
+          .max(512)
+          .nullable()
+          .optional()
+          .or(z.literal("")),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      assertOrganizationMember(ctx.user);
+      const mailbox = await getMailboxById(input.mailboxId);
+      if (!mailbox || mailbox.organizationId !== ctx.user.organizationId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Mailbox not found" });
+      }
+      if (!canManageMailbox(ctx.user, mailbox)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You can only edit your own mailbox signature." });
+      }
+      const nextHtml =
+        input.signatureHtml === undefined
+          ? undefined
+          : (input.signatureHtml != null ? sanitizeSignatureHtml(input.signatureHtml) : null);
+      await updateMailbox(mailbox.id, {
+        signatureHtml: nextHtml,
+        signatureLogoUrl:
+          input.signatureLogoUrl === undefined
+            ? undefined
+            : input.signatureLogoUrl === "" || !input.signatureLogoUrl
+              ? null
+              : input.signatureLogoUrl,
+      });
+      return { success: true as const };
+    }),
+
+  listSuppressions: protectedProcedure
+    .input(z.object({ mailboxId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      assertOrganizationMember(ctx.user);
+      if (!ctx.user.organizationId) {
+        return [];
+      }
+      return listSuppressionsForMailbox(input.mailboxId, ctx.user.organizationId);
+    }),
+
+  removeSuppression: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      assertOrganizationMember(ctx.user);
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required" });
+      }
+      const ok = await removeSuppressionById(input.id, ctx.user.organizationId);
+      if (!ok) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Suppression not found" });
+      }
+      return { success: true as const };
+    }),
+
+  exportSuppressionsCsv: protectedProcedure
+    .input(z.object({ mailboxId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      assertOrganizationMember(ctx.user);
+      if (!ctx.user.organizationId) {
+        return "";
+      }
+      const rows = await listSuppressionsForMailbox(input.mailboxId, ctx.user.organizationId);
+      return formatSuppressionsCsv(
+        rows.map(r => ({ recipientEmail: r.recipientEmail, source: r.source, createdAt: r.createdAt })),
+      );
     }),
 });

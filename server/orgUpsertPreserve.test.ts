@@ -34,6 +34,7 @@ describe("org-scoped sign-in upsert", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
+      positiveRepliesLastSeenAt: null,
     };
 
     const upsertUserMock = vi.fn().mockResolvedValue(undefined);

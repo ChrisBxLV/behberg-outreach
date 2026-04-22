@@ -37,12 +37,16 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const { data: contactsData } = trpc.contacts.list.useQuery({ limit: 1 });
   const { data: campaigns } = trpc.campaigns.list.useQuery();
+  const { data: outreachStats } = trpc.campaigns.outreachStats.useQuery();
+  const { data: positiveAlert } = trpc.campaigns.newPositiveReplies.useQuery();
+  const ackPositiveMutation = trpc.campaigns.acknowledgePositiveReplies.useMutation();
 
   const totalContacts = contactsData?.total ?? 0;
   const activeCampaigns = campaigns?.filter(c => c.status === "active").length ?? 0;
   const totalSent = campaigns?.reduce((sum, c) => sum + (c.sentCount ?? 0), 0) ?? 0;
   const totalOpens = campaigns?.reduce((sum, c) => sum + (c.openCount ?? 0), 0) ?? 0;
-  const openRate = totalSent > 0 ? Math.round((totalOpens / totalSent) * 100) : 0;
+  const uniqueOpens = outreachStats?.uniqueOpens ?? totalOpens;
+  const openRate = totalSent > 0 ? Math.round((uniqueOpens / totalSent) * 100) : 0;
   const recentCampaigns = campaigns?.slice(0, 5) ?? [];
 
   const getStatusColor = (status: string) => {
@@ -58,6 +62,32 @@ export default function Home() {
   return (
     <DashboardLayout>
       <div className="space-y-8 p-2">
+        {positiveAlert && positiveAlert.count > 0 ? (
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-emerald-100">
+              You have <span className="font-semibold">{positiveAlert.count}</span> new positive{" "}
+              {positiveAlert.count === 1 ? "reply" : "replies"}.
+            </p>
+            <div className="flex gap-2 shrink-0">
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white"
+                onClick={() => {
+                  const first = positiveAlert.campaigns[0];
+                  if (first) {
+                    setLocation(`/app/campaigns/${first.campaignId}?tab=responses`);
+                  }
+                  ackPositiveMutation.mutate();
+                }}
+              >
+                View in sequence
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => ackPositiveMutation.mutate()}>
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        ) : null}
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">
@@ -87,7 +117,13 @@ export default function Home() {
           <StatCard title="Total Contacts" value={totalContacts.toLocaleString()} sub="in pipeline" icon={Users} color="bg-blue-500/20 text-blue-400" />
           <StatCard title="Active Campaigns" value={activeCampaigns} sub={`${campaigns?.length ?? 0} total`} icon={Mail} color="bg-primary/20 text-primary" />
           <StatCard title="Emails Sent" value={totalSent.toLocaleString()} sub="across all campaigns" icon={BarChart3} color="bg-purple-500/20 text-purple-400" />
-          <StatCard title="Open Rate" value={`${openRate}%`} sub={`${totalOpens} opens`} icon={TrendingUp} color="bg-emerald-500/20 text-emerald-400" />
+          <StatCard
+            title="Open Rate"
+            value={`${openRate}%`}
+            sub={`${uniqueOpens} unique opens${outreachStats?.uniqueOpensByProvider?.length ? ` · ${outreachStats.uniqueOpensByProvider.map(x => `${x.provider}: ${x.count}`).join(", ")}` : ""}`}
+            icon={TrendingUp}
+            color="bg-emerald-500/20 text-emerald-400"
+          />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

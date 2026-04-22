@@ -1,4 +1,5 @@
 type MailboxEventName =
+  | "microsoft_graph_subscription_skipped"
   | "mailbox_oauth_start"
   | "mailbox_oauth_complete"
   | "mailbox_connected"

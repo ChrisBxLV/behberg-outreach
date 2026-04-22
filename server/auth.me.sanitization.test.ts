@@ -21,6 +21,7 @@ function makeCtx(): TrpcContext {
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
+      positiveRepliesLastSeenAt: null,
     },
     req: {
       protocol: "https",
