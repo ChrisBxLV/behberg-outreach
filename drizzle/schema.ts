@@ -30,6 +30,8 @@ export const users = mysqlTable("users", {
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 64 }),
+  country: varchar("country", { length: 2 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   // Password login (PBKDF2 derived hash). Nullable to support existing OAuth-only users.
   passwordSalt: varchar("passwordSalt", { length: 128 }),

@@ -11,7 +11,7 @@ import {
   resolvedElevatedRoleAfterPasswordLogin,
 } from "./_core/orgScope";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { ENV } from "./_core/env";
 import {
   firebaseLoginMethodFromDecoded,
@@ -49,6 +49,8 @@ function safeAuthMeUser(user: User) {
     openId: user.openId,
     email: user.email,
     name: user.name,
+    phone: user.phone,
+    country: user.country,
     loginMethod: user.loginMethod,
     role: user.role,
     organizationId: user.organizationId,
@@ -79,10 +81,22 @@ export const appRouter = router({
       /** Public hint for matching the default operator in the UI (same as `DEFAULT_ADMIN_LOGIN`). */
       defaultAdminLogin: ENV.defaultAdminLogin,
     })),
+    completeOnboarding: protectedProcedure
+      .input(z.object({ phone: z.string().trim().min(4).max(64), country: z.string().trim().min(2).max(2) }))
+      .mutation(async ({ ctx, input }) => {
+        await upsertUser({
+          openId: ctx.user.openId,
+          phone: input.phone.trim(),
+          country: input.country.trim().toUpperCase(),
+        });
+        return { success: true as const };
+      }),
     registerOrganization: publicProcedure
       .input(
         z.object({
           organizationName: z.string().trim().min(2).max(256),
+          phone: z.string().trim().min(4).max(64),
+          country: z.string().trim().min(2).max(2),
           adminEmail: z
             .string()
             .trim()
@@ -110,6 +124,8 @@ export const appRouter = router({
           openId: `login:${loginId}`,
           email: loginId,
           name: input.adminDisplayName,
+          phone: input.phone.trim(),
+          country: input.country.trim().toUpperCase(),
           loginMethod: "password",
           role: "admin",
           organizationId: orgId,
@@ -125,6 +141,9 @@ export const appRouter = router({
         z.object({
           idToken: z.string().min(20).max(16_384),
           organizationName: z.string().trim().min(2).max(256),
+          phone: z.string().trim().min(4).max(64),
+          country: z.string().trim().min(2).max(2),
+          adminEmail: z.string().trim().email().max(320).optional(),
           adminDisplayName: z.string().trim().min(1).max(200).optional(),
         }),
       )
@@ -155,7 +174,7 @@ export const appRouter = router({
         if (!isFirebaseSignInProviderAllowed(signInProvider)) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "This sign-in method is not enabled. Use Google, Microsoft, GitHub, or Apple.",
+            message: "This sign-in method is not enabled. Use Google or Microsoft.",
           });
         }
 
@@ -173,11 +192,12 @@ export const appRouter = router({
         const uid = decoded.uid;
         const openId = `firebase:${uid}`;
         const emailRaw = decoded.email?.trim().toLowerCase();
-        const email = emailRaw && emailRaw.length > 0 ? emailRaw : null;
+        const fallbackEmail = input.adminEmail?.trim().toLowerCase();
+        const email = emailRaw && emailRaw.length > 0 ? emailRaw : (fallbackEmail && fallbackEmail.length > 0 ? fallbackEmail : null);
         if (!email) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "Your account must include an email to create an organization.",
+            message: "Enter your email to continue.",
           });
         }
 
@@ -202,6 +222,8 @@ export const appRouter = router({
           openId,
           email,
           name,
+          phone: input.phone.trim(),
+          country: input.country.trim().toUpperCase(),
           loginMethod,
           role: "admin",
           organizationId: orgId,
@@ -787,7 +809,7 @@ export const appRouter = router({
         if (!isFirebaseSignInProviderAllowed(signInProvider)) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "This sign-in method is not enabled. Use Google, Microsoft, GitHub, or Apple.",
+            message: "This sign-in method is not enabled. Use Google or Microsoft.",
           });
         }
         if (
@@ -812,14 +834,22 @@ export const appRouter = router({
         const loginMethod = firebaseLoginMethodFromDecoded(decoded);
 
         const existing = await getUserByOpenId(openId);
+        if (!existing) {
+          return {
+            success: false as const,
+            reason: "not_registered" as const,
+            prefill: { email, name },
+          };
+        }
+
         await upsertUser({
           openId,
           email: email ?? undefined,
           name,
           loginMethod,
-          role: existing?.role,
-          organizationId: existing?.organizationId ?? null,
-          orgMemberRole: existing?.orgMemberRole ?? null,
+          role: existing.role,
+          organizationId: existing.organizationId ?? null,
+          orgMemberRole: existing.orgMemberRole ?? null,
           lastSignedIn: new Date(),
         });
 

@@ -8,6 +8,8 @@ function baseUser(overrides: Partial<User> = {}): User {
     openId: "u1",
     name: "U",
     email: "u@example.com",
+    phone: null,
+    country: null,
     loginMethod: "password",
     passwordSalt: null,
     passwordHash: null,

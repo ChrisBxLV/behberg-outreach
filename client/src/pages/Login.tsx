@@ -31,6 +31,9 @@ export default function Login() {
           toast.error("Server is not configured (database missing). Set DATABASE_URL and restart.");
         } else if (data.reason === "account_disabled") {
           toast.error("This account has been disabled. Contact your platform administrator.");
+        } else if (data.reason === "not_registered") {
+          toast.error("This account is not registered yet. Please sign up to create your workspace.");
+          setLocation(getSignUpUrl());
         } else {
           toast.error("Sign in failed.");
         }
@@ -196,7 +199,7 @@ export default function Login() {
           <CardDescription>
             {mode === "signin"
               ? showFirebase
-                ? "Use Google, Microsoft, GitHub, or Apple, or your workspace username and password."
+                ? "Use Google or Microsoft, or your workspace username and password."
                 : requireOtp
                   ? "Enter your username and password. We will email you a 6-digit verification code."
                   : "Enter your username and password to open the admin console."

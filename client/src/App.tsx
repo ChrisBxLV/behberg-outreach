@@ -15,6 +15,7 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import LoginVerify from "./pages/LoginVerify";
 import SignUp from "./pages/SignUp";
+import Onboarding from "./pages/Onboarding";
 import Prospecting from "./pages/Prospecting";
 import SuperadminDashboard from "./pages/SuperadminDashboard";
 
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/signup" component={SignUp} />
       <Route path="/login/verify" component={LoginVerify} />
+      <Route path="/onboarding" component={Onboarding} />
       <Route path="/app" component={Home} />
       <Route path="/app/contacts" component={Contacts} />
       <Route path="/app/campaigns" component={Campaigns} />

@@ -42,12 +42,17 @@ export function isFirebaseSignInProviderAllowed(signInProvider: string | undefin
   if (!signInProvider) return false;
   if (signInProvider === "password") return false;
   if (signInProvider === "anonymous") return false;
-  return true;
+  // Explicit allowlist to avoid accidentally enabling providers in Firebase Console
+  // without corresponding product/legal readiness.
+  return signInProvider === "google.com" || signInProvider === "microsoft.com";
 }
 
 export function firebaseProviderRequiresVerifiedEmail(signInProvider: string | undefined): boolean {
   if (!signInProvider) return false;
-  return signInProvider !== "phone";
+  // Some OAuth providers (notably Microsoft) frequently do not assert `email_verified=true`
+  // even when the account email is legitimate. Requiring it would lock users out.
+  // We only require verified email where it is reliably asserted.
+  return signInProvider === "google.com";
 }
 
 export function firebaseLoginMethodFromDecoded(decoded: DecodedIdToken): string {

@@ -1,7 +1,5 @@
 import { Button } from "@/components/ui/button";
 import {
-  signInWithAppleIdToken,
-  signInWithGithubIdToken,
   signInWithGoogleIdToken,
   signInWithMicrosoftIdToken,
   isFirebaseClientConfigured,
@@ -17,6 +15,14 @@ export type FirebaseAuthOptionsProps = {
   pending?: boolean;
   onIdToken: (idToken: string) => void;
 };
+
+function describeFirebaseError(err: unknown): { code?: string; message?: string } {
+  if (typeof err !== "object" || err === null) return {};
+  const anyErr = err as { code?: unknown; message?: unknown };
+  const code = typeof anyErr.code === "string" ? anyErr.code : undefined;
+  const message = typeof anyErr.message === "string" ? anyErr.message : undefined;
+  return { code, message };
+}
 
 async function runProvider(
   label: string,
@@ -38,7 +44,12 @@ async function runProvider(
     onIdToken(token);
   } catch (err: unknown) {
     if (isFirebasePopupCancelled(err)) return;
-    toast.error(`${label} failed. Try again or check Firebase Console (provider enabled).`);
+    const { code, message } = describeFirebaseError(err);
+    // eslint-disable-next-line no-console
+    console.error(`[FirebaseAuth] ${label} failed`, err);
+    toast.error(
+      `${label} failed${code ? ` (${code})` : ""}. ${message ? message : "Check Firebase Console + Azure app registration."}`,
+    );
   }
 }
 
@@ -85,30 +96,6 @@ export function FirebaseAuthOptions({
           }}
         >
           Microsoft
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          className="w-full"
-          disabled={busy}
-          onClick={() => {
-            if (!guardSignupOrgName()) return;
-            void runProvider("GitHub sign-in", signInWithGithubIdToken, onIdToken);
-          }}
-        >
-          GitHub
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          className="w-full"
-          disabled={busy}
-          onClick={() => {
-            if (!guardSignupOrgName()) return;
-            void runProvider("Apple sign-in", signInWithAppleIdToken, onIdToken);
-          }}
-        >
-          Apple
         </Button>
       </div>
     </div>

@@ -89,7 +89,14 @@ export default function Prospecting() {
 
   const checkEmailsMutation = trpc.prospecting.checkEmailsV1.useMutation({
     onSuccess: (res, vars) => {
-      setEmailChecks(prev => ({ ...prev, [vars.candidateId]: res }));
+      const checked = Array.isArray(res.checked) ? res.checked : [];
+      setEmailChecks(prev => ({
+        ...prev,
+        [vars.candidateId]: {
+          checked: [...checked],
+          bestEmail: res.bestEmail,
+        },
+      }));
       toast.success(res.bestEmail?.email ? `Best email: ${res.bestEmail.email}` : "Email check complete");
     },
     onError: e => {

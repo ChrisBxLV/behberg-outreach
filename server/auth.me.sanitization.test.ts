@@ -9,6 +9,8 @@ function makeCtx(): TrpcContext {
       openId: "login:secure-user",
       email: "secure@example.com",
       name: "Secure User",
+      phone: null,
+      country: null,
       loginMethod: "password",
       passwordSalt: "sensitive-salt",
       passwordHash: "sensitive-hash",

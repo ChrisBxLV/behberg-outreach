@@ -88,10 +88,19 @@ export default function DashboardLayout({
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
   const { loading, user } = useAuth();
+  const [location, setLocation] = useLocation();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) return;
+    if (location === "/onboarding") return;
+    const missing = !user.phone || !user.country;
+    if (missing) setLocation("/onboarding");
+  }, [loading, user, location, setLocation]);
 
   if (loading) {
     return <DashboardLayoutSkeleton />

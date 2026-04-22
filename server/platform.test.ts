@@ -88,6 +88,8 @@ function makeCtx(): TrpcContext {
       openId: "test-owner",
       email: "admin@behberg.com",
       name: "Admin",
+      phone: null,
+      country: null,
       loginMethod: "manus",
       passwordSalt: null,
       passwordHash: null,

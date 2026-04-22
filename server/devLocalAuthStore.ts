@@ -241,6 +241,8 @@ export async function devUpsertUser(user: InsertUser): Promise<void> {
       openId: user.openId,
       name: user.name !== undefined ? user.name : existingNorm?.name ?? null,
       email: user.email !== undefined ? user.email : existingNorm?.email ?? null,
+      phone: user.phone !== undefined ? user.phone : (existingNorm as any)?.phone ?? null,
+      country: user.country !== undefined ? user.country : (existingNorm as any)?.country ?? null,
       loginMethod: user.loginMethod !== undefined ? user.loginMethod : existingNorm?.loginMethod ?? null,
       passwordSalt:
         user.passwordSalt !== undefined ? user.passwordSalt : existingNorm?.passwordSalt ?? null,

@@ -1,7 +1,6 @@
 import { getApp, getApps, initializeApp, type FirebaseOptions } from "firebase/app";
 import {
   getAuth,
-  GithubAuthProvider,
   GoogleAuthProvider,
   OAuthProvider,
   signInWithPopup,
@@ -59,12 +58,4 @@ export async function signInWithMicrosoftIdToken(): Promise<string | null> {
     p.setCustomParameters({ prompt: "select_account" });
     return p;
   });
-}
-
-export async function signInWithGithubIdToken(): Promise<string | null> {
-  return idTokenFromPopup(() => new GithubAuthProvider());
-}
-
-export async function signInWithAppleIdToken(): Promise<string | null> {
-  return idTokenFromPopup(() => new OAuthProvider("apple.com"));
 }

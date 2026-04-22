@@ -11,6 +11,8 @@ function makeCtx(organizationId: number | null): TrpcContext {
       openId: "login:test",
       email: "test@example.com",
       name: "Test",
+      phone: null,
+      country: null,
       loginMethod: "password",
       passwordSalt: null,
       passwordHash: null,
