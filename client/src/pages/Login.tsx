@@ -4,6 +4,7 @@ import { FirebaseAuthOptions } from "@/components/FirebaseAuthOptions";
 import { Input } from "@/components/ui/input";
 import { getPublicHomeUrl, getSignUpUrl } from "@/const";
 import { isFirebaseClientConfigured } from "@/lib/firebase";
+import { clearProfileRegistrationDismissState } from "@/lib/profileRegistrationModal";
 import { trpc } from "@/lib/trpc";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft } from "lucide-react";
@@ -26,19 +27,18 @@ export default function Login() {
 
   const signInWithFirebase = trpc.auth.signInWithFirebase.useMutation({
     onSuccess: data => {
+      const r = data as { success: boolean; reason?: string };
       if (!data.success) {
-        if (data.reason === "service_unavailable") {
+        if (r.reason === "service_unavailable") {
           toast.error("Server is not configured (database missing). Set DATABASE_URL and restart.");
-        } else if (data.reason === "account_disabled") {
+        } else if (r.reason === "account_disabled") {
           toast.error("This account has been disabled. Contact your platform administrator.");
-        } else if (data.reason === "not_registered") {
-          toast.error("This account is not registered yet. Please sign up to create your workspace.");
-          setLocation(getSignUpUrl());
         } else {
           toast.error("Sign in failed.");
         }
         return;
       }
+      clearProfileRegistrationDismissState();
       toast.success("Signed in.");
       setLocation("/app");
     },
@@ -75,6 +75,7 @@ export default function Login() {
       }
 
       if ("requireOtp" in result && result.requireOtp === false) {
+        clearProfileRegistrationDismissState();
         toast.success("Signed in.");
         setLocation("/app");
         return;

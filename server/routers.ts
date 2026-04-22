@@ -27,6 +27,7 @@ import {
   createOrganizationRecord,
   getDb,
   getUserByEmail,
+  updateUserOpenId,
   getUserByOpenId,
   upsertUser,
   verifyLoginChallenge,
@@ -833,13 +834,41 @@ export const appRouter = router({
           "User";
         const loginMethod = firebaseLoginMethodFromDecoded(decoded);
 
-        const existing = await getUserByOpenId(openId);
+        let existing = await getUserByOpenId(openId);
         if (!existing) {
-          return {
-            success: false as const,
-            reason: "not_registered" as const,
-            prefill: { email, name },
-          };
+          if (email) {
+            const emailOwner = await getUserByEmail(email);
+            if (emailOwner && emailOwner.openId !== openId) {
+              if (emailOwner.accountDisabled) {
+                return { success: false as const, reason: "account_disabled" as const };
+              }
+              // Link the existing email-based account to this Firebase identity.
+              await updateUserOpenId(emailOwner.openId, openId);
+              existing = await getUserByOpenId(openId);
+              if (!existing) {
+                throw new TRPCError({
+                  code: "INTERNAL_SERVER_ERROR",
+                  message: "Could not link account. Try again.",
+                });
+              }
+            }
+          }
+          if (!existing) {
+            await upsertUser({
+              openId,
+              email: email ?? undefined,
+              name,
+              loginMethod,
+              lastSignedIn: new Date(),
+            });
+            existing = await getUserByOpenId(openId);
+            if (!existing) {
+              throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: "Could not create account. Try again.",
+              });
+            }
+          }
         }
 
         await upsertUser({
@@ -863,7 +892,8 @@ export const appRouter = router({
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
 
-        return { success: true as const };
+        const profileIncomplete = !refreshed.phone?.trim() || !refreshed.country?.trim();
+        return { success: true as const, profileIncomplete };
       }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);

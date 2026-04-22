@@ -12,6 +12,7 @@ import {
 import { getLoginUrl, getPublicHomeUrl } from "@/const";
 import { COUNTRIES, countryNameFromCode } from "@/lib/countries";
 import { isFirebaseClientConfigured } from "@/lib/firebase";
+import { clearProfileRegistrationDismissState } from "@/lib/profileRegistrationModal";
 import { trpc } from "@/lib/trpc";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft } from "lucide-react";
@@ -83,6 +84,7 @@ export default function SignUp() {
         toast.error("Could not create organization.");
         return;
       }
+      clearProfileRegistrationDismissState();
       toast.success("Organization created. You are signed in.");
       setLocation("/app");
     },

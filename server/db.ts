@@ -283,6 +283,33 @@ export async function countActiveSuperadminUsersExcluding(excludeUserId: number)
   }
 }
 
+export async function deleteUserById(userId: number): Promise<void> {
+  if (ENV.useDevFileAuth) {
+    const { devDeleteUserById } = await import("./devLocalAuthStore");
+    await devDeleteUserById(userId);
+    return;
+  }
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(users).where(eq(users.id, userId));
+}
+
+export async function updateUserOpenId(oldOpenId: string, newOpenId: string): Promise<void> {
+  const from = oldOpenId.trim();
+  const to = newOpenId.trim();
+  if (!from) throw new Error("oldOpenId is required");
+  if (!to) throw new Error("newOpenId is required");
+  if (from === to) return;
+  if (ENV.useDevFileAuth) {
+    const { devUpdateUserOpenId } = await import("./devLocalAuthStore");
+    await devUpdateUserOpenId(from, to);
+    return;
+  }
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ openId: to }).where(eq(users.openId, from));
+}
+
 export async function setOrganizationSubscriptionPlanId(
   organizationId: number,
   planId: string,

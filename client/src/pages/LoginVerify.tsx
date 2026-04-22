@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getPublicHomeUrl } from "@/const";
+import { clearProfileRegistrationDismissState } from "@/lib/profileRegistrationModal";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -21,6 +22,7 @@ export default function LoginVerify() {
   const verifyCode = trpc.auth.verifyLoginCode.useMutation({
     onSuccess: (result) => {
       if (result.success) {
+        clearProfileRegistrationDismissState();
         toast.success("Signed in successfully.");
         setLocation("/app");
         return;

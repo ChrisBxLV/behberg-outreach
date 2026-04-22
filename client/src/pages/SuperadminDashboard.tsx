@@ -47,7 +47,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { clientMatchesDefaultOperatorLogin } from "@/lib/defaultOperatorClientHint";
 import { trpc } from "@/lib/trpc";
-import { BarChart3, Building2, Check, ChevronsUpDown, Mail, Pencil, Settings2, UserPlus, Users } from "lucide-react";
+import { BarChart3, Building2, Check, ChevronsUpDown, Mail, Pencil, Settings2, Trash2, UserPlus, Users } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -141,12 +141,16 @@ function UsersTable({
   onEdit,
   onGrantSuperadmin,
   onDisableDefaultOperator,
+  onDelete,
+  canDelete,
   busy,
 }: {
   rows: EditableUserRow[];
   onEdit: (row: EditableUserRow) => void;
   onGrantSuperadmin: (userId: number) => void;
   onDisableDefaultOperator: (userId: number) => void;
+  onDelete: (row: EditableUserRow) => void;
+  canDelete: boolean;
   busy: boolean;
 }) {
   const [query, setQuery] = useState("");
@@ -276,6 +280,18 @@ function UsersTable({
                     onClick={() => onDisableDefaultOperator(row.id)}
                   >
                     Disable default operator
+                  </Button>
+                ) : null}
+                {canDelete ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    disabled={busy}
+                    onClick={() => onDelete(row)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    Delete
                   </Button>
                 ) : null}
               </div>
@@ -438,6 +454,9 @@ export default function SuperadminDashboard() {
   const [editEmail, setEditEmail] = useState("");
   const [editRole, setEditRole] = useState<"user" | "admin" | "superadmin">("user");
   const [editDisabled, setEditDisabled] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState<EditableUserRow | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
 
   const openEdit = (row: EditableUserRow) => {
     setEditing(row);
@@ -446,6 +465,12 @@ export default function SuperadminDashboard() {
     setEditRole(row.role);
     setEditDisabled(row.accountDisabled);
     setEditOpen(true);
+  };
+
+  const openDelete = (row: EditableUserRow) => {
+    setDeleting(row);
+    setDeleteConfirm("");
+    setDeleteOpen(true);
   };
 
   const grantSuperadmin = trpc.platform.grantSuperadmin.useMutation({
@@ -476,6 +501,15 @@ export default function SuperadminDashboard() {
       void utils.platform.users.invalidate();
       void utils.platform.overview.invalidate();
       void utils.auth.me.invalidate();
+    },
+    onError: err => toast.error(err.message),
+  });
+
+  const deleteUser = trpc.platform.deleteUser.useMutation({
+    onSuccess: () => {
+      toast.success("User deleted.");
+      void utils.platform.users.invalidate();
+      void utils.platform.overview.invalidate();
     },
     onError: err => toast.error(err.message),
   });
@@ -1089,7 +1123,14 @@ export default function SuperadminDashboard() {
                     onEdit={openEdit}
                     onGrantSuperadmin={id => grantSuperadmin.mutate({ userId: id })}
                     onDisableDefaultOperator={id => disableSeededOperator.mutate({ userId: id })}
-                    busy={grantSuperadmin.isPending || disableSeededOperator.isPending || updateUser.isPending}
+                    onDelete={openDelete}
+                    canDelete={user?.role === "superadmin"}
+                    busy={
+                      grantSuperadmin.isPending ||
+                      disableSeededOperator.isPending ||
+                      updateUser.isPending ||
+                      deleteUser.isPending
+                    }
                   />
                 )}
               </CardContent>
@@ -1266,6 +1307,77 @@ export default function SuperadminDashboard() {
                 }}
               >
                 {updateUser.isPending ? "Saving…" : "Save changes"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={deleteOpen}
+          onOpenChange={open => {
+            setDeleteOpen(open);
+            if (!open) {
+              setDeleting(null);
+              setDeleteConfirm("");
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete user</DialogTitle>
+              <DialogDescription>
+                This permanently removes the user record. Type{" "}
+                <span className="font-medium text-foreground">delete</span> to confirm.
+              </DialogDescription>
+            </DialogHeader>
+            {deleting ? (
+              <div className="space-y-4 py-2">
+                <div className="rounded-lg border border-border/50 bg-muted/20 px-4 py-3 text-sm">
+                  <p className="font-medium truncate">
+                    {deleting.name ?? deleting.email ?? deleting.openId}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    id {deleting.id} · {deleting.email ?? deleting.openId} · role {deleting.role}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="su-delete-confirm">Confirmation</Label>
+                  <Input
+                    id="su-delete-confirm"
+                    value={deleteConfirm}
+                    onChange={e => setDeleteConfirm(e.target.value)}
+                    placeholder='Type "delete"'
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            ) : null}
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleteUser.isPending}
+                onClick={() => setDeleteOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={
+                  !deleting ||
+                  deleteUser.isPending ||
+                  deleteConfirm.trim().toLowerCase() !== "delete"
+                }
+                onClick={() => {
+                  if (!deleting) return;
+                  deleteUser.mutate({ userId: deleting.id });
+                  setDeleteOpen(false);
+                  setDeleting(null);
+                  setDeleteConfirm("");
+                }}
+              >
+                {deleteUser.isPending ? "Deleting…" : "Delete user"}
               </Button>
             </DialogFooter>
           </DialogContent>

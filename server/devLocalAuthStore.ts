@@ -429,3 +429,28 @@ export async function devCountActiveSuperadminUsersExcluding(excludeUserId: numb
     }).length;
   });
 }
+
+export async function devDeleteUserById(id: number): Promise<void> {
+  return serialized(async () => {
+    const store = await loadStore();
+    store.users = store.users.filter(u => u.id !== id);
+    await saveStore(store);
+  });
+}
+
+export async function devUpdateUserOpenId(oldOpenId: string, newOpenId: string): Promise<void> {
+  const from = oldOpenId.trim();
+  const to = newOpenId.trim();
+  if (!from) throw new Error("oldOpenId is required");
+  if (!to) throw new Error("newOpenId is required");
+  if (from === to) return;
+  return serialized(async () => {
+    const store = await loadStore();
+    const existingTo = store.users.find(u => u.openId === to);
+    if (existingTo) throw new Error("newOpenId already exists");
+    const idx = store.users.findIndex(u => u.openId === from);
+    if (idx < 0) return;
+    store.users[idx] = { ...store.users[idx], openId: to, updatedAt: new Date() };
+    await saveStore(store);
+  });
+}

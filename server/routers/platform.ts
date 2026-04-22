@@ -7,6 +7,7 @@ import { isDefaultEnvOperatorAccount } from "../_core/orgScope";
 import {
   countActiveSuperadminUsersExcluding,
   createOrganizationRecord,
+  deleteUserById,
   getOrganizationById,
   getPlatformOverview,
   getUserByEmail,
@@ -283,6 +284,45 @@ export const platformRouter = router({
         passwordSalt: null,
         passwordHash: null,
       });
+      return { success: true as const };
+    }),
+
+  deleteUser: superadminProcedure
+    .input(z.object({ userId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "superadmin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+      }
+      if (ctx.user.id === input.userId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot delete your own account." });
+      }
+
+      const target = await getUserById(input.userId);
+      if (!target) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+      }
+
+      if (target.role === "superadmin" && !target.accountDisabled) {
+        const others = await countActiveSuperadminUsersExcluding(target.id);
+        if (others < 1) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Keep at least one other active platform superadmin before deleting this user.",
+          });
+        }
+      }
+
+      if (isDefaultEnvOperatorAccount(target) && !target.accountDisabled) {
+        const others = await countActiveSuperadminUsersExcluding(target.id);
+        if (others < 1) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Assign another superadmin before deleting the default operator account.",
+          });
+        }
+      }
+
+      await deleteUserById(target.id);
       return { success: true as const };
     }),
 });
