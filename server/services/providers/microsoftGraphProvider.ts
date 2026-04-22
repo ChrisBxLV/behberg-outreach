@@ -20,21 +20,22 @@ export class MicrosoftGraphProvider implements MailProvider {
 
   async send(input: ProviderSendInput): Promise<ProviderSendResult> {
     const replyToAddress = (input.replyTo ?? input.fromEmail ?? this.config.mailboxEmail).trim();
-    const body = {
-      message: {
-        subject: input.subject,
-        body: {
-          contentType: "HTML",
-          content: input.html,
-        },
-        toRecipients: [
-          {
-            emailAddress: {
-              address: input.toEmail,
-            },
+
+    const createBody = {
+      subject: input.subject,
+      body: {
+        contentType: "HTML",
+        content: input.html,
+      },
+      toRecipients: [
+        {
+          emailAddress: {
+            address: input.toEmail,
           },
-        ],
-        replyTo: replyToAddress
+        },
+      ],
+      replyTo:
+        replyToAddress
           ? [
               {
                 emailAddress: {
@@ -43,25 +44,42 @@ export class MicrosoftGraphProvider implements MailProvider {
               },
             ]
           : undefined,
-      },
-      saveToSentItems: true,
     };
 
-    const resp = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+    const createResp = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.config.accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(createBody),
     });
 
-    if (!resp.ok) {
-      const text = await resp.text();
+    if (!createResp.ok) {
+      const text = await createResp.text();
+      throw new Error(`Microsoft Graph create message failed: ${text.slice(0, 500)}`);
+    }
+
+    const created = (await createResp.json()) as { id: string; conversationId?: string };
+
+    const sendResp = await fetch(
+      `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(created.id)}/send`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.config.accessToken}`,
+        },
+      },
+    );
+
+    if (!sendResp.ok) {
+      const text = await sendResp.text();
       throw new Error(`Microsoft Graph send failed: ${text.slice(0, 500)}`);
     }
 
-    return {};
+    return {
+      providerMessageId: created.id,
+      providerThreadId: created.conversationId,
+    };
   }
 }
-

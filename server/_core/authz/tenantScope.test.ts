@@ -18,6 +18,7 @@ function baseUser(overrides: Partial<User> = {}): User {
     createdAt: new Date(),
     updatedAt: new Date(),
     lastSignedIn: new Date(),
+    positiveRepliesLastSeenAt: null,
     ...overrides,
   };
 }

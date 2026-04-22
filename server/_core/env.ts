@@ -19,4 +19,21 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  /** Public base URL for webhooks, tracking pixels, and signature image URLs. */
+  appBaseUrl: process.env.APP_BASE_URL?.replace(/\/$/, "") ?? "",
+  /**
+   * Secret echoed in Microsoft Graph `clientState` and validated on each notification.
+   * If unset, clientState validation is skipped (not recommended in production).
+   */
+  microsoftWebhookClientState: process.env.MICROSOFT_WEBHOOK_CLIENT_STATE?.trim() ?? "",
+  /**
+   * When set, only these recipient emails will trigger SES bounce log updates (safety in dev).
+   * Comma-separated. Empty = any.
+   */
+  sesBounceAllowlist: (process.env.SES_BOUNCE_TEST_ALLOWLIST ?? "")
+    .split(",")
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean),
+  /** Data directory for uploaded signature images (default: `data/signature-assets` under cwd). */
+  signatureAssetsDir: process.env.SIGNATURE_ASSETS_DIR?.trim() || "",
 };

@@ -102,6 +102,7 @@ function normalizeUser(raw: User): User {
     updatedAt: u.updatedAt instanceof Date ? u.updatedAt : new Date(String(u.updatedAt)),
     lastSignedIn:
       u.lastSignedIn instanceof Date ? u.lastSignedIn : new Date(String(u.lastSignedIn)),
+    positiveRepliesLastSeenAt: (u as { positiveRepliesLastSeenAt?: Date | null }).positiveRepliesLastSeenAt ?? null,
   };
 }
 
@@ -263,6 +264,10 @@ export async function devUpsertUser(user: InsertUser): Promise<void> {
         user.accountDisabled !== undefined
           ? user.accountDisabled
           : (existingNorm?.accountDisabled ?? false),
+      positiveRepliesLastSeenAt:
+        user.positiveRepliesLastSeenAt !== undefined
+          ? user.positiveRepliesLastSeenAt
+          : (existingNorm?.positiveRepliesLastSeenAt ?? null),
     };
 
     if (idx >= 0) store.users[idx] = merged;

@@ -1,11 +1,12 @@
-import { eq, and, desc, asc, like, inArray, sql, isNull, isNotNull, gt, count, ne } from "drizzle-orm";
+import { eq, and, desc, asc, like, inArray, sql, isNull, isNotNull, gt, count, ne, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
 import {
   users, organizations, contacts, importBatches, campaigns, sequenceSteps,
   campaignContacts, emailLogs, trackingEvents, loginChallenges,
   signalProfiles, signals, signalInsights, signalIngestionRuns, mailboxes,
-  mailboxOauthTokens, mailboxOauthConnectAttempts, mailboxHealth, mailboxSendLimits, mailboxWebhookSubscriptions,
+  mailboxOauthTokens, mailboxOauthConnectAttempts, mailboxHealth, mailboxSendLimits,   mailboxWebhookSubscriptions,
+  mailboxUnsubscribes,
   type InsertUser, type InsertContact, type Contact, type InsertCampaign,
   type InsertSequenceStep, type InsertEmailLog, type InsertLoginChallenge,
   type InsertSignalProfile, type InsertSignal, type InsertSignalInsight,
@@ -167,6 +168,46 @@ export async function getUserById(id: number) {
     const { devGetUserById } = await import("./devLocalAuthStore");
     return devGetUserById(id);
   }
+}
+
+export async function setUserPositiveRepliesLastSeen(userId: number, at: Date = new Date()) {
+  if (ENV.useDevFileAuth) return;
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ positiveRepliesLastSeenAt: at }).where(eq(users.id, userId));
+}
+
+export async function getNewPositiveRepliesSummary(organizationId: number, userId: number) {
+  if (ENV.useDevFileAuth) {
+    return { count: 0, campaigns: [] as { campaignId: number; count: number }[] };
+  }
+  const db = await getDb();
+  if (!db) {
+    return { count: 0, campaigns: [] as { campaignId: number; count: number }[] };
+  }
+  const u = await getUserById(userId);
+  const since = u?.positiveRepliesLastSeenAt ?? new Date(0);
+  const rows = await db
+    .select({
+      campaignId: emailLogs.campaignId,
+      n: count(),
+    })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(
+        eq(campaigns.organizationId, organizationId),
+        eq(emailLogs.replySentiment, "positive"),
+        isNotNull(emailLogs.repliedAt),
+        gt(emailLogs.repliedAt, since),
+      ),
+    )
+    .groupBy(emailLogs.campaignId);
+  const total = rows.reduce((s, r) => s + Number(r.n), 0);
+  return {
+    count: total,
+    campaigns: rows.map(r => ({ campaignId: r.campaignId, count: Number(r.n) })),
+  };
 }
 
 export type PlatformUserRow = {
@@ -1379,6 +1420,39 @@ export async function upsertMailboxWebhookSubscription(input: {
   });
 }
 
+export async function getMailboxIdByProviderSubscriptionId(subscriptionId: string): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const row = await db
+    .select({ mailboxId: mailboxWebhookSubscriptions.mailboxId })
+    .from(mailboxWebhookSubscriptions)
+    .where(eq(mailboxWebhookSubscriptions.providerSubscriptionId, subscriptionId))
+    .limit(1);
+  return row[0]?.mailboxId ?? null;
+}
+
+export async function listMicrosoftWebhookSubscriptionsDueForRenewal(withinHours: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const threshold = new Date(Date.now() + withinHours * 60 * 60 * 1000);
+  return db
+    .select()
+    .from(mailboxWebhookSubscriptions)
+    .where(
+      and(
+        eq(mailboxWebhookSubscriptions.status, "active"),
+        isNotNull(mailboxWebhookSubscriptions.expiresAt),
+        lte(mailboxWebhookSubscriptions.expiresAt, threshold),
+      ),
+    );
+}
+
+export async function deleteAllGraphSubscriptionsForMailbox(mailboxId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(mailboxWebhookSubscriptions).where(eq(mailboxWebhookSubscriptions.mailboxId, mailboxId));
+}
+
 export async function removeMailbox(mailboxId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1470,9 +1544,9 @@ export async function enrollContactsInCampaign(campaignId: number, contactIds: n
     currentStep: 0,
   }));
 
-  // Insert ignore duplicates
   for (const v of values) {
-    await db.insert(campaignContacts).values(v).onDuplicateKeyUpdate({ set: { status: "enrolled" } });
+    // Unique (campaignId, contactId): re-enroll must not create a second row or reset active/paused progress
+    await db.insert(campaignContacts).values(v).onDuplicateKeyUpdate({ set: { id: sql`id` } });
   }
 
   // Update campaign total count
@@ -1518,10 +1592,11 @@ export async function getDueEmailJobs() {
 }
 
 export async function updateCampaignContact(id: number, data: Partial<{
-  status: "enrolled" | "active" | "completed" | "unsubscribed" | "bounced" | "replied";
+  status: "enrolled" | "active" | "completed" | "unsubscribed" | "bounced" | "replied" | "positive_reply";
   currentStep: number;
   nextSendAt: Date | null;
   completedAt: Date | null;
+  completionReason: string | null;
 }>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1541,6 +1616,115 @@ export async function getEmailLogByTrackingId(trackingId: string) {
   if (!db) return undefined;
   const result = await db.select().from(emailLogs).where(eq(emailLogs.trackingId, trackingId)).limit(1);
   return result[0];
+}
+
+export async function getEmailLogById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(emailLogs).where(eq(emailLogs.id, id)).limit(1);
+  return result[0];
+}
+
+export async function getEmailLogByIdempotencyKey(key: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(emailLogs)
+    .where(eq(emailLogs.idempotencyKey, key))
+    .limit(1);
+  return result[0];
+}
+
+export type OrgOutreachStats = {
+  totalSent: number;
+  /** One row per email with at least one open. */
+  uniqueOpens: number;
+  /** One row per email with a processed inbound reply. */
+  uniqueReplies: number;
+  uniqueOpensByProvider: { provider: string; count: number }[];
+};
+
+export async function getOutreachStatsForOrganization(organizationId: number): Promise<OrgOutreachStats | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [sentRow] = await db
+    .select({ n: count() })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(eq(campaigns.organizationId, organizationId), eq(emailLogs.status, "sent")),
+    );
+  const [openRow] = await db
+    .select({ n: count() })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(eq(campaigns.organizationId, organizationId), isNotNull(emailLogs.openedAt)),
+    );
+  const [replyRow] = await db
+    .select({ n: count() })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(eq(campaigns.organizationId, organizationId), isNotNull(emailLogs.repliedAt)),
+    );
+  const openByProv = await db
+    .select({
+      p: mailboxes.provider,
+      n: count(),
+    })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .innerJoin(mailboxes, eq(emailLogs.mailboxId, mailboxes.id))
+    .where(
+      and(eq(campaigns.organizationId, organizationId), isNotNull(emailLogs.openedAt)),
+    )
+    .groupBy(mailboxes.provider);
+
+  return {
+    totalSent: Number(sentRow?.n ?? 0),
+    uniqueOpens: Number(openRow?.n ?? 0),
+    uniqueReplies: Number(replyRow?.n ?? 0),
+    uniqueOpensByProvider: openByProv.map(r => ({ provider: r.p, count: Number(r.n) })),
+  };
+}
+
+export async function listSuppressionsForMailbox(mailboxId: number, organizationId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const mb = await getMailboxById(mailboxId);
+  if (!mb || mb.organizationId !== organizationId) return [];
+  return db
+    .select()
+    .from(mailboxUnsubscribes)
+    .where(eq(mailboxUnsubscribes.mailboxId, mailboxId))
+    .orderBy(desc(mailboxUnsubscribes.createdAt));
+}
+
+export async function removeSuppressionById(id: number, organizationId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const row = await db
+    .select({ mailboxId: mailboxUnsubscribes.mailboxId })
+    .from(mailboxUnsubscribes)
+    .where(eq(mailboxUnsubscribes.id, id))
+    .limit(1);
+  if (!row[0]) return false;
+  const mb = await getMailboxById(row[0].mailboxId);
+  if (!mb || mb.organizationId !== organizationId) return false;
+  await db.delete(mailboxUnsubscribes).where(eq(mailboxUnsubscribes.id, id));
+  return true;
+}
+
+export function formatSuppressionsCsv(rows: { recipientEmail: string; source: string; createdAt: Date | null }[]) {
+  const header = "email,source,createdAt";
+  const lines = rows.map(r => {
+    const email = (r.recipientEmail ?? "").replaceAll('"', '""');
+    const created = r.createdAt ? r.createdAt.toISOString() : "";
+    return `"${email}",${r.source},${created}`;
+  });
+  return [header, ...lines].join("\n");
 }
 
 export async function updateEmailLog(id: number, data: Partial<InsertEmailLog>) {
@@ -1647,20 +1831,8 @@ export async function markEmailReplied(
     throw new TRPCError({ code: "NOT_FOUND", message: "Email log not found" });
   }
 
-  await db.update(emailLogs).set({ repliedAt: new Date() }).where(eq(emailLogs.id, emailLogId));
-
-  if (!row.log.repliedAt) {
-    await db.update(campaigns)
-      .set({ replyCount: sql`${campaigns.replyCount} + 1` })
-      .where(eq(campaigns.id, row.log.campaignId));
-
-    // Update campaign contact status
-    if (row.log.campaignContactId) {
-      await db.update(campaignContacts)
-        .set({ status: "replied" })
-        .where(eq(campaignContacts.id, row.log.campaignContactId));
-    }
-  }
+  const { ingestEmailReply } = await import("./services/replyIngestion");
+  await ingestEmailReply(emailLogId, { forceSentiment: "unknown" });
 }
 
 export async function getEmailLogByProviderMessageId(providerMessageId: string) {
@@ -1677,10 +1849,29 @@ export async function getEmailLogByProviderMessageId(providerMessageId: string) 
 export async function applyProviderTrackingEvent(input: {
   providerMessageId: string;
   eventType: "open" | "reply" | "bounce";
+  /** When the provider id is an inbound Graph message id, set to load body and match `email_logs`. */
+  mailboxId?: number;
 }) {
   const db = await getDb();
   if (!db) return false;
-  const log = await getEmailLogByProviderMessageId(input.providerMessageId);
+  let log = await getEmailLogByProviderMessageId(input.providerMessageId);
+  let replyTextSnippet: string | null = null;
+
+  if (input.eventType === "reply" && input.mailboxId) {
+    const mb = await getMailboxById(input.mailboxId);
+    if (mb?.provider === "microsoft") {
+      const { resolveMicrosoftReplyTargetLog } = await import("./services/inboundMessageFetch");
+      const resolved = await resolveMicrosoftReplyTargetLog(input.mailboxId, input.providerMessageId);
+      if (resolved) {
+        const next = await getEmailLogById(resolved.logId);
+        if (next) {
+          log = next;
+          replyTextSnippet = resolved.textSnippet;
+        }
+      }
+    }
+  }
+
   if (!log) return false;
 
   if (log.trackingId) {
@@ -1710,22 +1901,8 @@ export async function applyProviderTrackingEvent(input: {
   }
 
   if (input.eventType === "reply") {
-    await db
-      .update(emailLogs)
-      .set({ repliedAt: log.repliedAt ?? new Date() })
-      .where(eq(emailLogs.id, log.id));
-    if (!log.repliedAt) {
-      await db
-        .update(campaigns)
-        .set({ replyCount: sql`${campaigns.replyCount} + 1` })
-        .where(eq(campaigns.id, log.campaignId));
-      if (log.campaignContactId) {
-        await db
-          .update(campaignContacts)
-          .set({ status: "replied" })
-          .where(eq(campaignContacts.id, log.campaignContactId));
-      }
-    }
+    const { ingestEmailReply } = await import("./services/replyIngestion");
+    await ingestEmailReply(log.id, { textSnippet: replyTextSnippet ?? "" });
     return true;
   }
 
@@ -1755,6 +1932,79 @@ export async function getCampaignStats(campaignId: number) {
   return result[0];
 }
 
+function normalizeListEmail(e: string): string {
+  return e.trim().toLowerCase();
+}
+
+export async function recordMailboxUnsubscribe(
+  mailboxId: number,
+  recipientEmail: string,
+  source: "link_click" | "reply_detected" | "api" = "link_click",
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const email = normalizeListEmail(recipientEmail);
+  await db
+    .insert(mailboxUnsubscribes)
+    .values({ mailboxId, recipientEmail: email, source })
+    .onDuplicateKeyUpdate({ set: { id: sql`id` } });
+}
+
+export async function isRecipientUnsubscribedFromMailbox(
+  mailboxId: number,
+  recipientEmail: string,
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const email = normalizeListEmail(recipientEmail);
+  const rows = await db
+    .select({ id: mailboxUnsubscribes.id })
+    .from(mailboxUnsubscribes)
+    .where(
+      and(eq(mailboxUnsubscribes.mailboxId, mailboxId), eq(mailboxUnsubscribes.recipientEmail, email)),
+    )
+    .limit(1);
+  return Boolean(rows[0]);
+}
+
+export async function deactivateEnrollmentsForMailboxContact(mailboxId: number, contactId: number) {
+  const db = await getDb();
+  if (!db) return;
+  const campRows = await db
+    .select({ id: campaigns.id })
+    .from(campaigns)
+    .where(eq(campaigns.mailboxId, mailboxId));
+  const campIds = campRows.map(r => r.id);
+  if (!campIds.length) return;
+  await db
+    .update(campaignContacts)
+    .set({ status: "unsubscribed", nextSendAt: null, completionReason: "mailbox_unsubscribe" })
+    .where(
+      and(inArray(campaignContacts.campaignId, campIds), eq(campaignContacts.contactId, contactId)),
+    );
+}
+
+export async function completeUnsubscribeByMailboxAndContact(
+  mailboxId: number,
+  contactId: number,
+  email: string,
+  source: "link_click" | "reply_detected" | "api",
+) {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db.select().from(contacts).where(eq(contacts.id, contactId)).limit(1);
+  const contact = rows[0];
+  if (!contact) return false;
+  const e1 = normalizeListEmail(email);
+  const e2 = contact.email ? normalizeListEmail(contact.email) : "";
+  if (e2 && e1 && e1 !== e2) return false;
+  const toStore = e1 || e2;
+  if (!toStore) return false;
+  await recordMailboxUnsubscribe(mailboxId, toStore, source);
+  await deactivateEnrollmentsForMailboxContact(mailboxId, contactId);
+  return true;
+}
+
 export async function unsubscribeByTrackingId(trackingId: string): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
@@ -1762,19 +2012,21 @@ export async function unsubscribeByTrackingId(trackingId: string): Promise<boole
   const log = await getEmailLogByTrackingId(trackingId);
   if (!log) return false;
 
-  // Mark contact unsubscribed
-  await db.update(contacts).set({ stage: "unsubscribed" }).where(eq(contacts.id, log.contactId));
+  if (log.toEmail && log.mailboxId) {
+    await recordMailboxUnsubscribe(log.mailboxId, log.toEmail, "link_click");
+    await deactivateEnrollmentsForMailboxContact(log.mailboxId, log.contactId);
+  }
 
-  // Mark enrollment unsubscribed (if present)
   if (log.campaignContactId) {
     await db
       .update(campaignContacts)
-      .set({ status: "unsubscribed" })
+      .set({ status: "unsubscribed", nextSendAt: null, completionReason: "unsubscribe_link" })
       .where(eq(campaignContacts.id, log.campaignContactId));
   }
 
-  // Record click event for auditability (minimal data)
-  await db.insert(trackingEvents).values({ trackingId, eventType: "click" });
+  if (log.trackingId) {
+    await db.insert(trackingEvents).values({ trackingId, eventType: "click" });
+  }
 
   return true;
 }

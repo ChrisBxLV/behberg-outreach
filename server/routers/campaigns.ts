@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { assertCampaignScope, assertContactScope } from "../_core/orgAccess";
 import { dataScopeOrganizationId } from "../_core/orgScope";
 import { requireTenantQueryScope } from "../_core/authz";
@@ -21,6 +22,10 @@ import {
   getContactById,
   getDefaultMailboxByOrganization,
   getMailboxById,
+  isRecipientUnsubscribedFromMailbox,
+  getNewPositiveRepliesSummary,
+  setUserPositiveRepliesLastSeen,
+  getOutreachStatsForOrganization,
 } from "../db";
 import { launchCampaign, processEmailQueue } from "../services/sequenceScheduler";
 
@@ -28,6 +33,18 @@ export const campaignsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     const scope = requireTenantQueryScope(ctx.user);
     return getCampaigns(scope);
+  }),
+
+  /**
+   * Unique opens / replies and provider segments (joins `email_logs` → `mailboxes`).
+   * Campaign rollups (openCount) remain as stored; this is for dashboard "unique" metrics.
+   */
+  outreachStats: protectedProcedure.query(async ({ ctx }) => {
+    const orgId = dataScopeOrganizationId(ctx.user);
+    if (orgId == null) {
+      return null;
+    }
+    return getOutreachStatsForOrganization(orgId);
   }),
 
   get: protectedProcedure
@@ -184,9 +201,24 @@ export const campaignsRouter = router({
       const scope = requireTenantQueryScope(ctx.user);
       const campaign = await getCampaignById(input.campaignId, scope);
       assertCampaignScope(campaign, ctx.user);
+      if (!campaign.mailboxId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Connect a mailbox to this campaign before enrolling contacts.",
+        });
+      }
       for (const cid of input.contactIds) {
         const c = await getContactById(cid, scope);
         assertContactScope(c, ctx.user);
+        if (c?.email) {
+          const blocked = await isRecipientUnsubscribedFromMailbox(campaign.mailboxId, c.email);
+          if (blocked) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: `Cannot enroll ${c.email}: this address unsubscribed from this mailbox.`,
+            });
+          }
+        }
       }
       await enrollContactsInCampaign(input.campaignId, input.contactIds);
       return { success: true, enrolled: input.contactIds.length };
@@ -205,7 +237,28 @@ export const campaignsRouter = router({
       assertCampaignScope(campaign, ctx.user);
 
       let contactIds = input.contactIds ?? [];
-      if (!contactIds.length) {
+      if (contactIds.length) {
+        if (!campaign.mailboxId) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Connect a mailbox to this campaign before launching.",
+          });
+        }
+        for (const cid of contactIds) {
+          const c = await getContactById(cid, scope);
+          assertContactScope(c, ctx.user);
+          if (c?.email) {
+            const blocked = await isRecipientUnsubscribedFromMailbox(campaign.mailboxId, c.email);
+            if (blocked) {
+              throw new TRPCError({
+                code: "PRECONDITION_FAILED",
+                message: `Cannot launch for ${c.email}: this address unsubscribed from this mailbox.`,
+              });
+            }
+          }
+        }
+        await enrollContactsInCampaign(input.campaignId, contactIds);
+      } else {
         const enrolled = await getCampaignContacts(input.campaignId);
         contactIds = enrolled.map(e => e.contact.id);
       }
@@ -269,11 +322,32 @@ export const campaignsRouter = router({
     return result;
   }),
 
+  newPositiveReplies: protectedProcedure.query(async ({ ctx }) => {
+    const scope = requireTenantQueryScope(ctx.user);
+    if (scope.type !== "tenant") {
+      return { count: 0, campaigns: [] as { campaignId: number; count: number }[] };
+    }
+    return getNewPositiveRepliesSummary(scope.organizationId, ctx.user.id);
+  }),
+
+  acknowledgePositiveReplies: protectedProcedure.mutation(async ({ ctx }) => {
+    await setUserPositiveRepliesLastSeen(ctx.user.id);
+    return { success: true };
+  }),
+
   updateContactStatus: protectedProcedure
     .input(
       z.object({
         campaignContactId: z.number(),
-        status: z.enum(["enrolled", "active", "completed", "unsubscribed", "bounced", "replied"]),
+        status: z.enum([
+          "enrolled",
+          "active",
+          "completed",
+          "unsubscribed",
+          "bounced",
+          "replied",
+          "positive_reply",
+        ]),
       }),
     )
     .mutation(async ({ input }) => {

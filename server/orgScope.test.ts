@@ -17,6 +17,7 @@ const baseUser: Pick<
   | "createdAt"
   | "updatedAt"
   | "lastSignedIn"
+  | "positiveRepliesLastSeenAt"
 > = {
   id: 1,
   openId: "login:behberg",
@@ -32,6 +33,7 @@ const baseUser: Pick<
   createdAt: new Date(),
   updatedAt: new Date(),
   lastSignedIn: new Date(),
+  positiveRepliesLastSeenAt: null,
 };
 
 describe("isPlatformOperatorUser", () => {

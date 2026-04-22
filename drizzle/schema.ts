@@ -51,6 +51,8 @@ export const users = mysqlTable("users", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  /** Dismissal cursor for "new positive replies" on dashboard. */
+  positiveRepliesLastSeenAt: timestamp("positiveRepliesLastSeenAt"),
 });
 
 export type User = typeof users.$inferSelect;
@@ -180,6 +182,9 @@ export const mailboxes = mysqlTable(
       .default("connected")
       .notNull(),
     isDefault: boolean("isDefault").default(false).notNull(),
+    /** Optional HTML or plain line breaks; appended to outbound messages from this mailbox. */
+    signatureHtml: text("signatureHtml"),
+    signatureLogoUrl: varchar("signatureLogoUrl", { length: 512 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -194,6 +199,29 @@ export const mailboxes = mysqlTable(
 
 export type Mailbox = typeof mailboxes.$inferSelect;
 export type InsertMailbox = typeof mailboxes.$inferInsert;
+
+export const mailboxUnsubscribes = mysqlTable(
+  "mailbox_unsubscribes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    mailboxId: int("mailboxId")
+      .notNull()
+      .references(() => mailboxes.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    recipientEmail: varchar("recipientEmail", { length: 320 }).notNull(),
+    source: mysqlEnum("source", ["link_click", "reply_detected", "api"])
+      .default("link_click")
+      .notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    mailboxEmailUnique: uniqueIndex("mailbox_unsubscribes_mailbox_email_unique").on(
+      table.mailboxId,
+      table.recipientEmail,
+    ),
+  }),
+);
+
+export type MailboxUnsubscribe = typeof mailboxUnsubscribes.$inferSelect;
 
 export const mailboxOauthTokens = mysqlTable("mailbox_oauth_tokens", {
   id: int("id").autoincrement().primaryKey(),
@@ -313,16 +341,35 @@ export type SequenceStep = typeof sequenceSteps.$inferSelect;
 export type InsertSequenceStep = typeof sequenceSteps.$inferInsert;
 
 // ─── Campaign Contacts (enrollment) ──────────────────────────────────────────
-export const campaignContacts = mysqlTable("campaign_contacts", {
-  id: int("id").autoincrement().primaryKey(),
-  campaignId: int("campaignId").notNull(),
-  contactId: int("contactId").notNull(),
-  status: mysqlEnum("status", ["enrolled", "active", "completed", "unsubscribed", "bounced", "replied"]).default("enrolled").notNull(),
-  currentStep: int("currentStep").default(0),
-  enrolledAt: timestamp("enrolledAt").defaultNow().notNull(),
-  completedAt: timestamp("completedAt"),
-  nextSendAt: timestamp("nextSendAt"),
-});
+export const campaignContacts = mysqlTable(
+  "campaign_contacts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    campaignId: int("campaignId").notNull(),
+    contactId: int("contactId").notNull(),
+    status: mysqlEnum("status", [
+      "enrolled",
+      "active",
+      "completed",
+      "unsubscribed",
+      "bounced",
+      "replied",
+      "positive_reply",
+    ]).default("enrolled").notNull(),
+    currentStep: int("currentStep").default(0),
+    enrolledAt: timestamp("enrolledAt").defaultNow().notNull(),
+    completedAt: timestamp("completedAt"),
+    nextSendAt: timestamp("nextSendAt"),
+    /** e.g. negative_reply, completed_sequence */
+    completionReason: varchar("completionReason", { length: 64 }),
+  },
+  table => ({
+    campaignContactUnique: uniqueIndex("campaign_contacts_campaign_contact_unique").on(
+      table.campaignId,
+      table.contactId,
+    ),
+  }),
+);
 
 export type CampaignContact = typeof campaignContacts.$inferSelect;
 
@@ -342,12 +389,22 @@ export const emailLogs = mysqlTable("email_logs", {
   // Status
   status: mysqlEnum("status", ["queued", "sent", "failed", "bounced"]).default("queued").notNull(),
   providerMessageId: varchar("providerMessageId", { length: 256 }),
+  /** Dedupes sends on scheduler retries: `${campaignContactId}:${sequenceStepId}` */
+  idempotencyKey: varchar("idempotencyKey", { length: 256 }).unique(),
   providerThreadId: varchar("providerThreadId", { length: 256 }),
   // Tracking
   trackingId: varchar("trackingId", { length: 64 }).unique(), // UUID for pixel tracking
   openedAt: timestamp("openedAt"),
   openCount: int("openCount").default(0),
   repliedAt: timestamp("repliedAt"),
+  replySentiment: mysqlEnum("replySentiment", [
+    "positive",
+    "negative",
+    "neutral",
+    "unsubscribe_intent",
+    "unknown",
+  ]),
+  replySnippet: text("replySnippet"),
   bouncedAt: timestamp("bouncedAt"),
   errorMessage: text("errorMessage"),
   sentAt: timestamp("sentAt"),

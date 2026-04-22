@@ -50,6 +50,17 @@ export function startScheduler() {
     );
   }
 
+  // Renew Microsoft Graph webhook subscriptions before they expire.
+  cron.schedule("0 */6 * * *", async () => {
+    try {
+      const { renewMicrosoftGraphSubscriptions } = await import("./microsoftGraphSubscription");
+      await renewMicrosoftGraphSubscriptions();
+    } catch (err: any) {
+      console.error("[Scheduler] Microsoft Graph subscription renewal error:", err?.message ?? "unknown");
+    }
+  });
+  console.log("[Scheduler] Microsoft Graph subscription renewal (every 6 hours)");
+
   console.log("[Scheduler] Email sequence scheduler started (every 5 minutes)");
 }
 
@@ -151,8 +162,10 @@ async function processContactStep(
   }
 
   // Personalize email
-  let subject = interpolateTemplate(nextStep.subject, contact);
-  let body = interpolateTemplate(nextStep.bodyTemplate, contact);
+  const senderName =
+    (campaign.fromName?.trim() || mailbox.displayName?.trim() || "Your name");
+  let subject = interpolateTemplate(nextStep.subject, contact, { senderName });
+  let body = interpolateTemplate(nextStep.bodyTemplate, contact, { senderName });
 
   if (nextStep.useLlmPersonalization) {
     try {
@@ -228,8 +241,8 @@ function calculateNextSendAt(step: SequenceStep): Date {
   return new Date(now.getTime() + Math.max(delayMs, 60000)); // Minimum 1 minute
 }
 
-export async function launchCampaign(campaignId: number, contactIds: number[]): Promise<void> {
-  const { enrollContactsInCampaign, getSequenceSteps: getSteps, getCampaignById } = await import("../db");
+export async function launchCampaign(campaignId: number, _contactIds: number[]): Promise<void> {
+  const { getSequenceSteps: getSteps, getCampaignById } = await import("../db");
   const { campaigns, campaignContacts } = await import("../../drizzle/schema");
   const { eq } = await import("drizzle-orm");
   const campaign = await getCampaignById(campaignId, { type: "platform" } as any);
@@ -241,8 +254,7 @@ export async function launchCampaign(campaignId: number, contactIds: number[]): 
   if (mailbox.status !== "connected" || health?.reauthRequired) {
     throw new Error("Campaign mailbox is not healthy. Reconnect it in Settings before launch.");
   }
-
-  await enrollContactsInCampaign(campaignId, contactIds);
+  // Enroll is separate from launch; duplicate enroll+launch rows were caused by re-inserting here.
 
   const steps = await getSteps(campaignId);
   if (!steps.length) throw new Error("Campaign has no sequence steps");

@@ -513,6 +513,17 @@ export async function completeMailboxOAuthConnect(input: {
       provider: input.provider,
       result: "ok",
     });
+    if (input.provider === "microsoft") {
+      try {
+        const { ensureMicrosoftInboxSubscriptionIfConfigured } = await import("./microsoftGraphSubscription");
+        await ensureMicrosoftInboxSubscriptionIfConfigured(mailboxId);
+      } catch (e: any) {
+        logMailboxEvent("microsoft_graph_subscription_skipped", {
+          mailboxId,
+          reason: String(e?.message ?? e ?? "unknown"),
+        });
+      }
+    }
     return {
       ok: true as const,
       attemptId: attempt.attemptId,
