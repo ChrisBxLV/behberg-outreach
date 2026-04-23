@@ -35,7 +35,7 @@ import {
   Target,
   Shield,
 } from "lucide-react";
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { ProfileRegistrationModal } from "@/components/ProfileRegistrationModal";
@@ -178,6 +178,61 @@ function DashboardLayoutContent({
       (item.path !== "/app" && location.startsWith(`${item.path}/`)),
   );
   const isMobile = useIsMobile();
+  const idleTimeoutRef = useRef<number | null>(null);
+  const logoutRef = useRef(logout);
+
+  useEffect(() => {
+    logoutRef.current = logout;
+  }, [logout]);
+
+  const resetIdleTimer = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (idleTimeoutRef.current) {
+      window.clearTimeout(idleTimeoutRef.current);
+    }
+    // 30 minutes of inactivity.
+    idleTimeoutRef.current = window.setTimeout(() => {
+      void logoutRef.current();
+    }, 30 * 60 * 1000);
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    if (typeof window === "undefined") return;
+
+    resetIdleTimer();
+
+    const events: Array<keyof WindowEventMap> = [
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "scroll",
+      "touchstart",
+      "pointerdown",
+    ];
+    const listenerOptions: AddEventListenerOptions = { passive: true };
+
+    for (const evt of events) {
+      window.addEventListener(evt, resetIdleTimer, listenerOptions);
+    }
+
+    const onVisibilityChange = () => {
+      // When returning to the tab, treat it as activity.
+      if (!document.hidden) resetIdleTimer();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      for (const evt of events) {
+        window.removeEventListener(evt, resetIdleTimer, listenerOptions);
+      }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (idleTimeoutRef.current) {
+        window.clearTimeout(idleTimeoutRef.current);
+        idleTimeoutRef.current = null;
+      }
+    };
+  }, [resetIdleTimer, user]);
 
   useEffect(() => {
     if (isCollapsed) {

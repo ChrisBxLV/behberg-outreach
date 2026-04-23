@@ -26,7 +26,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   Mail, CheckCircle2, XCircle, RefreshCw,
-  Settings2, Play, AlertCircle, Users, CreditCard, MailPlus,
+  Play, AlertCircle, Users, CreditCard, MailPlus,
   Pencil, Trash2, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -167,7 +167,6 @@ export default function Settings() {
 
   const { data: smtpConfig } = trpc.settings.getSmtpConfig.useQuery();
   const { data: mailboxes } = trpc.mailboxes.list.useQuery();
-  const { data: appConfig } = trpc.settings.getAppConfig.useQuery();
   const { data: mailboxOAuthConfig, isLoading: mailboxOAuthConfigLoading } = trpc.settings.getMailboxOAuthConfig.useQuery();
   const { data: orgMine, isLoading: isOrgMineLoading } = trpc.organization.mine.useQuery();
   const isOrgOwner = orgMine?.role === "owner";
@@ -410,6 +409,14 @@ export default function Settings() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab === "organization" || tab === "smtp" || tab === "subscription") {
+      setActiveSettingsTab(tab);
+    }
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
     const attemptId = params.get("mailbox_oauth_attempt");
     const status = params.get("mailbox_oauth_status");
     const reason = params.get("mailbox_oauth_reason");
@@ -529,7 +536,6 @@ export default function Settings() {
             <TabsTrigger value="organization">Organization</TabsTrigger>
             <TabsTrigger value="smtp">Mailboxes</TabsTrigger>
             <TabsTrigger value="subscription">Manage Subscription</TabsTrigger>
-            <TabsTrigger value="platform">Platform Info</TabsTrigger>
           </TabsList>
 
           <TabsContent value="organization" className="mt-4">
@@ -1329,42 +1335,6 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="platform" className="mt-4">
-            {/* Platform Info */}
-        <Card className="border-border/50 bg-card/80">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/20">
-                <Settings2 className="h-5 w-5 text-blue-400" />
-              </div>
-              <div>
-                <CardTitle className="text-base">Platform Info</CardTitle>
-                <CardDescription className="text-xs">Current configuration overview</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                { label: "App Base URL", value: appConfig?.appBaseUrl || "Not set" },
-                { label: "SMTP", value: appConfig?.smtpConfigured ? "Configured" : "Not configured", ok: appConfig?.smtpConfigured },
-                { label: "Email Tracking", value: appConfig?.appBaseUrl ? "Enabled (pixel tracking)" : "Needs APP_BASE_URL" },
-              ].map(({ label, value, ok }) => (
-                <div key={label} className="p-3 rounded-lg bg-muted/20 border border-border/30">
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    {ok !== undefined && (
-                      ok ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" /> : <XCircle className="h-3 w-3 text-amber-400 shrink-0" />
-                    )}
-                    <p className="text-sm font-medium truncate">{value}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
           </TabsContent>
         </Tabs>
       </div>

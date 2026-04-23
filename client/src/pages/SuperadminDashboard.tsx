@@ -47,7 +47,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { clientMatchesDefaultOperatorLogin } from "@/lib/defaultOperatorClientHint";
 import { trpc } from "@/lib/trpc";
-import { BarChart3, Building2, Check, ChevronsUpDown, Mail, Pencil, Settings2, Trash2, UserPlus, Users } from "lucide-react";
+import { BarChart3, Building2, Check, CheckCircle2, ChevronsUpDown, Mail, Pencil, Settings2, Trash2, UserPlus, Users, XCircle } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -444,6 +444,10 @@ export default function SuperadminDashboard() {
     retry: false,
   });
   const runtimeInfo = trpc.platform.runtimeInfo.useQuery(undefined, {
+    enabled: canOperate,
+    retry: false,
+  });
+  const appConfig = trpc.settings.getAppConfig.useQuery(undefined, {
     enabled: canOperate,
     retry: false,
   });
@@ -1138,6 +1142,41 @@ export default function SuperadminDashboard() {
           </TabsContent>
 
           <TabsContent value="app" className="space-y-4 mt-4">
+            <Card className="border-border/50">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Settings2 className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle className="text-lg">Platform info</CardTitle>
+                </div>
+                <CardDescription>Current configuration overview.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {appConfig.isLoading ? (
+                  <p className="text-sm text-muted-foreground py-6">Loading…</p>
+                ) : appConfig.isError ? (
+                  <p className="text-sm text-destructive">{appConfig.error.message}</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[
+                      { label: "App Base URL", value: appConfig.data?.appBaseUrl || "Not set" },
+                      { label: "SMTP", value: appConfig.data?.smtpConfigured ? "Configured" : "Not configured", ok: appConfig.data?.smtpConfigured },
+                      { label: "Email Tracking", value: appConfig.data?.appBaseUrl ? "Enabled (pixel tracking)" : "Needs APP_BASE_URL" },
+                    ].map(({ label, value, ok }) => (
+                      <div key={label} className="p-3 rounded-lg bg-muted/20 border border-border/30">
+                        <p className="text-xs text-muted-foreground">{label}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {ok !== undefined && (
+                            ok ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" /> : <XCircle className="h-3 w-3 text-amber-400 shrink-0" />
+                          )}
+                          <p className="text-sm font-medium truncate">{value}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Card className="border-border/50">
               <CardHeader>
                 <div className="flex items-center gap-2">

@@ -232,7 +232,21 @@ export default function Campaigns() {
                     </SelectContent>
                   </Select>
                   {(mailboxes ?? []).length === 0 ? (
-                    <p className="mt-1 text-xs text-amber-400">Connect a mailbox in Settings first.</p>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <p className="text-xs text-amber-400">No mailboxes connected yet.</p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => {
+                          setShowCreate(false);
+                          setLocation("/app/settings?tab=smtp");
+                        }}
+                      >
+                        Connect mailbox
+                      </Button>
+                    </div>
                   ) : null}
                 </div>
                 <div>
