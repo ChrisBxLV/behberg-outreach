@@ -563,6 +563,7 @@ export default function CampaignDetail() {
                           <th className="p-3 text-left">Subject</th>
                           <th className="p-3 text-left">Status</th>
                           <th className="p-3 text-left">Reply</th>
+                          <th className="p-3 text-left">Error</th>
                           <th className="p-3 text-left">Sent At</th>
                           <th className="p-3 text-left">Actions</th>
                         </tr>
@@ -581,6 +582,11 @@ export default function CampaignDetail() {
                             </td>
                             <td className="p-3 text-xs capitalize text-muted-foreground">
                               {item.log.repliedAt ? (item.log.replySentiment as string) ?? "—" : "—"}
+                            </td>
+                            <td className="p-3 max-w-xs text-xs text-muted-foreground">
+                              {item.log.status === "failed"
+                                ? (item.log.errorMessage ?? "Unknown send failure")
+                                : "—"}
                             </td>
                             <td className="p-3 text-xs text-muted-foreground">
                               {item.log.sentAt ? new Date(item.log.sentAt).toLocaleString() : "—"}
