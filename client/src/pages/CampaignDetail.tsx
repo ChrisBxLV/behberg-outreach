@@ -184,6 +184,21 @@ export default function CampaignDetail() {
 
   const enrolledContactIds = new Set(campaignContacts?.map(cc => cc.contact.id) ?? []);
   const availableContacts = allContacts?.contacts.filter(c => !enrolledContactIds.has(c.id)) ?? [];
+  const responseRows = useMemo(() => {
+    const rows = emailLogs ?? [];
+    return rows.filter(r => r.log.repliedAt);
+  }, [emailLogs]);
+
+  const filteredResponses = useMemo(() => {
+    return responseRows.filter(r => {
+      const s = r.log.replySentiment as string | null | undefined;
+      if (responseFilter === "all") return true;
+      if (responseFilter === "positive") return s === "positive";
+      if (responseFilter === "negative") return s === "negative";
+      if (responseFilter === "unsub") return s === "unsubscribe_intent";
+      return s === "neutral" || s === "unknown" || !s;
+    });
+  }, [responseRows, responseFilter]);
 
   if (isLoading) {
     return (
@@ -213,22 +228,6 @@ export default function CampaignDetail() {
   const replyRate = (campaign.sentCount ?? 0) > 0 ? Math.round(((campaign.replyCount ?? 0) / (campaign.sentCount ?? 1)) * 100) : 0;
   const campaignMailbox = (mailboxes ?? []).find((m) => m.id === campaign.mailboxId);
   const launchBlocked = !campaign.mailboxId || !campaignMailbox || campaignMailbox.status !== "connected";
-
-  const responseRows = useMemo(() => {
-    const rows = emailLogs ?? [];
-    return rows.filter(r => r.log.repliedAt);
-  }, [emailLogs]);
-
-  const filteredResponses = useMemo(() => {
-    return responseRows.filter(r => {
-      const s = r.log.replySentiment as string | null | undefined;
-      if (responseFilter === "all") return true;
-      if (responseFilter === "positive") return s === "positive";
-      if (responseFilter === "negative") return s === "negative";
-      if (responseFilter === "unsub") return s === "unsubscribe_intent";
-      return s === "neutral" || s === "unknown" || !s;
-    });
-  }, [responseRows, responseFilter]);
 
   return (
     <DashboardLayout>

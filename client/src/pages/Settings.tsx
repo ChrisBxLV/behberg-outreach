@@ -240,6 +240,8 @@ export default function Settings() {
   const [showAdvancedSmtp, setShowAdvancedSmtp] = useState(false);
   const [showManualMailboxSetup, setShowManualMailboxSetup] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState("organization");
+  const [mailboxesSubTab, setMailboxesSubTab] = useState("inboxes");
+  const [selectedSignatureMailboxId, setSelectedSignatureMailboxId] = useState<number | null>(null);
   const logoUploadMailboxIdRef = useRef<number | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
   const requestPasswordResetSelf = trpc.organization.requestPasswordResetSelf.useMutation({
@@ -396,6 +398,17 @@ export default function Settings() {
   }, [mailboxes]);
 
   useEffect(() => {
+    if (!mailboxes?.length) {
+      setSelectedSignatureMailboxId(null);
+      return;
+    }
+    setSelectedSignatureMailboxId(prev => {
+      if (prev != null && mailboxes.some(m => m.id === prev)) return prev;
+      return mailboxes[0]!.id;
+    });
+  }, [mailboxes]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const attemptId = params.get("mailbox_oauth_attempt");
     const status = params.get("mailbox_oauth_status");
@@ -467,6 +480,10 @@ export default function Settings() {
     SUBSCRIPTION_PLANS[0];
   const mailboxLimit = currentPlan.mailboxLimit;
   const mailboxLimitReached = connectedMailboxCount >= mailboxLimit;
+  const selectedSignatureMailbox = (mailboxes ?? []).find(m => m.id === selectedSignatureMailboxId) ?? null;
+  const selectedSignatureDraft = selectedSignatureMailbox
+    ? (sigDraft[selectedSignatureMailbox.id] ?? { html: "", logo: "" })
+    : { html: "", logo: "" };
 
   const startOAuthFor = (provider: "google" | "microsoft") => {
     if (mailboxOAuthConfigLoading) {
@@ -753,162 +770,243 @@ export default function Settings() {
               </div>
             ) : null}
 
-            <div className="rounded-lg bg-muted/20 border border-border/30 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">Connected inboxes</p>
-                <Badge variant="outline">{connectedMailboxCount}/{mailboxLimit}</Badge>
-              </div>
-              {connectedMailboxCount === 0 ? (
-                <div className="rounded-lg border border-dashed border-border/50 bg-background/30 p-4 text-sm text-muted-foreground">
-                  No inbox connected yet. Use Connect Gmail or Connect Microsoft above.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {(mailboxes ?? []).map((mailbox) => (
-                    <div key={mailbox.id} className="rounded-lg border border-border/40 p-3 bg-background/40">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{mailbox.displayName ?? mailbox.email}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {mailbox.provider.toUpperCase()} · {mailbox.email}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={mailbox.status === "connected" ? "default" : "outline"}>
-                            {mailbox.status}
-                          </Badge>
-                          {mailbox.isDefault ? <Badge>Default</Badge> : null}
-                        </div>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {!mailbox.isDefault ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={setDefaultMailboxMutation.isPending}
-                            onClick={() => setDefaultMailboxMutation.mutate({ mailboxId: mailbox.id })}
-                          >
-                            Set default
-                          </Button>
-                        ) : null}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!mailboxTestEmail || testMailboxMutation.isPending}
-                          onClick={() =>
-                            testMailboxMutation.mutate({
-                              mailboxId: mailbox.id,
-                              toEmail: mailboxTestEmail,
-                            })
-                          }
-                        >
-                          Test send
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-destructive"
-                          disabled={disconnectMailboxMutation.isPending}
-                          onClick={() => disconnectMailboxMutation.mutate({ mailboxId: mailbox.id })}
-                        >
-                          Disconnect
-                        </Button>
-                      </div>
-                      <div className="mt-4 space-y-2 border-t border-border/30 pt-3">
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          Unsubscribe applies per connected mailbox. Anyone who shares this mailbox shares the same suppression list.
-                        </p>
-                        <MailboxSuppressionsPanel mailboxId={mailbox.id} />
-                        <p className="text-xs font-medium text-muted-foreground">Email signature (appended to every sequence message)</p>
-                        <input
-                          ref={logoFileInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={async e => {
-                            const mid = logoUploadMailboxIdRef.current;
-                            logoUploadMailboxIdRef.current = null;
-                            const file = e.target.files?.[0];
-                            e.target.value = "";
-                            if (!mid || !file) return;
-                            try {
-                              const fd = new FormData();
-                              fd.append("file", file);
-                              fd.append("mailboxId", String(mid));
-                              const res = await fetch(`${window.location.origin}/api/mailboxes/signature-asset`, {
-                                method: "POST",
-                                body: fd,
-                                credentials: "include",
-                              });
-                              const j = (await res.json()) as { url?: string; error?: string };
-                              if (!res.ok) {
-                                throw new Error(j.error ?? "Upload failed");
-                              }
-                              if (j.url) {
-                                setSigDraft(prev => ({
-                                  ...prev,
-                                  [mid]: { ...(prev[mid] ?? { html: "", logo: "" }), logo: j.url! },
-                                }));
-                                toast.success("Logo uploaded. Click Save signature to apply.");
-                              }
-                            } catch (err: any) {
-                              toast.error(err?.message ?? "Upload failed");
-                            }
-                          }}
-                        />
-                        <div className="flex flex-wrap gap-2 items-center">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() => {
-                              logoUploadMailboxIdRef.current = mailbox.id;
-                              logoFileInputRef.current?.click();
-                            }}
-                          >
-                            Upload logo
-                          </Button>
-                          <span className="text-[11px] text-muted-foreground">or paste</span>
-                        </div>
-                        <Input
-                          className="h-8 text-sm"
-                          placeholder="Logo image URL (optional, https…)"
-                          value={sigDraft[mailbox.id]?.logo ?? ""}
-                          onChange={e => setSigDraft(prev => ({
-                            ...prev,
-                            [mailbox.id]: { ...(prev[mailbox.id] ?? { html: "", logo: "" }), logo: e.target.value },
-                          }))}
-                        />
-                        <Textarea
-                          className="min-h-[72px] text-sm"
-                          placeholder="Regards,&#10;Your name&#10;Your title"
-                          value={sigDraft[mailbox.id]?.html ?? ""}
-                          onChange={e => setSigDraft(prev => ({
-                            ...prev,
-                            [mailbox.id]: { ...(prev[mailbox.id] ?? { html: "", logo: "" }), html: e.target.value },
-                          }))}
-                        />
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={updateSignatureMutation.isPending}
-                          onClick={() => updateSignatureMutation.mutate({
-                            mailboxId: mailbox.id,
-                            signatureHtml: sigDraft[mailbox.id]?.html || null,
-                            signatureLogoUrl: sigDraft[mailbox.id]?.logo?.trim()
-                              ? sigDraft[mailbox.id]!.logo.trim()
-                              : "",
-                          })}
-                        >
-                          Save signature
-                        </Button>
-                      </div>
+            <input
+              ref={logoFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async e => {
+                const mid = logoUploadMailboxIdRef.current;
+                logoUploadMailboxIdRef.current = null;
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!mid || !file) return;
+                try {
+                  const fd = new FormData();
+                  fd.append("file", file);
+                  fd.append("mailboxId", String(mid));
+                  const res = await fetch(`${window.location.origin}/api/mailboxes/signature-asset`, {
+                    method: "POST",
+                    body: fd,
+                    credentials: "include",
+                  });
+                  const j = (await res.json()) as { url?: string; error?: string };
+                  if (!res.ok) {
+                    throw new Error(j.error ?? "Upload failed");
+                  }
+                  if (j.url) {
+                    setSigDraft(prev => ({
+                      ...prev,
+                      [mid]: { ...(prev[mid] ?? { html: "", logo: "" }), logo: j.url! },
+                    }));
+                    toast.success("Logo uploaded. Click Save signature to apply.");
+                  }
+                } catch (err: any) {
+                  toast.error(err?.message ?? "Upload failed");
+                }
+              }}
+            />
+
+            <Tabs value={mailboxesSubTab} onValueChange={setMailboxesSubTab}>
+              <TabsList className="bg-muted/30 border border-border/50">
+                <TabsTrigger value="inboxes">Connected Inboxes</TabsTrigger>
+                <TabsTrigger value="signatures">Signatures</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="inboxes" className="mt-4">
+                <div className="rounded-lg bg-muted/20 border border-border/30 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Connected inboxes</p>
+                    <Badge variant="outline">{connectedMailboxCount}/{mailboxLimit}</Badge>
+                  </div>
+                  {connectedMailboxCount === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border/50 bg-background/30 p-4 text-sm text-muted-foreground">
+                      No inbox connected yet. Use Connect Gmail or Connect Microsoft above.
                     </div>
-                  ))}
+                  ) : (
+                    <div className="space-y-2">
+                      {(mailboxes ?? []).map((mailbox) => (
+                        <div key={mailbox.id} className="rounded-lg border border-border/40 p-3 bg-background/40">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{mailbox.displayName ?? mailbox.email}</p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {mailbox.provider.toUpperCase()} · {mailbox.email}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={mailbox.status === "connected" ? "default" : "outline"}>
+                                {mailbox.status}
+                              </Badge>
+                              {mailbox.isDefault ? <Badge>Default</Badge> : null}
+                            </div>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {!mailbox.isDefault ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={setDefaultMailboxMutation.isPending}
+                                onClick={() => setDefaultMailboxMutation.mutate({ mailboxId: mailbox.id })}
+                              >
+                                Set default
+                              </Button>
+                            ) : null}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!mailboxTestEmail || testMailboxMutation.isPending}
+                              onClick={() =>
+                                testMailboxMutation.mutate({
+                                  mailboxId: mailbox.id,
+                                  toEmail: mailboxTestEmail,
+                                })
+                              }
+                            >
+                              Test send
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive"
+                              disabled={disconnectMailboxMutation.isPending}
+                              onClick={() => disconnectMailboxMutation.mutate({ mailboxId: mailbox.id })}
+                            >
+                              Disconnect
+                            </Button>
+                          </div>
+                          <div className="mt-4 space-y-2 border-t border-border/30 pt-3">
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              Unsubscribe applies per connected mailbox. Anyone who shares this mailbox shares the same suppression list.
+                            </p>
+                            <MailboxSuppressionsPanel mailboxId={mailbox.id} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </TabsContent>
+
+              <TabsContent value="signatures" className="mt-4">
+                <div className="rounded-lg bg-muted/20 border border-border/30 p-4 space-y-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Email signature</p>
+                    <p className="text-xs text-muted-foreground">
+                      Set signature and logo separately from mailbox connection settings.
+                    </p>
+                  </div>
+
+                  {connectedMailboxCount === 0 || !selectedSignatureMailbox ? (
+                    <div className="rounded-lg border border-dashed border-border/50 bg-background/30 p-4 text-sm text-muted-foreground">
+                      Connect an inbox first to configure its signature.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="max-w-sm">
+                        <p className="text-xs text-muted-foreground mb-1">Mailbox</p>
+                        <Select
+                          value={String(selectedSignatureMailbox.id)}
+                          onValueChange={value => setSelectedSignatureMailboxId(Number.parseInt(value, 10))}
+                        >
+                          <SelectTrigger className="bg-muted/30 border-border/50">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(mailboxes ?? []).map(m => (
+                              <SelectItem key={m.id} value={String(m.id)}>
+                                {(m.displayName ?? m.email)} ({m.email})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 items-center">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs"
+                          onClick={() => {
+                            logoUploadMailboxIdRef.current = selectedSignatureMailbox.id;
+                            logoFileInputRef.current?.click();
+                          }}
+                        >
+                          Upload logo
+                        </Button>
+                        <span className="text-[11px] text-muted-foreground">or paste</span>
+                      </div>
+                      <Input
+                        className="h-8 text-sm"
+                        placeholder="Logo image URL (optional, https...)"
+                        value={selectedSignatureDraft.logo}
+                        onChange={e => setSigDraft(prev => ({
+                          ...prev,
+                          [selectedSignatureMailbox.id]: {
+                            ...(prev[selectedSignatureMailbox.id] ?? { html: "", logo: "" }),
+                            logo: e.target.value,
+                          },
+                        }))}
+                      />
+                      <Textarea
+                        className="min-h-[96px] text-sm"
+                        placeholder="Use simple HTML. Example: Best,<br>Arthur"
+                        value={selectedSignatureDraft.html}
+                        onChange={e => setSigDraft(prev => ({
+                          ...prev,
+                          [selectedSignatureMailbox.id]: {
+                            ...(prev[selectedSignatureMailbox.id] ?? { html: "", logo: "" }),
+                            html: e.target.value,
+                          },
+                        }))}
+                      />
+                      <div className="rounded-lg border border-border/40 bg-background/30 p-3 space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">Signature preview</p>
+                        <div className="rounded-md border border-border/40 bg-white text-black p-4 text-sm">
+                          <p>Hi {"{{firstName}}"},</p>
+                          <p className="mt-2">This is how your signature appears below the email body.</p>
+                          {(selectedSignatureDraft.logo.trim() || selectedSignatureDraft.html.trim()) ? (
+                            <div className="mt-5 pt-4 border-t border-[#e5e5e5]">
+                              {selectedSignatureDraft.logo.trim() ? (
+                                <p style={{ margin: "0 0 12px" }}>
+                                  <img
+                                    src={selectedSignatureDraft.logo.trim()}
+                                    alt=""
+                                    style={{ maxHeight: "40px", maxWidth: "200px" }}
+                                  />
+                                </p>
+                              ) : null}
+                              {selectedSignatureDraft.html.trim() ? (
+                                <div dangerouslySetInnerHTML={{ __html: selectedSignatureDraft.html }} />
+                              ) : null}
+                            </div>
+                          ) : (
+                            <p className="mt-5 pt-4 border-t border-[#e5e5e5] text-[#6b7280]">
+                              Add a logo or signature HTML to preview it here.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={updateSignatureMutation.isPending}
+                        onClick={() => updateSignatureMutation.mutate({
+                          mailboxId: selectedSignatureMailbox.id,
+                          signatureHtml: selectedSignatureDraft.html || null,
+                          signatureLogoUrl: selectedSignatureDraft.logo.trim()
+                            ? selectedSignatureDraft.logo.trim()
+                            : "",
+                        })}
+                      >
+                        Save signature
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
 
             <div className="rounded-lg border border-border/40 bg-muted/10">
               <button
