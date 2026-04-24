@@ -19,6 +19,8 @@ import Onboarding from "./pages/Onboarding";
 import Prospecting from "./pages/Prospecting";
 import SuperadminDashboard from "./pages/SuperadminDashboard";
 import Unsubscribe from "./pages/Unsubscribe";
+import Privacy from "./pages/Privacy";
+import PrivacyRemove from "./pages/PrivacyRemove";
 
 function Router() {
   return (
@@ -30,6 +32,8 @@ function Router() {
       <Route path="/login/verify" component={LoginVerify} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/unsubscribe" component={Unsubscribe} />
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/privacy/remove" component={PrivacyRemove} />
       <Route path="/app" component={Home} />
       <Route path="/app/contacts" component={Contacts} />
       <Route path="/app/campaigns" component={Campaigns} />

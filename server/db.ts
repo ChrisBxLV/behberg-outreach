@@ -2011,6 +2011,23 @@ export async function deactivateEnrollmentsForMailboxContact(mailboxId: number, 
     );
 }
 
+export async function deactivateEnrollmentsForMailboxEmail(mailboxId: number, recipientEmail: string) {
+  const db = await getDb();
+  if (!db) return;
+  const email = recipientEmail.trim().toLowerCase();
+  if (!email) return;
+  const rows = await db
+    .select({ id: contacts.id })
+    .from(contacts)
+    .where(eq(contacts.email, email));
+  const ids = rows.map(r => r.id);
+  if (!ids.length) return;
+  for (const id of ids) {
+    // eslint-disable-next-line no-await-in-loop
+    await deactivateEnrollmentsForMailboxContact(mailboxId, id);
+  }
+}
+
 export async function completeUnsubscribeByMailboxAndContact(
   mailboxId: number,
   contactId: number,

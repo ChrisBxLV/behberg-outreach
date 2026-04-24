@@ -712,6 +712,20 @@ export default function VersionSevenLandingReplica({
           <div className="text-center text-sm text-muted-foreground font-semibold">
             Krot - B2B intelligence and outbound execution platform.
           </div>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center text-xs text-muted-foreground">
+            <a
+              href="/privacy"
+              className="font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              Privacy Policy
+            </a>
+            <a
+              href="/privacy/remove"
+              className="font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              Do not contact / Opt-out request
+            </a>
+          </div>
         </LandingContainer>
       </footer>
       <button

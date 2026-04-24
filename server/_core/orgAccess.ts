@@ -9,6 +9,7 @@ export function assertContactScope(
   if (!contact) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
   }
+  if (user?.role === "superadmin" && !user.accountDisabled) return;
   const scope = resolveTenantQueryScope(user);
   if (scope == null) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });

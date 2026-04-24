@@ -30,19 +30,28 @@ export const contactsRouter = router({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const scope = requireTenantQueryScope(ctx.user);
+      const scope =
+        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
+          ? ({ type: "platform" } as const)
+          : requireTenantQueryScope(ctx.user);
       return getContacts({ ...input, scope });
     }),
 
   filterOptions: protectedProcedure.query(async ({ ctx }) => {
-    const scope = requireTenantQueryScope(ctx.user);
+    const scope =
+      ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
+        ? ({ type: "platform" } as const)
+        : requireTenantQueryScope(ctx.user);
     return getContactFilterOptions(scope);
   }),
 
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const scope = requireTenantQueryScope(ctx.user);
+      const scope =
+        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
+          ? ({ type: "platform" } as const)
+          : requireTenantQueryScope(ctx.user);
       const contact = await getContactById(input.id, scope);
       assertContactScope(contact, ctx.user);
       return contact!;
@@ -107,7 +116,10 @@ export const contactsRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
-      const scope = requireTenantQueryScope(ctx.user);
+      const scope =
+        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
+          ? ({ type: "platform" } as const)
+          : requireTenantQueryScope(ctx.user);
       const contact = await getContactById(id, scope);
       assertContactScope(contact, ctx.user);
       await updateContact(id, data, scope);
@@ -117,7 +129,10 @@ export const contactsRouter = router({
   delete: protectedProcedure
     .input(z.object({ ids: z.array(z.number()) }))
     .mutation(async ({ input, ctx }) => {
-      const scope = requireTenantQueryScope(ctx.user);
+      const scope =
+        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
+          ? ({ type: "platform" } as const)
+          : requireTenantQueryScope(ctx.user);
       await deleteContacts(input.ids, scope);
       return { success: true, deleted: input.ids.length };
     }),
@@ -130,20 +145,29 @@ export const contactsRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const scope = requireTenantQueryScope(ctx.user);
+      const scope =
+        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
+          ? ({ type: "platform" } as const)
+          : requireTenantQueryScope(ctx.user);
       await bulkUpdateContactStage(input.ids, input.stage, scope);
       return { success: true };
     }),
 
   importBatches: protectedProcedure.query(async ({ ctx }) => {
-    const scope = requireTenantQueryScope(ctx.user);
+    const scope =
+      ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
+        ? ({ type: "platform" } as const)
+        : requireTenantQueryScope(ctx.user);
     return getImportBatches(scope);
   }),
 
   emailHistory: protectedProcedure
     .input(z.object({ contactId: z.number() }))
     .query(async ({ input, ctx }) => {
-      const scope = requireTenantQueryScope(ctx.user);
+      const scope =
+        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
+          ? ({ type: "platform" } as const)
+          : requireTenantQueryScope(ctx.user);
       const contact = await getContactById(input.contactId, scope);
       assertContactScope(contact, ctx.user);
       return getEmailLogsByContact(input.contactId);

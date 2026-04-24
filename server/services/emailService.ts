@@ -505,3 +505,33 @@ export async function sendPasswordResetEmail(opts: {
     html,
   });
 }
+
+export async function sendOptOutCodeEmail(opts: {
+  toEmail: string;
+  code: string;
+  expiresInMinutes: number;
+}) {
+  const transporter = getTransporter();
+  const fromEmail = process.env.SMTP_USER ?? "outreach@behberg.com";
+  const subject = "Confirm your opt-out request";
+  const text =
+    `Your opt-out verification code is ${opts.code}. ` +
+    `It expires in ${opts.expiresInMinutes} minutes.`;
+  const html = `<!DOCTYPE html>
+<html>
+<body style="font-family:Segoe UI,Arial,sans-serif;color:#111;line-height:1.6;">
+  <p>Your opt-out verification code is:</p>
+  <p style="font-size:28px;letter-spacing:6px;font-weight:700;margin:8px 0;">${opts.code}</p>
+  <p>This code expires in ${opts.expiresInMinutes} minutes.</p>
+  <p style="font-size:13px;color:#666">If you did not request this, you can ignore this email.</p>
+</body>
+</html>`;
+
+  await transporter.sendMail({
+    from: `"Krot" <${fromEmail}>`,
+    to: opts.toEmail,
+    subject,
+    text,
+    html,
+  });
+}

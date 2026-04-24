@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { randomInt } from "node:crypto";
 import { nanoid } from "nanoid";
 import multer from "multer";
 import { importCsvContacts } from "./services/csvImport";
@@ -320,6 +321,81 @@ export function registerExpressRoutes(app: Express) {
     } catch (e: any) {
       console.error("[Unsubscribe]", e?.message);
       return res.redirect(302, `${appBase}/unsubscribe?status=error`);
+    }
+  });
+
+  // ── Public opt-out request (email + verification code) ────────────────────
+  app.post("/api/public/optout/start", express.json(), async (req, res) => {
+    const emailRaw = String(req.body?.email ?? "");
+    const email = emailRaw.trim().toLowerCase();
+    const mailboxId = parseInt(String(process.env.OPT_OUT_MAILBOX_ID ?? ""), 10);
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({ success: false, reason: "invalid_email" as const });
+    }
+    if (!Number.isFinite(mailboxId) || mailboxId < 1) {
+      // Avoid leaking config details to the caller.
+      return res.status(200).json({ success: true });
+    }
+    try {
+      const { optOutChallengeKey } = await import("./auth/optOutChallenge");
+      const { hashOtp } = await import("./auth/password");
+      const { createLoginChallenge } = await import("./db");
+      const { sendOptOutCodeEmail } = await import("./services/emailService");
+
+      const challengeKey = optOutChallengeKey(mailboxId, email);
+      const otp = randomInt(100000, 1000000).toString();
+      const otpHash = hashOtp(challengeKey, otp);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      const creation = await createLoginChallenge({
+        email: challengeKey,
+        codeHash: otpHash,
+        expiresAt,
+        requestIp: req.ip,
+        cooldownSeconds: 60,
+        maxAttempts: 5,
+      });
+
+      if (creation.sent) {
+        await sendOptOutCodeEmail({ toEmail: email, code: otp, expiresInMinutes: 10 });
+      }
+
+      // Always respond generically to avoid confirming data existence.
+      return res.status(200).json({ success: true });
+    } catch (e: any) {
+      console.error("[OptOut] start failed", e?.message ?? e);
+      return res.status(200).json({ success: true });
+    }
+  });
+
+  app.post("/api/public/optout/verify", express.json(), async (req, res) => {
+    const emailRaw = String(req.body?.email ?? "");
+    const codeRaw = String(req.body?.code ?? "");
+    const email = emailRaw.trim().toLowerCase();
+    const code = codeRaw.trim();
+    const mailboxId = parseInt(String(process.env.OPT_OUT_MAILBOX_ID ?? ""), 10);
+    if (!email || !email.includes("@") || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ success: false, reason: "invalid_input" as const });
+    }
+    if (!Number.isFinite(mailboxId) || mailboxId < 1) {
+      return res.status(400).json({ success: false, reason: "service_unavailable" as const });
+    }
+    try {
+      const { optOutChallengeKey } = await import("./auth/optOutChallenge");
+      const { hashOtp } = await import("./auth/password");
+      const { verifyLoginChallenge, recordMailboxUnsubscribe, deactivateEnrollmentsForMailboxEmail } =
+        await import("./db");
+
+      const challengeKey = optOutChallengeKey(mailboxId, email);
+      const verification = await verifyLoginChallenge(challengeKey, hashOtp(challengeKey, code));
+      if (!verification.ok) {
+        return res.status(200).json({ success: false, reason: verification.reason });
+      }
+      await recordMailboxUnsubscribe(mailboxId, email, "api");
+      await deactivateEnrollmentsForMailboxEmail(mailboxId, email);
+      return res.status(200).json({ success: true });
+    } catch (e: any) {
+      console.error("[OptOut] verify failed", e?.message ?? e);
+      return res.status(500).json({ success: false, reason: "error" as const });
     }
   });
 
