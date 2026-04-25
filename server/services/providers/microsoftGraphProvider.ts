@@ -21,65 +21,49 @@ export class MicrosoftGraphProvider implements MailProvider {
   async send(input: ProviderSendInput): Promise<ProviderSendResult> {
     const replyToAddress = (input.replyTo ?? input.fromEmail ?? this.config.mailboxEmail).trim();
 
-    const createBody = {
-      subject: input.subject,
-      body: {
-        contentType: "HTML",
-        content: input.html,
-      },
-      toRecipients: [
-        {
-          emailAddress: {
-            address: input.toEmail,
-          },
+    const sendMailBody = {
+      message: {
+        subject: input.subject,
+        body: {
+          contentType: "HTML",
+          content: input.html,
         },
-      ],
-      replyTo:
-        replyToAddress
-          ? [
-              {
-                emailAddress: {
-                  address: replyToAddress,
+        toRecipients: [
+          {
+            emailAddress: {
+              address: input.toEmail,
+            },
+          },
+        ],
+        replyTo:
+          replyToAddress
+            ? [
+                {
+                  emailAddress: {
+                    address: replyToAddress,
+                  },
                 },
-              },
-            ]
-          : undefined,
+              ]
+            : undefined,
+      },
+      saveToSentItems: true,
     };
 
-    const createResp = await fetch("https://graph.microsoft.com/v1.0/me/messages", {
+    const sendResp = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.config.accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(createBody),
+      body: JSON.stringify(sendMailBody),
     });
-
-    if (!createResp.ok) {
-      const text = await createResp.text();
-      throw new Error(`Microsoft Graph create message failed: ${text.slice(0, 500)}`);
-    }
-
-    const created = (await createResp.json()) as { id: string; conversationId?: string };
-
-    const sendResp = await fetch(
-      `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(created.id)}/send`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.config.accessToken}`,
-        },
-      },
-    );
 
     if (!sendResp.ok) {
       const text = await sendResp.text();
       throw new Error(`Microsoft Graph send failed: ${text.slice(0, 500)}`);
     }
 
-    return {
-      providerMessageId: created.id,
-      providerThreadId: created.conversationId,
-    };
+    // sendMail does not return message id.
+    return {};
   }
 }
