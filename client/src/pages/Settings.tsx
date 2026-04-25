@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -161,6 +164,91 @@ function oauthFailureToast(message: string): string {
   return message;
 }
 
+function ProviderConnectTile(props: {
+  provider: "google" | "microsoft";
+  title: string;
+  subtitle: string;
+  ready: boolean;
+  reasons: string[];
+  onConnect: () => void;
+  disabled: boolean;
+  isPending: boolean;
+}) {
+  const Icon = props.provider === "google" ? Mail : MailPlus;
+  const isMicrosoft = props.provider === "microsoft";
+  const accent = isMicrosoft
+    ? "from-sky-500/15 via-sky-500/5 to-transparent"
+    : "from-rose-500/15 via-rose-500/5 to-transparent";
+  const ring = props.ready
+    ? "border-emerald-500/30 hover:border-emerald-400/50"
+    : "border-border/40 hover:border-border/60";
+  return (
+    <button
+      type="button"
+      onClick={props.onConnect}
+      disabled={props.disabled || !props.ready}
+      className={[
+        "group relative w-full text-left rounded-xl border bg-card/70 p-4 transition",
+        "hover:shadow-md hover:-translate-y-[1px] disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none",
+        ring,
+      ].join(" ")}
+    >
+      <div className={`pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-br ${accent}`} />
+      <div className="relative flex items-start gap-3">
+        <div
+          className={[
+            "mt-0.5 rounded-lg border px-2.5 py-2",
+            isMicrosoft ? "border-sky-500/30 bg-sky-500/10" : "border-rose-500/30 bg-rose-500/10",
+          ].join(" ")}
+        >
+          <Icon className={["h-4 w-4", isMicrosoft ? "text-sky-300" : "text-rose-300"].join(" ")} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold truncate">{props.title}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{props.subtitle}</p>
+            </div>
+            {props.ready ? (
+              <Badge className="bg-emerald-500/15 text-emerald-200 border-emerald-500/25">
+                <CheckCircle2 className="h-3 w-3" />
+                Ready
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="border-amber-500/30 text-amber-200 bg-amber-500/10">
+                <AlertCircle className="h-3 w-3" />
+                Needs setup
+              </Badge>
+            )}
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="text-[11px] text-muted-foreground leading-relaxed">
+              {props.ready
+                ? "Connect and grant permissions to start sending."
+                : props.reasons.length
+                  ? props.reasons.map(oauthReasonLabel).join(" ")
+                  : "OAuth is not configured yet."}
+            </div>
+            <div className="shrink-0 text-xs font-medium text-foreground/90">
+              {props.isPending ? (
+                <span className="inline-flex items-center gap-2">
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  Connecting…
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  Connect
+                  <ChevronDown className="h-4 w-4 opacity-0 group-hover:opacity-80 transition-opacity" />
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function Settings() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
@@ -236,6 +324,7 @@ export default function Settings() {
     password: "",
   });
   const [mailboxTestEmail, setMailboxTestEmail] = useState("");
+  const [smtpTestRecipientEmail, setSmtpTestRecipientEmail] = useState("");
   const [showAdvancedSmtp, setShowAdvancedSmtp] = useState(false);
   const [showManualMailboxSetup, setShowManualMailboxSetup] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState("organization");
@@ -707,8 +796,10 @@ export default function Settings() {
                 <Mail className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-base">Connected Mailboxes</CardTitle>
-                <CardDescription className="text-xs">Connect Gmail or Microsoft instantly</CardDescription>
+                <CardTitle className="text-base">Mailboxes</CardTitle>
+                <CardDescription className="text-xs">
+                  Connect Gmail or Microsoft for best deliverability. Use manual SMTP only if needed.
+                </CardDescription>
               </div>
               <div className="ml-auto">
                 {canStartAnyOAuth ? (
@@ -724,57 +815,84 @@ export default function Settings() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                className="h-9 px-4"
-                onClick={() => startOAuthFor("google")}
-                disabled={startOAuthMutation.isPending || mailboxLimitReached || completeOAuthMutation.isPending}
-              >
-                Connect Gmail
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-9 px-4"
-                onClick={() => startOAuthFor("microsoft")}
-                disabled={startOAuthMutation.isPending || mailboxLimitReached || completeOAuthMutation.isPending}
-              >
-                Connect Microsoft
-              </Button>
+            <div className="rounded-xl border border-border/40 bg-muted/10 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold">Mailbox licenses</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    <span className="font-medium text-foreground">{connectedMailboxCount}</span> of{" "}
+                    <span className="font-medium text-foreground">{mailboxLimit}</span> used on {currentPlan.name}.
+                  </p>
+                </div>
+                <Badge variant="outline" className="bg-background/30">
+                  {connectedMailboxCount}/{mailboxLimit}
+                </Badge>
+              </div>
+              <div className="mt-3">
+                <Progress value={mailboxLimit > 0 ? Math.min(100, (connectedMailboxCount / mailboxLimit) * 100) : 0} />
+              </div>
             </div>
 
-            <div className="text-xs text-muted-foreground">
-              Connected mailbox licenses: <span className="font-medium text-foreground">{connectedMailboxCount}/{mailboxLimit}</span> on {currentPlan.name}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <ProviderConnectTile
+                provider="google"
+                title="Gmail"
+                subtitle="Fastest connect for Google Workspace and personal Gmail."
+                ready={googleReady}
+                reasons={googleReasons}
+                onConnect={() => startOAuthFor("google")}
+                disabled={startOAuthMutation.isPending || mailboxLimitReached || completeOAuthMutation.isPending}
+                isPending={startOAuthMutation.isPending || completeOAuthMutation.isPending}
+              />
+              <ProviderConnectTile
+                provider="microsoft"
+                title="Microsoft"
+                subtitle="Outlook.com and Microsoft 365 via Graph OAuth."
+                ready={microsoftReady}
+                reasons={microsoftReasons}
+                onConnect={() => startOAuthFor("microsoft")}
+                disabled={startOAuthMutation.isPending || mailboxLimitReached || completeOAuthMutation.isPending}
+                isPending={startOAuthMutation.isPending || completeOAuthMutation.isPending}
+              />
             </div>
 
             {mailboxLimitReached ? (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-center justify-between gap-3">
-                <p>
-                  You have reached your mailbox limit ({connectedMailboxCount}/{mailboxLimit}). Purchase additional licenses to connect more inboxes.
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0"
-                  onClick={() => setActiveSettingsTab("subscription")}
-                >
-                  Manage Subscription
-                </Button>
-              </div>
+              <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-100">
+                <AlertCircle />
+                <AlertTitle>Mailbox limit reached</AlertTitle>
+                <AlertDescription className="text-amber-100/90">
+                  You have reached your mailbox limit ({connectedMailboxCount}/{mailboxLimit}). Purchase additional
+                  licenses to connect more inboxes.
+                  <div className="mt-3">
+                    <Button size="sm" variant="outline" onClick={() => setActiveSettingsTab("subscription")}>
+                      Manage subscription
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
             ) : null}
 
             {!canStartAnyOAuth ? (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 space-y-2">
-                <p className="font-medium">Direct OAuth connect is currently blocked by setup requirements.</p>
-                <p className="text-amber-100/90">
-                  Google: {googleReasons.length > 0 ? googleReasons.map(oauthReasonLabel).join(" ") : "Ready."}
-                </p>
-                <p className="text-amber-100/90">
-                  Microsoft: {microsoftReasons.length > 0 ? microsoftReasons.map(oauthReasonLabel).join(" ") : "Ready."}
-                </p>
-              </div>
+              <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-100">
+                <AlertCircle />
+                <AlertTitle>OAuth connect is blocked</AlertTitle>
+                <AlertDescription className="text-amber-100/90">
+                  Fix the setup requirements below, then retry connect.
+                  <div className="mt-3 space-y-1 text-xs">
+                    <p>
+                      <span className="font-medium">Google:</span>{" "}
+                      {googleReasons.length > 0 ? googleReasons.map(oauthReasonLabel).join(" ") : "Ready."}
+                    </p>
+                    <p>
+                      <span className="font-medium">Microsoft:</span>{" "}
+                      {microsoftReasons.length > 0 ? microsoftReasons.map(oauthReasonLabel).join(" ") : "Ready."}
+                    </p>
+                  </div>
+                </AlertDescription>
+              </Alert>
             ) : null}
+
+            <Separator className="bg-border/50" />
 
             <input
               ref={logoFileInputRef}
@@ -821,13 +939,26 @@ export default function Settings() {
 
               <TabsContent value="inboxes" className="mt-4">
                 <div className="rounded-lg bg-muted/20 border border-border/30 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">Connected inboxes</p>
-                    <Badge variant="outline">{connectedMailboxCount}/{mailboxLimit}</Badge>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Connected inboxes</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">{connectedMailboxCount}/{mailboxLimit}</Badge>
+                        <Input
+                          className="h-8 w-64 bg-background/30 border-border/50"
+                          value={mailboxTestEmail}
+                          onChange={(e) => setMailboxTestEmail(e.target.value)}
+                          placeholder="Test recipient email"
+                        />
+                      </div>
+                    </div>
                   </div>
                   {connectedMailboxCount === 0 ? (
                     <div className="rounded-lg border border-dashed border-border/50 bg-background/30 p-4 text-sm text-muted-foreground">
-                      No inbox connected yet. Use Connect Gmail or Connect Microsoft above.
+                      <p>No inbox connected yet. Use Connect Gmail or Connect Microsoft above.</p>
+                      <p className="mt-2 text-xs">
+                        After you connect an inbox, each mailbox row will show a <span className="font-medium">Test send</span> button.
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -1131,11 +1262,11 @@ export default function Settings() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-end gap-2">
                     <Input
-                      className="h-8 max-w-xs"
-                      value={mailboxTestEmail}
-                      onChange={(e) => setMailboxTestEmail(e.target.value)}
+                      className="h-8 w-72 bg-background/30 border-border/50"
+                      value={smtpTestRecipientEmail}
+                      onChange={(e) => setSmtpTestRecipientEmail(e.target.value)}
                       placeholder="Test recipient email"
                     />
                     <Button
