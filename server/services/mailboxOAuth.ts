@@ -129,8 +129,8 @@ export function getMailboxOAuthProviderConfig(
       "email",
       "profile",
       "User.Read",
+      "Mail.Read",
       "Mail.Send",
-      "https://outlook.office.com/SMTP.Send",
     ],
   };
 }
