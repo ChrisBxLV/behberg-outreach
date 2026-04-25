@@ -136,7 +136,7 @@ function MailboxSuppressionsPanel({ mailboxId }: { mailboxId: number }) {
   );
 }
 
-function oauthFailureToast(message: string): string {
+function oauthFailureToast(provider: "google" | "microsoft", message: string): string {
   const text = message.toLowerCase();
   const aadCodeMatch = message.match(/AADSTS\d{5}/i);
   const aadCode = aadCodeMatch?.[0]?.toUpperCase() ?? null;
@@ -146,17 +146,23 @@ function oauthFailureToast(message: string): string {
   if (text.includes("mailbox limit reached")) {
     return "Mailbox limit reached. Purchase additional licenses in Manage Subscription.";
   }
-  if (text.includes("invalid_client") || text.includes("aadsts7000215")) {
+  if (provider === "microsoft" && (text.includes("invalid_client") || text.includes("aadsts7000215"))) {
     return "Microsoft OAuth client secret is invalid. Use the Secret VALUE (not Secret ID) in MS client secret env.";
   }
-  if (text.includes("redirect_uri") || text.includes("aadsts50011")) {
+  if (provider === "google" && text.includes("invalid_client")) {
+    return "Google OAuth client secret is invalid. Ensure GOOGLE_* client id/secret env are correct.";
+  }
+  if (provider === "microsoft" && (text.includes("redirect_uri") || text.includes("aadsts50011"))) {
     return "Microsoft redirect URI mismatch. Ensure callback is https://krot.io/api/mailboxes/oauth/microsoft/callback";
+  }
+  if (provider === "google" && text.includes("redirect_uri")) {
+    return "Google redirect URI mismatch. Ensure callback is https://krot.io/api/mailboxes/oauth/google/callback";
   }
   if (text.includes("invalid or expired")) {
     return "OAuth session expired. Click Connect again.";
   }
   if (text.includes("token exchange")) {
-    if (aadCode) {
+    if (provider === "microsoft" && aadCode) {
       return `Provider token exchange failed (${aadCode}).`;
     }
     return "Provider token exchange failed. Retry Connect and approve all permissions.";
@@ -406,7 +412,7 @@ export default function Settings() {
     onSuccess: (r) => {
       window.location.href = r.authorizeUrl;
     },
-    onError: e => toast.error(oauthFailureToast(e.message)),
+    onError: e => toast.error(oauthFailureToast("microsoft", e.message)),
   });
 
   const completeOAuthMutation = trpc.mailboxes.completeConnectOAuth.useMutation({
@@ -414,7 +420,7 @@ export default function Settings() {
       toast.success("Mailbox connected successfully.");
       void utils.mailboxes.list.invalidate();
     },
-    onError: e => toast.error(oauthFailureToast(e.message)),
+    onError: e => toast.error(oauthFailureToast("microsoft", e.message)),
   });
 
   const connectSmtpMailboxMutation = trpc.mailboxes.connectSmtp.useMutation({
@@ -530,7 +536,7 @@ export default function Settings() {
           }
           toast.error(`Mailbox connect failed: ${oauthReasonLabel(resolvedReason)}`);
         })
-        .catch((e: any) => toast.error(oauthFailureToast(String(e?.message ?? "Mailbox connect failed"))));
+        .catch((e: any) => toast.error(oauthFailureToast("microsoft", String(e?.message ?? "Mailbox connect failed"))));
     } else if (error) {
       toast.error(`Mailbox OAuth failed: ${oauthReasonLabel(error)}`);
     } else if (provider && code && state && !completeOAuthMutation.isPending) {
