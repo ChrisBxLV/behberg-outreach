@@ -3,6 +3,7 @@ import { inferRequestOrigin } from "../_core/requestOrigin";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getProviderReadinessReasons } from "../services/mailboxConnectFlow";
 import { resolveGoogleOAuthEnv, resolveMicrosoftOAuthEnv } from "../services/mailboxOAuth";
+import { getUserDashboardPrefs, upsertUserDashboardPrefs } from "../db";
 
 export const settingsRouter = router({
   getSmtpConfig: protectedProcedure.query(async () => {
@@ -62,4 +63,25 @@ export const settingsRouter = router({
       },
     };
   }),
+
+  getDashboardPrefs: protectedProcedure.query(async ({ ctx }) => {
+    const row = await getUserDashboardPrefs(ctx.user.id);
+    return row;
+  }),
+
+  setDashboardPrefs: protectedProcedure
+    .input(z.object({
+      rangeDays: z.union([z.literal(7), z.literal(30), z.literal(90)]),
+      sections: z.record(z.string(), z.boolean()),
+      sectionOrder: z.array(z.string()),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await upsertUserDashboardPrefs({
+        userId: ctx.user.id,
+        rangeDays: input.rangeDays,
+        sections: input.sections,
+        sectionOrder: input.sectionOrder,
+      });
+      return { success: true as const };
+    }),
 });

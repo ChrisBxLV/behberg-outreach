@@ -75,6 +75,21 @@ export const loginChallenges = mysqlTable("login_challenges", {
 export type LoginChallenge = typeof loginChallenges.$inferSelect;
 export type InsertLoginChallenge = typeof loginChallenges.$inferInsert;
 
+// ─── User Dashboard Preferences (per-user, cross-device) ───────────────────────
+export const userDashboardPreferences = mysqlTable("user_dashboard_preferences", {
+  userId: int("userId").notNull().primaryKey().references(() => users.id, {
+    onDelete: "cascade",
+    onUpdate: "cascade",
+  }),
+  sectionsJson: json("sectionsJson").$type<Record<string, boolean> | null>(),
+  sectionOrderJson: json("sectionOrderJson").$type<string[] | null>(),
+  rangeDays: int("rangeDays"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserDashboardPreferences = typeof userDashboardPreferences.$inferSelect;
+export type InsertUserDashboardPreferences = typeof userDashboardPreferences.$inferInsert;
+
 // ─── Contacts ─────────────────────────────────────────────────────────────────
 export const contacts = mysqlTable("contacts", {
   id: int("id").autoincrement().primaryKey(),

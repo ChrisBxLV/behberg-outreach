@@ -7,6 +7,7 @@ import {
   signalProfiles, signals, signalInsights, signalIngestionRuns, mailboxes,
   mailboxOauthTokens, mailboxOauthConnectAttempts, mailboxHealth, mailboxSendLimits,   mailboxWebhookSubscriptions,
   mailboxUnsubscribes,
+  userDashboardPreferences,
   type InsertUser, type InsertContact, type Contact, type InsertCampaign,
   type InsertSequenceStep, type InsertEmailLog, type InsertLoginChallenge,
   type InsertSignalProfile, type InsertSignal, type InsertSignalInsight,
@@ -1715,6 +1716,487 @@ export async function getOutreachStatsForOrganization(organizationId: number): P
     uniqueReplies: Number(replyRow?.n ?? 0),
     uniqueOpensByProvider: openByProv.map(r => ({ provider: r.p, count: Number(r.n) })),
   };
+}
+
+export type DashboardOverviewRangeDays = 7 | 30 | 90;
+
+export type DashboardOverview = {
+  rangeDays: DashboardOverviewRangeDays;
+  timeseries: {
+    day: string; // YYYY-MM-DD
+    sent: number;
+    uniqueOpens: number;
+    uniqueReplies: number;
+    bounces: number;
+    unsubscribes: number;
+  }[];
+  funnel: {
+    sent: number;
+    opened: number;
+    replied: number;
+    positive: number;
+    rates: {
+      openRate: number;
+      replyRate: number;
+      positiveRate: number;
+      positiveOfRepliesRate: number;
+      bounceRate: number;
+    };
+  };
+  deliverability: {
+    sent: number;
+    bounces: number;
+    bounceRate: number;
+    unsubscribes: number;
+    opensByProvider: { provider: string; count: number }[];
+    bouncesByProvider: { provider: string; count: number }[];
+    unsubscribesByProvider: { provider: string; count: number }[];
+  };
+  pipelineStages: { stage: string; count: number }[];
+  topCampaigns: {
+    id: number;
+    name: string;
+    sent: number;
+    openRate: number;
+    replyRate: number;
+    bounceRate: number;
+  }[];
+  worstCampaigns: {
+    id: number;
+    name: string;
+    sent: number;
+    openRate: number;
+    replyRate: number;
+    bounceRate: number;
+  }[];
+};
+
+function toDbTimestampString(d: Date) {
+  // Use sql`` with a string for TiDB/MySQL timestamp comparisons in this repo.
+  return d.toISOString().slice(0, 19).replace("T", " ");
+}
+
+function fmtDay(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+function clampRangeDays(input: DashboardOverviewRangeDays) {
+  if (input === 7 || input === 30 || input === 90) return input;
+  return 7;
+}
+
+function pct(n: number, d: number) {
+  if (!d) return 0;
+  return Math.round((n / d) * 100);
+}
+
+export async function getDashboardOverview(
+  organizationId: number,
+  rangeDays: DashboardOverviewRangeDays,
+): Promise<DashboardOverview> {
+  const db = await getDb();
+  if (!db) {
+    return {
+      rangeDays: clampRangeDays(rangeDays),
+      timeseries: [],
+      funnel: {
+        sent: 0,
+        opened: 0,
+        replied: 0,
+        positive: 0,
+        rates: { openRate: 0, replyRate: 0, positiveRate: 0, positiveOfRepliesRate: 0, bounceRate: 0 },
+      },
+      deliverability: {
+        sent: 0,
+        bounces: 0,
+        bounceRate: 0,
+        unsubscribes: 0,
+        opensByProvider: [],
+        bouncesByProvider: [],
+        unsubscribesByProvider: [],
+      },
+      pipelineStages: [],
+      topCampaigns: [],
+      worstCampaigns: [],
+    };
+  }
+
+  const effectiveRangeDays = clampRangeDays(rangeDays);
+  const now = new Date();
+  const start = new Date(now);
+  start.setDate(start.getDate() - effectiveRangeDays + 1);
+  start.setHours(0, 0, 0, 0);
+  const startStr = toDbTimestampString(start);
+
+  const dayKeys: string[] = [];
+  for (let i = 0; i < effectiveRangeDays; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    dayKeys.push(fmtDay(d));
+  }
+  const base = new Map(dayKeys.map(day => [day, { day, sent: 0, uniqueOpens: 0, uniqueReplies: 0, bounces: 0, unsubscribes: 0 }]));
+
+  const sentByDay = await db
+    .select({
+      day: sql<string>`date(${emailLogs.sentAt})`,
+      n: count(),
+    })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(
+        eq(campaigns.organizationId, organizationId),
+        eq(emailLogs.status, "sent"),
+        isNotNull(emailLogs.sentAt),
+        sql`${emailLogs.sentAt} >= ${startStr}`,
+      ),
+    )
+    .groupBy(sql`date(${emailLogs.sentAt})`);
+
+  for (const r of sentByDay) {
+    const day = String(r.day);
+    const row = base.get(day);
+    if (row) row.sent = Number(r.n ?? 0);
+  }
+
+  const opensByDay = await db
+    .select({
+      day: sql<string>`date(${emailLogs.openedAt})`,
+      n: count(),
+    })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(
+        eq(campaigns.organizationId, organizationId),
+        isNotNull(emailLogs.openedAt),
+        sql`${emailLogs.openedAt} >= ${startStr}`,
+      ),
+    )
+    .groupBy(sql`date(${emailLogs.openedAt})`);
+
+  for (const r of opensByDay) {
+    const day = String(r.day);
+    const row = base.get(day);
+    if (row) row.uniqueOpens = Number(r.n ?? 0);
+  }
+
+  const repliesByDay = await db
+    .select({
+      day: sql<string>`date(${emailLogs.repliedAt})`,
+      n: count(),
+    })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(
+        eq(campaigns.organizationId, organizationId),
+        isNotNull(emailLogs.repliedAt),
+        sql`${emailLogs.repliedAt} >= ${startStr}`,
+      ),
+    )
+    .groupBy(sql`date(${emailLogs.repliedAt})`);
+
+  for (const r of repliesByDay) {
+    const day = String(r.day);
+    const row = base.get(day);
+    if (row) row.uniqueReplies = Number(r.n ?? 0);
+  }
+
+  const bouncesByDay = await db
+    .select({
+      day: sql<string>`date(coalesce(${emailLogs.bouncedAt}, ${emailLogs.createdAt}))`,
+      n: count(),
+    })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(
+        eq(campaigns.organizationId, organizationId),
+        eq(emailLogs.status, "bounced"),
+        sql`coalesce(${emailLogs.bouncedAt}, ${emailLogs.createdAt}) >= ${startStr}`,
+      ),
+    )
+    .groupBy(sql`date(coalesce(${emailLogs.bouncedAt}, ${emailLogs.createdAt}))`);
+
+  for (const r of bouncesByDay) {
+    const day = String(r.day);
+    const row = base.get(day);
+    if (row) row.bounces = Number(r.n ?? 0);
+  }
+
+  const unsubByDay = await db
+    .select({
+      day: sql<string>`date(${mailboxUnsubscribes.createdAt})`,
+      n: count(),
+    })
+    .from(mailboxUnsubscribes)
+    .innerJoin(mailboxes, eq(mailboxUnsubscribes.mailboxId, mailboxes.id))
+    .where(
+      and(
+        eq(mailboxes.organizationId, organizationId),
+        sql`${mailboxUnsubscribes.createdAt} >= ${startStr}`,
+      ),
+    )
+    .groupBy(sql`date(${mailboxUnsubscribes.createdAt})`);
+
+  for (const r of unsubByDay) {
+    const day = String(r.day);
+    const row = base.get(day);
+    if (row) row.unsubscribes = Number(r.n ?? 0);
+  }
+
+  const timeseries = dayKeys.map(k => base.get(k)!).filter(Boolean);
+
+  const [sentRow] = await db
+    .select({ n: count() })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(
+        eq(campaigns.organizationId, organizationId),
+        eq(emailLogs.status, "sent"),
+        isNotNull(emailLogs.sentAt),
+        sql`${emailLogs.sentAt} >= ${startStr}`,
+      ),
+    );
+
+  const [openedRow] = await db
+    .select({ n: count() })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(
+        eq(campaigns.organizationId, organizationId),
+        isNotNull(emailLogs.openedAt),
+        sql`${emailLogs.openedAt} >= ${startStr}`,
+      ),
+    );
+
+  const [repliedRow] = await db
+    .select({ n: count() })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(
+        eq(campaigns.organizationId, organizationId),
+        isNotNull(emailLogs.repliedAt),
+        sql`${emailLogs.repliedAt} >= ${startStr}`,
+      ),
+    );
+
+  const [positiveRow] = await db
+    .select({ n: count() })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(
+        eq(campaigns.organizationId, organizationId),
+        isNotNull(emailLogs.repliedAt),
+        eq(emailLogs.replySentiment, "positive"),
+        sql`${emailLogs.repliedAt} >= ${startStr}`,
+      ),
+    );
+
+  const [bounceRow] = await db
+    .select({ n: count() })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .where(
+      and(
+        eq(campaigns.organizationId, organizationId),
+        eq(emailLogs.status, "bounced"),
+        sql`coalesce(${emailLogs.bouncedAt}, ${emailLogs.createdAt}) >= ${startStr}`,
+      ),
+    );
+
+  const totalSent = Number(sentRow?.n ?? 0);
+  const totalOpened = Number(openedRow?.n ?? 0);
+  const totalReplied = Number(repliedRow?.n ?? 0);
+  const totalPositive = Number(positiveRow?.n ?? 0);
+  const totalBounced = Number(bounceRow?.n ?? 0);
+
+  const [unsubRow] = await db
+    .select({ n: count() })
+    .from(mailboxUnsubscribes)
+    .innerJoin(mailboxes, eq(mailboxUnsubscribes.mailboxId, mailboxes.id))
+    .where(
+      and(
+        eq(mailboxes.organizationId, organizationId),
+        sql`${mailboxUnsubscribes.createdAt} >= ${startStr}`,
+      ),
+    );
+
+  const unsubscribes = Number(unsubRow?.n ?? 0);
+
+  const opensByProvider = await db
+    .select({ provider: mailboxes.provider, n: count() })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .innerJoin(mailboxes, eq(emailLogs.mailboxId, mailboxes.id))
+    .where(
+      and(
+        eq(campaigns.organizationId, organizationId),
+        isNotNull(emailLogs.openedAt),
+        sql`${emailLogs.openedAt} >= ${startStr}`,
+      ),
+    )
+    .groupBy(mailboxes.provider);
+
+  const bouncesByProvider = await db
+    .select({ provider: mailboxes.provider, n: count() })
+    .from(emailLogs)
+    .innerJoin(campaigns, eq(emailLogs.campaignId, campaigns.id))
+    .innerJoin(mailboxes, eq(emailLogs.mailboxId, mailboxes.id))
+    .where(
+      and(
+        eq(campaigns.organizationId, organizationId),
+        eq(emailLogs.status, "bounced"),
+        sql`coalesce(${emailLogs.bouncedAt}, ${emailLogs.createdAt}) >= ${startStr}`,
+      ),
+    )
+    .groupBy(mailboxes.provider);
+
+  const unsubscribesByProvider = await db
+    .select({ provider: mailboxes.provider, n: count() })
+    .from(mailboxUnsubscribes)
+    .innerJoin(mailboxes, eq(mailboxUnsubscribes.mailboxId, mailboxes.id))
+    .where(
+      and(
+        eq(mailboxes.organizationId, organizationId),
+        sql`${mailboxUnsubscribes.createdAt} >= ${startStr}`,
+      ),
+    )
+    .groupBy(mailboxes.provider);
+
+  const pipelineStagesRaw = await db
+    .select({ stage: contacts.stage, n: count() })
+    .from(contacts)
+    .where(eq(contacts.organizationId, organizationId))
+    .groupBy(contacts.stage);
+
+  const pipelineStages = pipelineStagesRaw.map(r => ({ stage: String(r.stage), count: Number(r.n ?? 0) }));
+
+  const campaignRows = await db
+    .select({
+      id: campaigns.id,
+      name: campaigns.name,
+      sent: sql<number>`sum(case when ${emailLogs.status} = 'sent' and ${emailLogs.sentAt} is not null and ${emailLogs.sentAt} >= ${startStr} then 1 else 0 end)`,
+      opened: sql<number>`sum(case when ${emailLogs.openedAt} is not null and ${emailLogs.openedAt} >= ${startStr} then 1 else 0 end)`,
+      replied: sql<number>`sum(case when ${emailLogs.repliedAt} is not null and ${emailLogs.repliedAt} >= ${startStr} then 1 else 0 end)`,
+      bounced: sql<number>`sum(case when ${emailLogs.status} = 'bounced' and coalesce(${emailLogs.bouncedAt}, ${emailLogs.createdAt}) >= ${startStr} then 1 else 0 end)`,
+    })
+    .from(campaigns)
+    .leftJoin(emailLogs, eq(emailLogs.campaignId, campaigns.id))
+    .where(eq(campaigns.organizationId, organizationId))
+    .groupBy(campaigns.id);
+
+  const campaignRates = campaignRows
+    .map(r => {
+      const sent = Number(r.sent ?? 0);
+      const opened = Number(r.opened ?? 0);
+      const replied = Number(r.replied ?? 0);
+      const bounced = Number(r.bounced ?? 0);
+      return {
+        id: Number(r.id),
+        name: String(r.name ?? ""),
+        sent,
+        openRate: sent ? Math.round((opened / sent) * 100) : 0,
+        replyRate: sent ? Math.round((replied / sent) * 100) : 0,
+        bounceRate: sent ? Math.round((bounced / sent) * 100) : 0,
+      };
+    })
+    .filter(r => r.sent > 0);
+
+  const topCampaigns = [...campaignRates]
+    .sort((a, b) => (b.replyRate - a.replyRate) || (b.openRate - a.openRate) || (b.sent - a.sent))
+    .slice(0, 5);
+
+  const worstCampaigns = [...campaignRates]
+    .sort((a, b) => (b.bounceRate - a.bounceRate) || (a.replyRate - b.replyRate) || (b.sent - a.sent))
+    .slice(0, 5);
+
+  return {
+    rangeDays: effectiveRangeDays,
+    timeseries,
+    funnel: {
+      sent: totalSent,
+      opened: totalOpened,
+      replied: totalReplied,
+      positive: totalPositive,
+      rates: {
+        openRate: pct(totalOpened, totalSent),
+        replyRate: pct(totalReplied, totalSent),
+        positiveRate: pct(totalPositive, totalSent),
+        positiveOfRepliesRate: pct(totalPositive, totalReplied),
+        bounceRate: pct(totalBounced, totalSent),
+      },
+    },
+    deliverability: {
+      sent: totalSent,
+      bounces: totalBounced,
+      bounceRate: pct(totalBounced, totalSent),
+      unsubscribes,
+      opensByProvider: opensByProvider.map(r => ({ provider: String(r.provider), count: Number(r.n ?? 0) })),
+      bouncesByProvider: bouncesByProvider.map(r => ({ provider: String(r.provider), count: Number(r.n ?? 0) })),
+      unsubscribesByProvider: unsubscribesByProvider.map(r => ({ provider: String(r.provider), count: Number(r.n ?? 0) })),
+    },
+    pipelineStages,
+    topCampaigns,
+    worstCampaigns,
+  };
+}
+
+export type UserDashboardPrefs = {
+  rangeDays: DashboardOverviewRangeDays;
+  sections: Record<string, boolean>;
+  sectionOrder: string[];
+  updatedAt: Date;
+};
+
+export async function getUserDashboardPrefs(userId: number): Promise<UserDashboardPrefs | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db
+    .select()
+    .from(userDashboardPreferences)
+    .where(eq(userDashboardPreferences.userId, userId))
+    .limit(1);
+  if (!row) return null;
+  const rangeDaysRaw = Number(row.rangeDays ?? 7);
+  const rangeDays: DashboardOverviewRangeDays =
+    rangeDaysRaw === 7 || rangeDaysRaw === 30 || rangeDaysRaw === 90 ? rangeDaysRaw : 7;
+  return {
+    rangeDays,
+    sections: (row.sectionsJson ?? {}) as Record<string, boolean>,
+    sectionOrder: (row.sectionOrderJson ?? []) as string[],
+    updatedAt: row.updatedAt,
+  };
+}
+
+export async function upsertUserDashboardPrefs(input: {
+  userId: number;
+  rangeDays: DashboardOverviewRangeDays;
+  sections: Record<string, boolean>;
+  sectionOrder: string[];
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .insert(userDashboardPreferences)
+    .values({
+      userId: input.userId,
+      rangeDays: input.rangeDays,
+      sectionsJson: input.sections,
+      sectionOrderJson: input.sectionOrder,
+    })
+    .onDuplicateKeyUpdate({
+      set: {
+        rangeDays: input.rangeDays,
+        sectionsJson: input.sections,
+        sectionOrderJson: input.sectionOrder,
+      },
+    });
 }
 
 export async function listSuppressionsForMailbox(mailboxId: number, organizationId: number) {

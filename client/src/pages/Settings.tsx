@@ -531,7 +531,7 @@ export default function Settings() {
           const resolvedReason = result.reason ?? reason ?? "unknown";
           const detail = String(result.message ?? "").trim();
           if (detail) {
-            toast.error(oauthFailureToast(detail));
+            toast.error(oauthFailureToast(result.provider, detail));
             return;
           }
           toast.error(`Mailbox connect failed: ${oauthReasonLabel(resolvedReason)}`);

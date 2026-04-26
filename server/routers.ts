@@ -43,6 +43,7 @@ import { signalsRouter } from "./routers/signals";
 import { prospectingRouter } from "./routers/prospecting";
 import { platformRouter } from "./routers/platform";
 import { mailboxesRouter } from "./routers/mailboxes";
+import { dashboardRouter } from "./routers/dashboard";
 
 function safeAuthMeUser(user: User) {
   return {
@@ -908,6 +909,7 @@ export const appRouter = router({
   settings: settingsRouter,
   signals: signalsRouter,
   prospecting: prospectingRouter,
+  dashboard: dashboardRouter,
   platform: platformRouter,
   mailboxes: mailboxesRouter,
 });
