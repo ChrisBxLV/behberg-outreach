@@ -93,7 +93,7 @@ export default function Home() {
             <h1 className="text-2xl font-bold text-foreground">
               Welcome back{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
             </h1>
-            <p className="text-muted-foreground mt-1">Here's an overview of your outreach pipeline.</p>
+            <p className="text-muted-foreground mt-1">Here's an overview of your pipeline.</p>
           </div>
           <div className="flex gap-2">
             <Button

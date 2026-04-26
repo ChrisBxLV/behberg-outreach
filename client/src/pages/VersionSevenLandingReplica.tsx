@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getPublicHomeUrl } from "@/const";
 import DataParticlesBackground from "@/components/DataParticlesBackground";
+import { useCookieConsent } from "@/contexts/CookieConsentContext";
 import {
   versionSevenAddOns,
   versionSevenCaseStudies,
@@ -149,6 +150,7 @@ export default function VersionSevenLandingReplica({
   brandHomeHref = getPublicHomeUrl(),
 }: VersionSevenLandingReplicaProps) {
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const { openModal: openCookiePreferences } = useCookieConsent();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -725,6 +727,13 @@ export default function VersionSevenLandingReplica({
             >
               Do not contact / Opt-out request
             </a>
+            <button
+              type="button"
+              onClick={openCookiePreferences}
+              className="font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+            >
+              Cookie Preferences
+            </button>
           </div>
         </LandingContainer>
       </footer>

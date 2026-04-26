@@ -3,6 +3,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { CookieConsentModal } from "./components/CookieConsentModal";
+import { CookieConsentProvider, useCookieConsent } from "./contexts/CookieConsentContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import InsideSoftwareLanding from "./pages/InsideSoftwareLanding";
 import MarketingLanding from "./pages/MarketingLanding";
@@ -21,6 +23,19 @@ import SuperadminDashboard from "./pages/SuperadminDashboard";
 import Unsubscribe from "./pages/Unsubscribe";
 import Privacy from "./pages/Privacy";
 import PrivacyRemove from "./pages/PrivacyRemove";
+import { loadAnalytics } from "./analytics";
+
+function ConsentSideEffects() {
+  const { consent } = useCookieConsent();
+
+  // Gate Umami (analytics) behind Performance Cookies consent.
+  // `loadAnalytics` is idempotent and will only inject once.
+  if (consent?.performance) {
+    loadAnalytics();
+  }
+
+  return null;
+}
 
 function Router() {
   return (
@@ -56,12 +71,16 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark">
-        <TooltipProvider>
-          <Toaster richColors theme="dark" />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
+      <CookieConsentProvider>
+        <ThemeProvider defaultTheme="dark">
+          <TooltipProvider>
+            <Toaster richColors theme="dark" />
+            <ConsentSideEffects />
+            <CookieConsentModal />
+            <Router />
+          </TooltipProvider>
+        </ThemeProvider>
+      </CookieConsentProvider>
     </ErrorBoundary>
   );
 }

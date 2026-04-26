@@ -5,7 +5,6 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { loadAnalytics } from "./analytics";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
@@ -53,9 +52,6 @@ const trpcClient = trpc.createClient({
     }),
   ],
 });
-
-loadAnalytics();
-
 if (typeof window !== "undefined") {
   const updateGlow = (e: PointerEvent) => {
     const target = (e.target as HTMLElement | null)?.closest?.("[data-glow]") as

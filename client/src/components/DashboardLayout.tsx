@@ -300,8 +300,8 @@ function DashboardLayoutContent({
                   aria-label="Go to dashboard home"
                 >
                   <div className="flex flex-col min-w-0">
-                    <span className="font-bold tracking-tight truncate text-foreground">Behberg</span>
-                    <span className="text-xs text-primary truncate font-medium">Outreach Platform</span>
+                    <span className="font-bold tracking-tight truncate text-foreground">Krot</span>
+                    <span className="text-xs text-primary truncate font-medium">Platform</span>
                   </div>
                 </button>
               ) : null}
