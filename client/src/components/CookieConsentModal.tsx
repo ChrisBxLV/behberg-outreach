@@ -51,8 +51,9 @@ export function CookieConsentModal() {
     <Dialog open={isModalOpen} onOpenChange={(open) => (open ? null : closeModal())}>
       <DialogContent
         className={[
-          "p-0 overflow-hidden",
+          "p-0 overflow-hidden flex flex-col",
           "max-w-[calc(100%-1.25rem)] sm:max-w-3xl",
+          "max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)]",
           "bg-card text-card-foreground border-border",
           "shadow-2xl",
         ].join(" ")}
@@ -64,7 +65,8 @@ export function CookieConsentModal() {
           {/* Close button is provided by DialogContent */}
         </div>
 
-        <div className="p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-[1.15fr_0.85fr] gap-6">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-[1.15fr_0.85fr] gap-6">
           <div className="min-w-0">
             <DialogTitle className="text-lg sm:text-xl font-semibold text-foreground">
               Manage Consent Preferences
@@ -135,6 +137,7 @@ export function CookieConsentModal() {
             </div>
           </div>
         </div>
+        </div>
 
         <div className="p-5 sm:p-6 border-t border-border bg-card">
           <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -165,6 +168,7 @@ export function CookieConsentModal() {
               Save Settings
             </Button>
           </div>
+          <div className="h-[max(0px,env(safe-area-inset-bottom))]" aria-hidden />
         </div>
       </DialogContent>
     </Dialog>
