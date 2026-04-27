@@ -771,6 +771,85 @@ export async function updateContactEnrichmentMeta(
   await db.update(contacts).set(patch).where(and(...conds));
 }
 
+/** Remove all enrichment rows for a contact (used by transactional replace, not called on failed runs). */
+export async function deleteEnrichmentResultsForContact(
+  organizationId: number,
+  contactId: number,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(enrichmentResults)
+    .where(
+      and(eq(enrichmentResults.organizationId, organizationId), eq(enrichmentResults.contactId, contactId)),
+    );
+}
+
+type EnrichmentResultFieldInput = {
+  source: string;
+  fieldName: string;
+  fieldValue: string;
+  confidence: number;
+  personalData: boolean;
+  rawData?: unknown;
+  collectedAt?: Date;
+};
+
+/**
+ * Atomically replace stored enrichment for a contact: delete old rows, insert the new snapshot, update contact meta.
+ * On any error the transaction rolls back and previous enrichment_results remain.
+ */
+export async function replaceContactEnrichmentSnapshot(
+  organizationId: number,
+  contactId: number,
+  fields: EnrichmentResultFieldInput[],
+  patch: {
+    normalizedDomain: string | null;
+    enrichmentUpdatedAt: Date;
+    enrichmentStatus: "enriched" | "no_data_found";
+  },
+  scope: TenantQueryScope,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const at = patch.enrichmentUpdatedAt;
+  const rows: InsertEnrichmentResult[] = fields.map(f => ({
+    organizationId,
+    contactId,
+    source: f.source,
+    fieldName: f.fieldName,
+    fieldValue: f.fieldValue,
+    confidence: Math.max(0, Math.min(100, Math.round(Number(f.confidence ?? 0)))),
+    personalData: Boolean(f.personalData),
+    rawData: f.rawData ?? null,
+    collectedAt: f.collectedAt ?? at,
+  }));
+
+  await db.transaction(async tx => {
+    await tx
+      .delete(enrichmentResults)
+      .where(
+        and(eq(enrichmentResults.organizationId, organizationId), eq(enrichmentResults.contactId, contactId)),
+      );
+    if (rows.length) {
+      await tx.insert(enrichmentResults).values(rows);
+    }
+    const conds = [eq(contacts.id, contactId)];
+    if (scope.type === "tenant") {
+      conds.push(eq(contacts.organizationId, scope.organizationId));
+    }
+    await tx
+      .update(contacts)
+      .set({
+        normalizedDomain: patch.normalizedDomain,
+        enrichmentStatus: patch.enrichmentStatus,
+        enrichmentUpdatedAt: at,
+      })
+      .where(and(...conds));
+  });
+}
+
 export async function insertEnrichmentResults(
   organizationId: number,
   contactId: number,
@@ -946,7 +1025,8 @@ function mergeContactFields(existing: typeof contacts.$inferSelect, incoming: In
   return out;
 }
 
-async function findDuplicateCandidate(input: InsertContact): Promise<typeof contacts.$inferSelect | null> {
+/** Resolve whether an incoming row matches an existing contact (email, LinkedIn, or fuzzy rules). Exported for CSV import duplicate handling. */
+export async function findDuplicateContact(input: InsertContact): Promise<typeof contacts.$inferSelect | null> {
   const db = await getDb();
   if (!db) return null;
 
@@ -1073,7 +1153,7 @@ export async function createOrMergeContact(input: InsertContact): Promise<{
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const duplicate = await findDuplicateCandidate(input);
+  const duplicate = await findDuplicateContact(input);
   if (!duplicate) {
     const insertResult = await db.insert(contacts).values(input);
     const insertedId = Number((insertResult as any)?.insertId ?? 0);

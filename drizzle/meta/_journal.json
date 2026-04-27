@@ -113,6 +113,20 @@
       "when": 1774308600000,
       "tag": "0015_email_idempotency_key",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1774310000000,
+      "tag": "0016_user_dashboard_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1774310000001,
+      "tag": "0017_contact_enrichment_results",
+      "breakpoints": true
     }
   ]
 }

@@ -16,7 +16,7 @@ import {
   getEmailLogsByContact,
   getContactFilterOptions,
   getEnrichmentResultsByContactId,
-  insertEnrichmentResults,
+  replaceContactEnrichmentSnapshot,
   updateContactEnrichmentMeta,
 } from "../db";
 import { enrichContactMvp } from "../enrichment/enrichment.service";
@@ -100,7 +100,10 @@ export const contactsRouter = router({
         });
 
         const now = new Date();
-        await insertEnrichmentResults(
+        fieldsCount = res.fields.length;
+        const enrichmentStatus: "enriched" | "no_data_found" =
+          fieldsCount > 0 ? "enriched" : "no_data_found";
+        await replaceContactEnrichmentSnapshot(
           orgId,
           contact.id,
           res.fields.map(f => ({
@@ -112,20 +115,15 @@ export const contactsRouter = router({
             rawData: f.rawData,
             collectedAt: now,
           })),
-        );
-        fieldsCount = res.fields.length;
-
-        await updateContactEnrichmentMeta(
-          input.contactId,
           {
             normalizedDomain: res.normalizedDomain ?? null,
-            enrichmentStatus: fieldsCount > 0 ? "enriched" : "failed",
             enrichmentUpdatedAt: now,
+            enrichmentStatus,
           },
           scope,
         );
 
-        return { success: true as const, fields: fieldsCount };
+        return { success: true as const, fields: fieldsCount, enrichmentStatus };
       } catch (e: any) {
         await updateContactEnrichmentMeta(
           input.contactId,

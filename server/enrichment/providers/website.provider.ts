@@ -1,6 +1,7 @@
 import dns from "node:dns/promises";
 import net from "node:net";
 import type { EnrichmentField, EnrichmentInput, EnrichmentProvider } from "../enrichment.types";
+import { isBlockedCompanyWebsiteHost } from "../hostBlocklist";
 
 type WebsiteFetchResult = {
   finalUrl: string;
@@ -67,6 +68,7 @@ function isBlockedIp(ip: string): boolean {
       return true;
     }
     if (lower === "::") return true;
+    if (lower === "::1") return true; // IPv6 loopback (e.g. http://[::1]/)
     if (lower.startsWith("fe80:")) return true; // link-local
     if (lower.startsWith("fc") || lower.startsWith("fd")) return true; // unique local (fc00::/7)
     return false;
@@ -231,6 +233,9 @@ async function fetchHtmlWithRedirectValidation(startUrl: string): Promise<{ fina
         const next = new URL(location, current.toString());
         if (!isHttpUrl(next)) throw new Error("Redirected to non-http(s) URL");
         if (isLinkedInUrl(next)) throw new Error("Redirected to LinkedIn (blocked)");
+        if (isBlockedCompanyWebsiteHost(next.hostname)) {
+          throw new Error("Redirected to a social or login page (not used as company site)");
+        }
         await assertPublicResolvableHost(next);
         current = next;
         continue;
@@ -295,6 +300,7 @@ export class WebsiteProvider implements EnrichmentProvider {
     if (!start) return [];
     if (!isHttpUrl(start)) return [];
     if (isLinkedInUrl(start)) return [];
+    if (isBlockedCompanyWebsiteHost(start.hostname)) return [];
 
     const { finalUrl, html } = await fetchHtmlWithRedirectValidation(start.toString());
 

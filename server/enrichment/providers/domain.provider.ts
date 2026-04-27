@@ -1,4 +1,5 @@
 import type { EnrichmentField, EnrichmentInput, EnrichmentProvider } from "../enrichment.types";
+import { isBlockedCompanyWebsiteHost } from "../hostBlocklist";
 
 const PERSONAL_EMAIL_DOMAINS = new Set([
   "gmail.com",
@@ -57,17 +58,28 @@ export class DomainProvider implements EnrichmentProvider {
     const byWebsite = input.companyWebsite ? normalizeDomainFromUrl(input.companyWebsite) : null;
     const byEmail = input.email ? normalizeDomainFromEmail(input.email) : null;
 
-    const candidate = byWebsite ?? byEmail;
+    let candidate: string | null = null;
+    if (byWebsite && !isBlockedCompanyWebsiteHost(byWebsite)) {
+      candidate = byWebsite;
+    } else if (byEmail && !looksLikePersonalEmailDomain(byEmail)) {
+      candidate = byEmail;
+    } else if (byWebsite && isBlockedCompanyWebsiteHost(byWebsite) && byEmail && !looksLikePersonalEmailDomain(byEmail)) {
+      candidate = byEmail;
+    }
+
     if (!candidate) return fields;
     if (looksLikePersonalEmailDomain(candidate)) return fields;
+
+    const derivedFrom =
+      byWebsite && !isBlockedCompanyWebsiteHost(byWebsite) ? "companyWebsite" : "email";
 
     fields.push({
       source: "domain",
       fieldName: "normalizedDomain",
       fieldValue: candidate,
-      confidence: byWebsite ? 90 : 70,
+      confidence: derivedFrom === "companyWebsite" ? 90 : 70,
       personalData: false,
-      rawData: { derivedFrom: byWebsite ? "companyWebsite" : "email" },
+      rawData: { derivedFrom },
     });
 
     fields.push({

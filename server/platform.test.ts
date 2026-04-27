@@ -52,6 +52,7 @@ vi.mock("./db", () => ({
   createImportBatch: vi.fn().mockResolvedValue(undefined),
   updateImportBatch: vi.fn().mockResolvedValue(undefined),
   upsertContact: vi.fn().mockResolvedValue(undefined),
+  findDuplicateContact: vi.fn().mockResolvedValue(null),
   getContactByEmail: vi.fn().mockResolvedValue(null),
   recordOpenEvent: vi.fn().mockResolvedValue(undefined),
   createEmailLog: vi.fn().mockResolvedValue({ insertId: 1 }),
@@ -580,6 +581,9 @@ describe("email", () => {
       companySize: "100-500",
       companyWebsite: "techcorp.com",
       linkedinUrl: null,
+      normalizedDomain: null,
+      enrichmentStatus: "not_enriched",
+      enrichmentUpdatedAt: null,
       location: "London",
       stage: "new",
       notes: null,
@@ -620,7 +624,7 @@ describe("settings", () => {
 describe("csvImport service", () => {
   it("parses Apollo CSV buffer correctly", async () => {
     const { importCsvContacts } = await import("./services/csvImport");
-    const { upsertContact } = await import("./db");
+    const { createOrMergeContact, findDuplicateContact } = await import("./db");
 
     const csvContent = `First Name,Last Name,Title,Company,Email,LinkedIn URL,City,State,Country
 John,Doe,CTO,Acme Corp,john.doe@acme.com,https://linkedin.com/in/johndoe,London,,UK
@@ -630,13 +634,15 @@ Jane,Smith,VP Sales,TechCo,jane.smith@techco.com,https://linkedin.com/in/janesmi
     const result = await importCsvContacts(buffer, "test-batch");
     expect(result).toHaveProperty("imported");
     expect(result).toHaveProperty("skipped");
+    expect(result.matchedExisting).toBe(0);
     expect(result.imported).toBeGreaterThanOrEqual(0);
-    expect(vi.mocked(upsertContact)).toHaveBeenCalled();
+    expect(vi.mocked(findDuplicateContact)).toHaveBeenCalled();
+    expect(vi.mocked(createOrMergeContact)).toHaveBeenCalled();
   });
 
   it("applies organization scope to imported contacts", async () => {
     const { importCsvContacts } = await import("./services/csvImport");
-    const { upsertContact } = await import("./db");
+    const { createOrMergeContact } = await import("./db");
 
     const csvContent = `First Name,Last Name,Title,Company,Email
 Scoped,User,CTO,Scoped Co,scoped.user@scopedco.com`;
@@ -644,8 +650,8 @@ Scoped,User,CTO,Scoped Co,scoped.user@scopedco.com`;
     const buffer = Buffer.from(csvContent, "utf-8");
     await importCsvContacts(buffer, "scoped-test-batch", { organizationId: 123 });
 
-    const upsertContactMock = vi.mocked(upsertContact);
-    const scopedCall = upsertContactMock.mock.calls.find(
+    const mergeMock = vi.mocked(createOrMergeContact);
+    const scopedCall = mergeMock.mock.calls.find(
       call => call?.[0]?.email === "scoped.user@scopedco.com",
     );
     expect(scopedCall?.[0]?.organizationId).toBe(123);

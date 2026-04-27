@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useCallback } from "react";
+import { skipToken } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,6 +54,26 @@ const EMAIL_STATUS_COLORS: Record<string, string> = {
   unknown: "bg-slate-500/20 text-slate-400",
 };
 
+/** Stable section order in enrichment results dialog */
+const ENRICHMENT_SOURCE_ORDER = ["manual", "domain", "website", "tech_detector"] as const;
+
+function enrichmentRowsSorted(rows: { fieldName?: string }[]) {
+  return [...rows].sort((a, b) => {
+    const an = String(a.fieldName ?? "");
+    const bn = String(b.fieldName ?? "");
+    if (an === "websiteFetch") return 1;
+    if (bn === "websiteFetch") return -1;
+    return an.localeCompare(bn);
+  });
+}
+
+function isLongOrUrlValue(value: unknown, fieldName: string) {
+  const s = value == null ? "" : String(value);
+  if (fieldName === "websiteFetch") return true;
+  if (s.length > 120) return true;
+  return /^https?:\/\//i.test(s.trim());
+}
+
 export default function Contacts() {
   const [search, setSearch] = useState("");
   const [stage, setStage] = useState("all");
@@ -106,12 +127,17 @@ export default function Contacts() {
   const enrichMutation = trpc.contacts.enrichContact.useMutation({
     onSuccess: (res) => {
       if (res.success) {
-        toast.success(`Enriched (${res.fields} fields)`);
+        if (res.enrichmentStatus === "no_data_found") {
+          toast.success("Enrichment completed, but no useful public data was found.");
+        } else {
+          toast.success(`Enriched (${res.fields} fields)`);
+        }
       } else {
         toast.error(res.error ?? "Enrichment failed");
       }
       utils.contacts.list.invalidate();
       if (enrichContactId != null) {
+        utils.contacts.get.invalidate({ id: enrichContactId });
         utils.contacts.getContactEnrichmentResults.invalidate({ contactId: enrichContactId });
       }
     },
@@ -122,6 +148,18 @@ export default function Contacts() {
     { contactId: enrichContactId ?? -1 },
     { enabled: enrichContactId != null },
   );
+
+  /** skipToken clears subscription when dialog closes — avoids stale cached row keyed as id 0 / wrong contact. */
+  const enrichmentContactQuery = trpc.contacts.get.useQuery(
+    enrichContactId != null ? { id: enrichContactId } : skipToken,
+  );
+
+  /** Only trust contact meta when it matches the open dialog target (handles cache during contact switches). */
+  const enrichmentContactForDialog =
+    enrichContactId != null &&
+    enrichmentContactQuery.data?.id === enrichContactId
+      ? enrichmentContactQuery.data
+      : undefined;
 
   const updateLinkedInMutation = trpc.contacts.updateContactLinkedInUrl.useMutation({
     onSuccess: (res) => {
@@ -148,14 +186,26 @@ export default function Contacts() {
       if (result.success) {
         const imported = Number(result.imported ?? 0);
         const skipped = Number(result.skipped ?? 0);
+        const matchedExisting = Number(result.matchedExisting ?? 0);
         const errors: string[] = Array.isArray(result.errors) ? result.errors : [];
-        if (imported > 0) {
-          toast.success(`Imported ${imported} contacts (${skipped} skipped)`);
-        } else if (errors.length > 0) {
+        const parts: string[] = [];
+        if (imported > 0) parts.push(`${imported} new`);
+        if (matchedExisting > 0) {
+          parts.push(
+            `${matchedExisting} matched existing contacts (rows skipped; those people already appear in your list)`,
+          );
+        }
+        if (skipped > 0 && errors.length > 0) parts.push(`${skipped} skipped (errors)`);
+        else if (skipped > 0) parts.push(`${skipped} skipped`);
+
+        const summary = parts.join(". ");
+        if (errors.length > 0) {
           toast.error(`Import skipped rows. Example: ${errors[0]}`);
-          toast.message(`Imported ${imported} contacts (${skipped} skipped)`);
+          if (summary.length > 0) toast.message(summary);
+        } else if (summary.length > 0) {
+          toast.success(summary);
         } else {
-          toast.success(`Imported ${imported} contacts (${skipped} skipped)`);
+          toast.success("Import finished.");
         }
         utils.contacts.list.invalidate();
       } else {
@@ -185,15 +235,24 @@ export default function Contacts() {
     }
   };
 
-  const enrichmentGrouped = useMemo(() => {
+  const enrichmentSections = useMemo(() => {
     const rows = enrichmentQuery.data ?? [];
     const bySource: Record<string, typeof rows> = {};
     for (const r of rows) {
-      const s = String((r as any).source ?? "unknown");
+      const s = String((r as { source?: string }).source ?? "unknown");
       if (!bySource[s]) bySource[s] = [];
       bySource[s]!.push(r);
     }
-    return bySource;
+    const ordered: [string, typeof rows][] = [];
+    for (const s of ENRICHMENT_SOURCE_ORDER) {
+      if (bySource[s]?.length) ordered.push([s, bySource[s]!]);
+    }
+    for (const s of Object.keys(bySource)) {
+      if (!ENRICHMENT_SOURCE_ORDER.includes(s as (typeof ENRICHMENT_SOURCE_ORDER)[number])) {
+        ordered.push([s, bySource[s]!]);
+      }
+    }
+    return ordered;
   }, [enrichmentQuery.data]);
 
   return (
@@ -505,52 +564,87 @@ export default function Contacts() {
 
       {/* Enrichment Results Dialog */}
       <Dialog open={enrichContactId != null} onOpenChange={(open) => { if (!open) setEnrichContactId(null); }}>
-        <DialogContent className="bg-card border-border max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Enrichment results</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
-              LinkedIn URLs are stored only as manual references. Krot.io does not scrape LinkedIn.
-            </div>
-
-            {enrichmentQuery.isLoading ? (
-              <div className="text-sm text-muted-foreground">Loading results...</div>
-            ) : (enrichmentQuery.data?.length ?? 0) === 0 ? (
-              <div className="text-sm text-muted-foreground">No enrichment results for this contact yet.</div>
-            ) : (
-              <div className="space-y-4">
-                {Object.entries(enrichmentGrouped).map(([source, rows]) => (
-                  <div key={source} className="rounded-md border border-border/60">
-                    <div className="flex items-center justify-between px-3 py-2 border-b border-border/60">
-                      <div className="text-sm font-semibold">{source.replaceAll("_", " ")}</div>
-                      <Badge variant="secondary" className="text-xs">{rows.length}</Badge>
-                    </div>
-                    <div className="p-3 space-y-2">
-                      {rows.map((r: any) => (
-                        <div key={r.id} className="flex flex-col gap-1 rounded-md bg-muted/20 p-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary" className="text-[10px]">{r.fieldName}</Badge>
-                            <Badge variant="secondary" className="text-[10px]">{r.confidence}%</Badge>
-                            {r.personalData ? (
-                              <Badge className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30">personal data</Badge>
-                            ) : (
-                              <Badge className="text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">non-personal</Badge>
-                            )}
-                            <span className="text-[11px] text-muted-foreground ml-auto">
-                              {r.collectedAt ? new Date(r.collectedAt).toLocaleString() : ""}
-                            </span>
-                          </div>
-                          <div className="text-sm break-words">{r.fieldValue}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+        <DialogContent className="bg-card border-border flex max-h-[min(90vh,880px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+          <div className="shrink-0 border-b border-border/60 px-6 pt-6 pb-4">
+            <DialogHeader className="text-left">
+              <DialogTitle>Enrichment results</DialogTitle>
+            </DialogHeader>
+            <p className="text-muted-foreground mt-3 text-sm leading-relaxed">
+              Page titles and snippets come from the live site we fetched—they may be in any language, or show 'error' if the page was a login wall or blocked request.
+            </p>
           </div>
-          <DialogFooter>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+            <div className="space-y-4">
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+                LinkedIn URLs are stored only as manual references. Krot.io does not scrape LinkedIn.
+              </div>
+
+              {enrichmentQuery.isLoading ? (
+                <div className="text-sm text-muted-foreground">Loading results...</div>
+              ) : (enrichmentQuery.data?.length ?? 0) === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  {enrichmentContactForDialog?.enrichmentStatus === "no_data_found"
+                    ? "Enrichment completed, but no useful public data was found."
+                    : "No enrichment results for this contact yet."}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {enrichmentSections.map(([source, rows]) => (
+                    <div key={source} className="overflow-hidden rounded-md border border-border/60">
+                      <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
+                        <div className="text-sm font-semibold capitalize">{source.replaceAll("_", " ")}</div>
+                        <Badge variant="secondary" className="text-xs">{rows.length}</Badge>
+                      </div>
+                      <div className="space-y-2 p-3">
+                        {enrichmentRowsSorted(rows).map((r: any) => {
+                          const mono = isLongOrUrlValue(r.fieldValue, r.fieldName);
+                          const isTech = r.fieldName === "websiteFetch";
+                          return (
+                            <div key={r.id} className="flex flex-col gap-1 rounded-md bg-muted/20 p-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant="secondary" className="text-[10px]">{r.fieldName}</Badge>
+                                <Badge variant="secondary" className="text-[10px]">{r.confidence}%</Badge>
+                                {r.personalData ? (
+                                  <Badge className="text-[10px] border border-amber-500/30 bg-amber-500/20 text-amber-300">personal data</Badge>
+                                ) : (
+                                  <Badge className="text-[10px] border border-emerald-500/25 bg-emerald-500/15 text-emerald-300">non-personal</Badge>
+                                )}
+                                <span className="ml-auto text-[11px] text-muted-foreground">
+                                  {r.collectedAt ? new Date(r.collectedAt).toLocaleString() : ""}
+                                </span>
+                              </div>
+                              {isTech ? (
+                                <details className="text-sm">
+                                  <summary className="cursor-pointer text-muted-foreground select-none">
+                                    Fetched URL (long, technical)
+                                  </summary>
+                                  <div className="mt-2 max-h-32 overflow-y-auto rounded border border-border/40 bg-muted/40 p-2 font-mono text-xs break-all text-foreground">
+                                    {r.fieldValue}
+                                  </div>
+                                </details>
+                              ) : (
+                                <div
+                                  className={
+                                    mono
+                                      ? "max-h-40 overflow-y-auto rounded border border-border/40 bg-muted/30 p-2 font-mono text-xs break-all leading-snug text-foreground"
+                                      : "text-sm break-words leading-snug text-foreground"
+                                  }
+                                >
+                                  {r.fieldValue}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="shrink-0 border-t border-border/60 px-6 py-4">
             <Button variant="outline" onClick={() => setEnrichContactId(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>

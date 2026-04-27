@@ -1,6 +1,11 @@
 import { parse } from "csv-parse/sync";
 import { v4 as uuidv4 } from "uuid";
-import { upsertContact, createImportBatch, updateImportBatch } from "../db";
+import {
+  createImportBatch,
+  createOrMergeContact,
+  findDuplicateContact,
+  updateImportBatch,
+} from "../db";
 import type { InsertContact } from "../../drizzle/schema";
 
 type CsvMappedField = keyof InsertContact | "__country" | "__keywords";
@@ -112,8 +117,14 @@ function splitKeywords(raw: string): string[] {
 export interface ImportResult {
   batchId: string;
   total: number;
+  /** New contacts inserted into the database */
   imported: number;
+  /** Rows with parse/validation failures */
   skipped: number;
+  /** Rows that matched an existing contact (same email / LinkedIn / fuzzy duplicate rules); DB row was not updated */
+  matchedExisting: number;
+  /** Distinct database contact IDs that CSV rows matched (already on the dashboard) */
+  matchedContactIds: number[];
   errors: string[];
 }
 
@@ -130,6 +141,8 @@ export async function importCsvContacts(
   const errors: string[] = [];
   let imported = 0;
   let skipped = 0;
+  let matchedExisting = 0;
+  const matchedContactIdSet = new Set<number>();
 
   let records: Record<string, string>[];
   try {
@@ -219,7 +232,14 @@ export async function importCsvContacts(
         continue;
       }
 
-      await upsertContact(contact);
+      const existing = await findDuplicateContact(contact);
+      if (existing) {
+        matchedExisting++;
+        matchedContactIdSet.add(existing.id);
+        continue;
+      }
+
+      await createOrMergeContact(contact);
       imported++;
     } catch (err: any) {
       errors.push(`Row ${i + 2}: ${err.message}`);
@@ -234,5 +254,13 @@ export async function importCsvContacts(
     errorLog: errors.length > 0 ? errors.slice(0, 20).join("\n") : undefined,
   });
 
-  return { batchId, total, imported, skipped, errors };
+  return {
+    batchId,
+    total,
+    imported,
+    skipped,
+    matchedExisting,
+    matchedContactIds: Array.from(matchedContactIdSet).sort((a, b) => a - b),
+    errors,
+  };
 }
