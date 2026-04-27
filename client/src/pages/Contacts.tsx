@@ -202,11 +202,26 @@ export default function Contacts() {
         if (errors.length > 0) {
           toast.error(`Import skipped rows. Example: ${errors[0]}`);
           if (summary.length > 0) toast.message(summary);
+        } else if (imported === 0 && matchedExisting > 0) {
+          const duplicateDesc =
+            matchedExisting === 1
+              ? "That CSV row matched someone already in this workspace; nothing new was inserted."
+              : `${matchedExisting} CSV rows skipped — each matched someone already in this workspace (often many rows sharing one email). Pipeline count unchanged.`;
+          const skippedDesc =
+            skipped > 0
+              ? skipped === 1
+                ? " 1 row could not be imported (missing identifying fields or invalid data)."
+                : ` ${skipped} rows could not be imported (missing identifying fields or invalid data).`
+              : "";
+          toast.warning("No new contacts added", {
+            description: duplicateDesc + skippedDesc,
+          });
         } else if (summary.length > 0) {
           toast.success(summary);
         } else {
           toast.success("Import finished.");
         }
+        setPage(0);
         utils.contacts.list.invalidate();
       } else {
         toast.error(result.error ?? "Import failed");
