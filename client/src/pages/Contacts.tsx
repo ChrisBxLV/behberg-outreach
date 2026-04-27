@@ -146,7 +146,17 @@ export default function Contacts() {
       const res = await fetch("/api/import/csv", { method: "POST", body: formData });
       const result = await res.json();
       if (result.success) {
-        toast.success(`Imported ${result.imported} contacts (${result.skipped} skipped)`);
+        const imported = Number(result.imported ?? 0);
+        const skipped = Number(result.skipped ?? 0);
+        const errors: string[] = Array.isArray(result.errors) ? result.errors : [];
+        if (imported > 0) {
+          toast.success(`Imported ${imported} contacts (${skipped} skipped)`);
+        } else if (errors.length > 0) {
+          toast.error(`Import skipped rows. Example: ${errors[0]}`);
+          toast.message(`Imported ${imported} contacts (${skipped} skipped)`);
+        } else {
+          toast.success(`Imported ${imported} contacts (${skipped} skipped)`);
+        }
         utils.contacts.list.invalidate();
       } else {
         toast.error(result.error ?? "Import failed");

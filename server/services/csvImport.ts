@@ -66,7 +66,31 @@ function normalizeHeader(h: string): string {
     .replace(/\u00A0/g, " ")
     .toLowerCase()
     .trim()
-    .replace(/[_\-]/g, " ");
+    .replace(/[_\-]/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function guessFieldFromHeader(normalized: string): CsvMappedField | null {
+  const h = normalized;
+  if (!h) return null;
+
+  // Heuristics for unknown exports (kept conservative).
+  if (h.includes("email")) return "email";
+  if (h.includes("linkedin")) return "linkedinUrl";
+  if (h.includes("website") || h.includes("url") || h.includes("domain")) return "companyWebsite";
+  if (h.includes("company") || h.includes("organization") || h.includes("account")) return "company";
+  if (h.includes("job title") || h === "title" || h.includes("position")) return "title";
+
+  // Name columns: prefer explicit first/last; otherwise treat "name" as full name.
+  if (h.includes("first name") || h === "firstname") return "firstName";
+  if (h.includes("last name") || h === "lastname") return "lastName";
+  if (h.endsWith(" name") || h === "name") return "fullName";
+
+  // Country / tags
+  if (h === "country") return "__country";
+  if (h.includes("keyword") || h.includes("tag")) return "__keywords";
+
+  return null;
 }
 
 function mapEmailStatus(raw: string): InsertContact["emailStatus"] {
@@ -134,12 +158,14 @@ export async function importCsvContacts(
         organizationId: options.organizationId ?? null,
       };
       let csvCountry = "";
+      let mappedAny = false;
 
       // Map columns
       for (const [rawKey, value] of Object.entries(row)) {
         const normalized = normalizeHeader(rawKey);
-        const field = FIELD_MAP[normalized];
+        const field = FIELD_MAP[normalized] ?? guessFieldFromHeader(normalized);
         if (!field || !value) continue;
+        mappedAny = true;
 
         if (field === "emailConfidence") {
           const num = parseFloat(value);
@@ -181,6 +207,14 @@ export async function importCsvContacts(
 
       // Skip if no identifying info
       if (!contact.email && !contact.fullName && !contact.company) {
+        if (!mappedAny) {
+          const headers = Object.keys(row)
+            .slice(0, 12)
+            .map(k => normalizeHeader(k))
+            .filter(Boolean)
+            .join(", ");
+          errors.push(`Row ${i + 2}: no recognized columns (headers: ${headers || "unknown"})`);
+        }
         skipped++;
         continue;
       }
