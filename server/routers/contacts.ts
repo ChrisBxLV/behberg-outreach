@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { dataScopeOrganizationId } from "../_core/orgScope";
 import { assertContactScope } from "../_core/orgAccess";
 import { requireTenantQueryScope } from "../_core/authz";
@@ -8,12 +9,18 @@ import {
   getContactById,
   createOrMergeContact,
   updateContact,
+  updateContactLinkedInUrl,
   deleteContacts,
   bulkUpdateContactStage,
   getImportBatches,
   getEmailLogsByContact,
   getContactFilterOptions,
+  getEnrichmentResultsByContactId,
+  insertEnrichmentResults,
+  updateContactEnrichmentMeta,
 } from "../db";
+import { enrichContactMvp } from "../enrichment/enrichment.service";
+import { validateLinkedInUrlForManualStorage } from "../enrichment/providers/manualLinkedIn.provider";
 
 export const contactsRouter = router({
   list: protectedProcedure
@@ -55,6 +62,123 @@ export const contactsRouter = router({
       const contact = await getContactById(input.id, scope);
       assertContactScope(contact, ctx.user);
       return contact!;
+    }),
+
+  enrichContact: protectedProcedure
+    .input(z.object({ contactId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const scope =
+        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
+          ? ({ type: "platform" } as const)
+          : requireTenantQueryScope(ctx.user);
+
+      const contact = await getContactById(input.contactId, scope);
+      assertContactScope(contact, ctx.user);
+
+      const orgId = contact.organizationId ?? null;
+      if (!orgId) {
+        // We need orgId for storing results and tenant scoping.
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required for enrichment." });
+      }
+
+      let fieldsCount = 0;
+      try {
+        await updateContactEnrichmentMeta(
+          input.contactId,
+          { enrichmentStatus: "enriching", enrichmentUpdatedAt: new Date() },
+          scope,
+        );
+
+        const res = await enrichContactMvp({
+          contactId: String(contact.id),
+          orgId: String(orgId),
+          email: contact.email ?? null,
+          fullName: contact.fullName ?? null,
+          companyName: contact.company ?? null,
+          companyWebsite: contact.companyWebsite ?? null,
+          linkedinUrl: contact.linkedinUrl ?? null,
+        });
+
+        const now = new Date();
+        await insertEnrichmentResults(
+          orgId,
+          contact.id,
+          res.fields.map(f => ({
+            source: f.source,
+            fieldName: f.fieldName,
+            fieldValue: f.fieldValue,
+            confidence: f.confidence,
+            personalData: f.personalData,
+            rawData: f.rawData,
+            collectedAt: now,
+          })),
+        );
+        fieldsCount = res.fields.length;
+
+        await updateContactEnrichmentMeta(
+          input.contactId,
+          {
+            normalizedDomain: res.normalizedDomain ?? null,
+            enrichmentStatus: fieldsCount > 0 ? "enriched" : "failed",
+            enrichmentUpdatedAt: now,
+          },
+          scope,
+        );
+
+        return { success: true as const, fields: fieldsCount };
+      } catch (e: any) {
+        await updateContactEnrichmentMeta(
+          input.contactId,
+          {
+            enrichmentStatus: "failed",
+            enrichmentUpdatedAt: new Date(),
+          },
+          scope,
+        );
+        return {
+          success: false as const,
+          fields: fieldsCount,
+          error: String(e?.message ?? "enrichment_failed"),
+        };
+      }
+    }),
+
+  getContactEnrichmentResults: protectedProcedure
+    .input(z.object({ contactId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const scope =
+        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
+          ? ({ type: "platform" } as const)
+          : requireTenantQueryScope(ctx.user);
+
+      const contact = await getContactById(input.contactId, scope);
+      assertContactScope(contact, ctx.user);
+
+      return getEnrichmentResultsByContactId(input.contactId, scope);
+    }),
+
+  updateContactLinkedInUrl: protectedProcedure
+    .input(z.object({ contactId: z.number(), linkedinUrl: z.string().nullable() }))
+    .mutation(async ({ input, ctx }) => {
+      const scope =
+        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
+          ? ({ type: "platform" } as const)
+          : requireTenantQueryScope(ctx.user);
+
+      const contact = await getContactById(input.contactId, scope);
+      assertContactScope(contact, ctx.user);
+
+      const normalized =
+        input.linkedinUrl == null || input.linkedinUrl.trim() === ""
+          ? null
+          : validateLinkedInUrlForManualStorage(input.linkedinUrl);
+
+      if (input.linkedinUrl && !normalized) {
+        return { success: false as const, error: "LinkedIn URL must look like linkedin.com/in/... or linkedin.com/company/..." };
+      }
+
+      await updateContactLinkedInUrl(input.contactId, normalized, scope);
+      return { success: true as const, linkedinUrl: normalized };
     }),
 
   create: protectedProcedure

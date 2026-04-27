@@ -2,7 +2,7 @@ import { eq, and, desc, asc, like, inArray, sql, isNull, isNotNull, gt, count, n
 import { drizzle } from "drizzle-orm/mysql2";
 import { TRPCError } from "@trpc/server";
 import {
-  users, organizations, contacts, importBatches, campaigns, sequenceSteps,
+  users, organizations, contacts, enrichmentResults, importBatches, campaigns, sequenceSteps,
   campaignContacts, emailLogs, trackingEvents, loginChallenges,
   signalProfiles, signals, signalInsights, signalIngestionRuns, mailboxes,
   mailboxOauthTokens, mailboxOauthConnectAttempts, mailboxHealth, mailboxSendLimits,   mailboxWebhookSubscriptions,
@@ -12,6 +12,7 @@ import {
   type InsertSequenceStep, type InsertEmailLog, type InsertLoginChallenge,
   type InsertSignalProfile, type InsertSignal, type InsertSignalInsight,
   type InsertMailbox, type InsertMailboxOauthToken, type InsertMailboxOauthConnectAttempt,
+  type InsertEnrichmentResult,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { scopeForContactOrganizationId, type TenantQueryScope } from "./_core/authz";
@@ -740,6 +741,83 @@ export async function getContactById(id: number, scope: TenantQueryScope) {
   }
   const result = await db.select().from(contacts).where(and(...conds)).limit(1);
   return result[0];
+}
+
+export async function updateContactLinkedInUrl(
+  contactId: number,
+  linkedinUrl: string | null,
+  scope: TenantQueryScope,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conds = [eq(contacts.id, contactId)];
+  if (scope.type === "tenant") {
+    conds.push(eq(contacts.organizationId, scope.organizationId));
+  }
+  await db.update(contacts).set({ linkedinUrl }).where(and(...conds));
+}
+
+export async function updateContactEnrichmentMeta(
+  contactId: number,
+  patch: Partial<Pick<InsertContact, "normalizedDomain" | "enrichmentStatus" | "enrichmentUpdatedAt">>,
+  scope: TenantQueryScope,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conds = [eq(contacts.id, contactId)];
+  if (scope.type === "tenant") {
+    conds.push(eq(contacts.organizationId, scope.organizationId));
+  }
+  await db.update(contacts).set(patch).where(and(...conds));
+}
+
+export async function insertEnrichmentResults(
+  organizationId: number,
+  contactId: number,
+  fields: Array<{
+    source: string;
+    fieldName: string;
+    fieldValue: string;
+    confidence: number;
+    personalData: boolean;
+    rawData?: unknown;
+    collectedAt?: Date;
+  }>,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const now = new Date();
+  const rows: InsertEnrichmentResult[] = fields.map(f => ({
+    organizationId,
+    contactId,
+    source: f.source,
+    fieldName: f.fieldName,
+    fieldValue: f.fieldValue,
+    confidence: Math.max(0, Math.min(100, Math.round(Number(f.confidence ?? 0)))),
+    personalData: Boolean(f.personalData),
+    rawData: f.rawData ?? null,
+    collectedAt: f.collectedAt ?? now,
+  }));
+  if (!rows.length) return;
+  await db.insert(enrichmentResults).values(rows);
+}
+
+export async function getEnrichmentResultsByContactId(
+  contactId: number,
+  scope: TenantQueryScope,
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conds = [eq(enrichmentResults.contactId, contactId)];
+  if (scope.type === "tenant") {
+    conds.push(eq(enrichmentResults.organizationId, scope.organizationId));
+  }
+  return db
+    .select()
+    .from(enrichmentResults)
+    .where(and(...conds))
+    .orderBy(desc(enrichmentResults.collectedAt), desc(enrichmentResults.id));
 }
 
 export async function createContact(data: InsertContact) {

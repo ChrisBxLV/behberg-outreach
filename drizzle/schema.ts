@@ -107,6 +107,10 @@ export const contacts = mysqlTable("contacts", {
   companySize: varchar("companySize", { length: 64 }),
   companyWebsite: varchar("companyWebsite", { length: 512 }),
   linkedinUrl: varchar("linkedinUrl", { length: 512 }),
+  /** Normalized domain derived from email or companyWebsite (non-personal domains only). */
+  normalizedDomain: varchar("normalizedDomain", { length: 255 }),
+  enrichmentStatus: varchar("enrichmentStatus", { length: 32 }).default("not_enriched").notNull(),
+  enrichmentUpdatedAt: timestamp("enrichmentUpdatedAt"),
   location: varchar("location", { length: 256 }),
   // Pipeline
   stage: mysqlEnum("stage", ["new", "enriched", "in_sequence", "replied", "closed", "unsubscribed"]).default("new").notNull(),
@@ -130,6 +134,29 @@ export const contacts = mysqlTable("contacts", {
 
 export type Contact = typeof contacts.$inferSelect;
 export type InsertContact = typeof contacts.$inferInsert;
+
+// ─── Enrichment Results (contact-level) ───────────────────────────────────────
+export const enrichmentResults = mysqlTable("enrichment_results", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: int("organizationId")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  contactId: int("contactId")
+    .notNull()
+    .references(() => contacts.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  source: varchar("source", { length: 64 }).notNull(),
+  fieldName: varchar("fieldName", { length: 128 }).notNull(),
+  fieldValue: text("fieldValue").notNull(),
+  confidence: int("confidence").default(0).notNull(),
+  personalData: boolean("personalData").default(false).notNull(),
+  rawData: json("rawData").$type<unknown>(),
+  collectedAt: timestamp("collectedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EnrichmentResult = typeof enrichmentResults.$inferSelect;
+export type InsertEnrichmentResult = typeof enrichmentResults.$inferInsert;
 
 // ─── Import Batches ───────────────────────────────────────────────────────────
 export const importBatches = mysqlTable("import_batches", {

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useMemo, useState, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import {
   Upload, Search, Filter, Trash2, Users, CheckSquare,
   ChevronLeft, ChevronRight, ExternalLink, Mail, Building2,
-  MapPin, Tag, Plus, RefreshCw, Download
+  MapPin, Tag, Plus, RefreshCw, Download, Sparkles, Link2, Pencil
 } from "lucide-react";
 
 const STAGE_OPTIONS = [
@@ -66,6 +66,8 @@ export default function Contacts() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showBulkStageDialog, setShowBulkStageDialog] = useState(false);
   const [bulkStage, setBulkStage] = useState<string>("enriched");
+  const [enrichContactId, setEnrichContactId] = useState<number | null>(null);
+  const [linkedinEdit, setLinkedinEdit] = useState<{ contactId: number; value: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
   const LIMIT = 50;
@@ -96,6 +98,39 @@ export default function Contacts() {
       toast.success("Stage updated");
       setSelectedIds([]);
       setShowBulkStageDialog(false);
+      utils.contacts.list.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const enrichMutation = trpc.contacts.enrichContact.useMutation({
+    onSuccess: (res) => {
+      if (res.success) {
+        toast.success(`Enriched (${res.fields} fields)`);
+      } else {
+        toast.error(res.error ?? "Enrichment failed");
+      }
+      utils.contacts.list.invalidate();
+      if (enrichContactId != null) {
+        utils.contacts.getContactEnrichmentResults.invalidate({ contactId: enrichContactId });
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const enrichmentQuery = trpc.contacts.getContactEnrichmentResults.useQuery(
+    { contactId: enrichContactId ?? -1 },
+    { enabled: enrichContactId != null },
+  );
+
+  const updateLinkedInMutation = trpc.contacts.updateContactLinkedInUrl.useMutation({
+    onSuccess: (res) => {
+      if (!res.success) {
+        toast.error(res.error ?? "Invalid LinkedIn URL");
+        return;
+      }
+      toast.success("LinkedIn URL saved");
+      setLinkedinEdit(null);
       utils.contacts.list.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -139,6 +174,17 @@ export default function Contacts() {
       setSelectedIds(contacts.map(c => c.id));
     }
   };
+
+  const enrichmentGrouped = useMemo(() => {
+    const rows = enrichmentQuery.data ?? [];
+    const bySource: Record<string, typeof rows> = {};
+    for (const r of rows) {
+      const s = String((r as any).source ?? "unknown");
+      if (!bySource[s]) bySource[s] = [];
+      bySource[s]!.push(r);
+    }
+    return bySource;
+  }, [enrichmentQuery.data]);
 
   return (
     <DashboardLayout>
@@ -270,13 +316,15 @@ export default function Contacts() {
                   <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</th>
                   <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Stage</th>
                   <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Location</th>
+                  <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Enrichment</th>
+                  <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={i} className="border-b border-border/30">
-                      {Array.from({ length: 7 }).map((_, j) => (
+                      {Array.from({ length: 9 }).map((_, j) => (
                         <td key={j} className="p-4">
                           <div className="h-4 bg-muted/40 rounded animate-pulse" />
                         </td>
@@ -285,7 +333,7 @@ export default function Contacts() {
                   ))
                 ) : contacts.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-12 text-center text-muted-foreground">
+                    <td colSpan={9} className="p-12 text-center text-muted-foreground">
                       <Users className="h-10 w-10 mx-auto mb-3 opacity-30" />
                       <p className="font-medium">No contacts found</p>
                       <p className="text-sm mt-1">Import a CSV from Apollo or LinkedIn to get started</p>
@@ -337,6 +385,55 @@ export default function Contacts() {
                         <div className="flex items-center gap-1.5 text-muted-foreground">
                           {contact.location && <MapPin className="h-3 w-3 shrink-0" />}
                           <span className="text-sm truncate max-w-28">{contact.location ?? "—"}</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="space-y-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {String((contact as any).enrichmentStatus ?? "not_enriched").replaceAll("_", " ")}
+                          </Badge>
+                          {(contact as any).enrichmentUpdatedAt ? (
+                            <div className="text-[11px] text-muted-foreground">
+                              {new Date((contact as any).enrichmentUpdatedAt).toLocaleString()}
+                            </div>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEnrichContactId(contact.id);
+                              enrichMutation.mutate({ contactId: contact.id });
+                            }}
+                            disabled={enrichMutation.isPending}
+                          >
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            Enrich
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEnrichContactId(contact.id)}
+                          >
+                            <Link2 className="h-3 w-3 mr-1" />
+                            Results
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              setLinkedinEdit({
+                                contactId: contact.id,
+                                value: (contact as any).linkedinUrl ?? "",
+                              })
+                            }
+                          >
+                            <Pencil className="h-3 w-3 mr-1" />
+                            LinkedIn
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -395,6 +492,96 @@ export default function Contacts() {
         {/* Add Contact Dialog */}
         <AddContactDialog open={showAddDialog} onClose={() => setShowAddDialog(false)} onSuccess={() => utils.contacts.list.invalidate()} />
       </div>
+
+      {/* Enrichment Results Dialog */}
+      <Dialog open={enrichContactId != null} onOpenChange={(open) => { if (!open) setEnrichContactId(null); }}>
+        <DialogContent className="bg-card border-border max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Enrichment results</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+              LinkedIn URLs are stored only as manual references. Krot.io does not scrape LinkedIn.
+            </div>
+
+            {enrichmentQuery.isLoading ? (
+              <div className="text-sm text-muted-foreground">Loading results...</div>
+            ) : (enrichmentQuery.data?.length ?? 0) === 0 ? (
+              <div className="text-sm text-muted-foreground">No enrichment results for this contact yet.</div>
+            ) : (
+              <div className="space-y-4">
+                {Object.entries(enrichmentGrouped).map(([source, rows]) => (
+                  <div key={source} className="rounded-md border border-border/60">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-border/60">
+                      <div className="text-sm font-semibold">{source.replaceAll("_", " ")}</div>
+                      <Badge variant="secondary" className="text-xs">{rows.length}</Badge>
+                    </div>
+                    <div className="p-3 space-y-2">
+                      {rows.map((r: any) => (
+                        <div key={r.id} className="flex flex-col gap-1 rounded-md bg-muted/20 p-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="secondary" className="text-[10px]">{r.fieldName}</Badge>
+                            <Badge variant="secondary" className="text-[10px]">{r.confidence}%</Badge>
+                            {r.personalData ? (
+                              <Badge className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30">personal data</Badge>
+                            ) : (
+                              <Badge className="text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">non-personal</Badge>
+                            )}
+                            <span className="text-[11px] text-muted-foreground ml-auto">
+                              {r.collectedAt ? new Date(r.collectedAt).toLocaleString() : ""}
+                            </span>
+                          </div>
+                          <div className="text-sm break-words">{r.fieldValue}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEnrichContactId(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* LinkedIn URL Edit Dialog */}
+      <Dialog open={linkedinEdit != null} onOpenChange={(open) => { if (!open) setLinkedinEdit(null); }}>
+        <DialogContent className="bg-card border-border max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit LinkedIn URL</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <div className="text-sm text-muted-foreground">
+              LinkedIn URLs are stored only as manual references. Krot.io does not scrape LinkedIn.
+            </div>
+            <Label>LinkedIn URL</Label>
+            <Input
+              placeholder="https://www.linkedin.com/in/username OR https://www.linkedin.com/company/company-name"
+              value={linkedinEdit?.value ?? ""}
+              onChange={(e) => setLinkedinEdit(v => v ? ({ ...v, value: e.target.value }) : v)}
+              className="bg-muted/30 border-border/50"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinkedinEdit(null)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!linkedinEdit) return;
+                const raw = linkedinEdit.value.trim();
+                updateLinkedInMutation.mutate({
+                  contactId: linkedinEdit.contactId,
+                  linkedinUrl: raw.length ? raw : null,
+                });
+              }}
+              disabled={updateLinkedInMutation.isPending}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
