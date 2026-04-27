@@ -22,6 +22,8 @@ const FIELD_MAP: Record<string, CsvMappedField> = {
   "email address": "email",
   "work email": "email",
   "corporate email": "email",
+  "email 1": "email",
+  "primary email": "email",
   // Professional
   "title": "title",
   "job title": "title",
@@ -29,6 +31,9 @@ const FIELD_MAP: Record<string, CsvMappedField> = {
   "company": "company",
   "company name": "company",
   "organization": "company",
+  "account": "company",
+  "account name": "company",
+  "company/organization": "company",
   "industry": "industry",
   "company size": "companySize",
   "employees": "companySize",
@@ -55,7 +60,13 @@ const FIELD_MAP: Record<string, CsvMappedField> = {
 };
 
 function normalizeHeader(h: string): string {
-  return h.toLowerCase().trim().replace(/[_\-]/g, " ");
+  // Strip UTF-8 BOM and normalize whitespace/separators (Excel/Sheets exports often include these).
+  return h
+    .replace(/^\uFEFF/, "")
+    .replace(/\u00A0/g, " ")
+    .toLowerCase()
+    .trim()
+    .replace(/[_\-]/g, " ");
 }
 
 function mapEmailStatus(raw: string): InsertContact["emailStatus"] {
