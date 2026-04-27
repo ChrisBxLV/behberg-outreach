@@ -6,6 +6,20 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1"
     />
+    <script>
+      // Prevent theme FOUC by applying class before first paint.
+      (function () {
+        try {
+          var theme = localStorage.getItem("theme");
+          var isDark = theme !== "light"; // default dark
+          var root = document.documentElement;
+          if (isDark) root.classList.add("dark");
+          else root.classList.remove("dark");
+        } catch (_) {
+          document.documentElement.classList.add("dark");
+        }
+      })();
+    </script>
     <title>Krot</title>
   </head>
 

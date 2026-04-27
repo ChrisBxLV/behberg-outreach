@@ -34,12 +34,15 @@ import {
   Radar,
   Target,
   Shield,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { ProfileRegistrationModal } from "@/components/ProfileRegistrationModal";
 import { Button } from "./ui/button";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const baseMenuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/app" },
@@ -162,6 +165,7 @@ function DashboardLayoutContent({
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme, switchable } = useTheme();
   const { data: loginOpts } = trpc.auth.loginOptions.useQuery();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
@@ -353,6 +357,22 @@ function DashboardLayoutContent({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
+                {switchable && toggleTheme ? (
+                  <>
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onClick={e => toggleTheme?.(e)}
+                    >
+                      {theme === "dark" ? (
+                        <Sun className="mr-2 h-4 w-4" />
+                      ) : (
+                        <Moon className="mr-2 h-4 w-4" />
+                      )}
+                      <span>Switch to {theme === "dark" ? "light" : "dark"} mode</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
                 {superNav ? (
                   <>
                     <DropdownMenuItem
@@ -399,6 +419,21 @@ function DashboardLayoutContent({
                 </div>
               </div>
             </div>
+            {switchable && toggleTheme ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={e => toggleTheme?.(e)}
+                aria-label="Toggle theme"
+              >
+                {theme === "dark" ? (
+                  <Sun className="h-4 w-4" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
+              </Button>
+            ) : null}
           </div>
         )}
         <main className="min-w-0 flex-1 p-4">{children}</main>

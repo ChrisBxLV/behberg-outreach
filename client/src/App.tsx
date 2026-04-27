@@ -24,6 +24,8 @@ import Unsubscribe from "./pages/Unsubscribe";
 import Privacy from "./pages/Privacy";
 import PrivacyRemove from "./pages/PrivacyRemove";
 import { loadAnalytics } from "./analytics";
+import { ThemeGradientTransition } from "@/components/ThemeGradientTransition";
+import { ThemeDropMotion } from "@/components/ThemeDropMotion";
 
 function ConsentSideEffects() {
   const { consent } = useCookieConsent();
@@ -72,9 +74,11 @@ function App() {
   return (
     <ErrorBoundary>
       <CookieConsentProvider>
-        <ThemeProvider defaultTheme="dark">
+        <ThemeProvider defaultTheme="dark" switchable>
           <TooltipProvider>
-            <Toaster richColors theme="dark" />
+            <Toaster richColors />
+            <ThemeDropMotion />
+            <ThemeGradientTransition />
             <ConsentSideEffects />
             <CookieConsentModal />
             <Router />

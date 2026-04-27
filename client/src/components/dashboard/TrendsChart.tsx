@@ -26,12 +26,12 @@ export function TrendsChart({ data }: { data: Point[] }) {
             dataKey="day"
             tickLine={false}
             axisLine={false}
-            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 12, fill: "hsl(var(--foreground) / 0.72)" }}
           />
           <YAxis
             tickLine={false}
             axisLine={false}
-            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 12, fill: "hsl(var(--foreground) / 0.72)" }}
             width={36}
           />
           <Tooltip

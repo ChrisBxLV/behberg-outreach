@@ -3,6 +3,8 @@ import {
   ArrowRight,
   ChevronUp,
   CheckCircle2,
+  Sun,
+  Moon,
 } from "lucide-react";
 import {
   Accordion,
@@ -14,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { getPublicHomeUrl } from "@/const";
 import DataParticlesBackground from "@/components/DataParticlesBackground";
 import { useCookieConsent } from "@/contexts/CookieConsentContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   versionSevenAddOns,
   versionSevenCaseStudies,
@@ -151,6 +154,7 @@ export default function VersionSevenLandingReplica({
 }: VersionSevenLandingReplicaProps) {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const { openModal: openCookiePreferences } = useCookieConsent();
+  const { theme, toggleTheme, switchable } = useTheme();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -183,6 +187,20 @@ export default function VersionSevenLandingReplica({
               <a href="#workflow" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Workflow</a>
               <a href="#pricing" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Pricing</a>
               <a href="#faq" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">FAQ</a>
+              {switchable && toggleTheme ? (
+                <button
+                  type="button"
+                  onClick={e => toggleTheme?.(e)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background/60 text-muted-foreground hover:text-foreground hover:bg-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-7 max-sm:w-7"
+                  aria-label="Toggle theme"
+                >
+                  {theme === "dark" ? (
+                    <Sun className="h-4 w-4" />
+                  ) : (
+                    <Moon className="h-4 w-4" />
+                  )}
+                </button>
+              ) : null}
               <a href="/login" className="ml-1 inline-flex items-center rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition-colors max-sm:px-2.5 max-sm:py-1 max-[380px]:ml-0 max-[380px]:px-2 max-[380px]:text-[11px]">Log In</a>
             </div>
           </div>

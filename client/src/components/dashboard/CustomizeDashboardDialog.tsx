@@ -80,62 +80,64 @@ export function CustomizeDashboardDialog({
           Customize
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Customize dashboard</DialogTitle>
           <DialogDescription>Show or hide sections on your dashboard.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
-          {draftOrder.map((key, idx) => {
-            const meta = SECTION_LABELS[key];
-            const checked = Boolean(draftSections[key]);
-            return (
-              <div key={key} className="flex items-start justify-between gap-4 rounded-md border border-border/50 bg-muted/10 p-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{meta.title}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{meta.desc}</p>
-                </div>
-                <div className="shrink-0 flex items-center gap-2">
-                  <div className="flex flex-col gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 px-0"
-                      disabled={idx === 0}
-                      onClick={() => move(idx, -1)}
-                      aria-label="Move up"
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 px-0"
-                      disabled={idx === draftOrder.length - 1}
-                      onClick={() => move(idx, 1)}
-                      aria-label="Move down"
-                    >
-                      <ArrowDown className="h-4 w-4" />
-                    </Button>
+        <div className="flex-1 overflow-y-auto pr-1 -mr-1">
+          <div className="space-y-3">
+            {draftOrder.map((key, idx) => {
+              const meta = SECTION_LABELS[key];
+              const checked = Boolean(draftSections[key]);
+              return (
+                <div key={key} className="flex items-start justify-between gap-4 rounded-md border border-border/50 bg-muted/10 p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{meta.title}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{meta.desc}</p>
                   </div>
-                  <Label>
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={(next) => {
-                        setDraftSections({ ...draftSections, [key]: Boolean(next) });
-                      }}
-                    />
-                  </Label>
+                  <div className="shrink-0 flex items-center gap-2">
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 px-0"
+                        disabled={idx === 0}
+                        onClick={() => move(idx, -1)}
+                        aria-label="Move up"
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 px-0"
+                        disabled={idx === draftOrder.length - 1}
+                        onClick={() => move(idx, 1)}
+                        aria-label="Move down"
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <Label>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(next) => {
+                          setDraftSections({ ...draftSections, [key]: Boolean(next) });
+                        }}
+                      />
+                    </Label>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="pt-3 border-t border-border/60">
           <Button
             type="button"
             variant="ghost"
