@@ -67,6 +67,23 @@ const NOISE_KEYWORDS = [
   "price target",
   "rumor",
   "watchlist",
+  "earnings call",
+  "interest rates",
+  "fed",
+  "stocks",
+  "natural disaster",
+  "survivors",
+  "blood",
+  "killed",
+  "kills",
+];
+
+const HARD_EXCLUSION_PATTERNS: RegExp[] = [
+  /\b(natural\s+disaster|earthquake|floods?|wildfires?|hurricane|tsunami|landslide)\b/i,
+  /\b(kill(?:s|ed|ing)?|blood|survivors?)\b/i,
+  /\bearnings\s+call\b/i,
+  /\b(fed|federal\s+reserve|interest\s+rates?)\b/i,
+  /\bstocks?\b/i,
 ];
 
 // Keyword guardrail used *before* any LLM calls to avoid spending tokens on
@@ -124,8 +141,7 @@ const SIMPLE_HEADLINE_KEYWORDS = {
   product: [
     "launch", "launched", "released", "rollout", "introduce", "announced product", "new service", "beta release",
     "version 2", "upgrade", "update", "product debut", "platform expansion", "feature launch", "ipo", "public listing",
-    "listed", "stock market", "market expansion", "revenue growth", "profit increase", "earnings", "earnings report",
-    "financial results", "quarterly results", "valuation", "valuation raised", "market share", "growth metrics",
+    "listed", "market expansion", "valuation", "valuation raised", "market share", "growth metrics",
     "profitability", "ai", "artificial intelligence", "machine learning", "ml", "deep learning", "blockchain", "fintech",
     "saas", "cloud computing", "digital transformation", "innovation", "disruptive technology", "automation", "iot",
     "internet of things", "tech adoption", "startup news", "scaleup", "growth stage", "market entry", "expansion",
@@ -136,6 +152,10 @@ const SIMPLE_HEADLINE_KEYWORDS = {
 function passesKeywordFilter(item: FeedItem, _selectedSignalTypes: string[]) {
   const article_text = cleanText(item.title);
   const text = article_text.toLowerCase();
+  const combined = `${item.title} ${item.description}`.toLowerCase();
+  if (HARD_EXCLUSION_PATTERNS.some(pattern => pattern.test(combined))) {
+    return false;
+  }
   const keywords = [
     ...SIMPLE_HEADLINE_KEYWORDS.funding,
     ...SIMPLE_HEADLINE_KEYWORDS.acquisition,
@@ -606,6 +626,7 @@ function looksCorruptedText(input: string): boolean {
 
 function shouldIgnoreSignal(item: FeedItem): boolean {
   const combined = `${item.companyName} ${item.title} ${item.description}`.toLowerCase();
+  if (HARD_EXCLUSION_PATTERNS.some(pattern => pattern.test(combined))) return true;
   if (ENTITY_BLOCKLIST.some(term => combined.includes(term))) return true;
   if (HEADLINE_BLOCKLIST.some(term => combined.includes(term)) && !hasDirectEventStructure(item.title)) {
     return true;

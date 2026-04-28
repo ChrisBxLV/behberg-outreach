@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { resolveTxt } from "node:dns/promises";
 import { z } from "zod";
 import { dataScopeOrganizationId } from "../_core/orgScope";
 import { encryptSecret } from "../_core/secrets";
@@ -118,12 +119,124 @@ async function assertMailboxLimitAvailable(organizationId: number): Promise<void
   }
 }
 
+type DnsCheckStatus = "pass" | "missing" | "error";
+
+function parseDomainFromEmail(email: string): string | null {
+  const domain = String(email ?? "").trim().toLowerCase().split("@")[1] ?? "";
+  return domain.length > 0 ? domain : null;
+}
+
+async function resolveTxtRecords(hostname: string): Promise<{ records: string[]; error: string | null }> {
+  try {
+    const rows = await resolveTxt(hostname);
+    return {
+      records: rows.map(parts => parts.join("")).filter(Boolean),
+      error: null,
+    };
+  } catch (err: any) {
+    return {
+      records: [],
+      error: String(err?.code ?? err?.message ?? "dns_lookup_failed"),
+    };
+  }
+}
+
 export const mailboxesRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     const orgId = dataScopeOrganizationId(ctx.user);
     if (!orgId) return [];
     return listMailboxesByOrganization(orgId);
   }),
+
+  checkDomainSetup: protectedProcedure
+    .input(z.object({ mailboxId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      assertOrganizationMember(ctx.user);
+      const mailbox = await getMailboxById(input.mailboxId);
+      if (!mailbox || mailbox.organizationId !== ctx.user.organizationId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Mailbox not found" });
+      }
+
+      const domain = parseDomainFromEmail(mailbox.email);
+      if (!domain) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Mailbox domain could not be resolved." });
+      }
+
+      const selectors = ["default", "selector1", "selector2", "google", "k1", "s1"];
+      const [spfLookup, dmarcLookup, dkimLookups] = await Promise.all([
+        resolveTxtRecords(domain),
+        resolveTxtRecords(`_dmarc.${domain}`),
+        Promise.all(selectors.map(async selector => ({
+          selector,
+          lookup: await resolveTxtRecords(`${selector}._domainkey.${domain}`),
+        }))),
+      ]);
+
+      const spfRecord = spfLookup.records.find(r => /^v=spf1\b/i.test(r)) ?? null;
+      const dmarcRecord = dmarcLookup.records.find(r => /^v=dmarc1\b/i.test(r)) ?? null;
+      const matchedDkim = dkimLookups.find(entry => entry.lookup.records.some(r => /^v=dkim1\b/i.test(r))) ?? null;
+
+      const spfStatus: DnsCheckStatus = spfRecord ? "pass" : (spfLookup.error ? "error" : "missing");
+      const dmarcStatus: DnsCheckStatus = dmarcRecord ? "pass" : (dmarcLookup.error ? "error" : "missing");
+      const dkimStatus: DnsCheckStatus = matchedDkim ? "pass" : "missing";
+      const checksPassed = [spfStatus, dkimStatus, dmarcStatus].filter(status => status === "pass").length;
+      const healthScore = Math.round((checksPassed / 3) * 100);
+      const recommendedSpfInclude =
+        mailbox.provider === "google"
+          ? "include:_spf.google.com"
+          : mailbox.provider === "microsoft"
+            ? "include:spf.protection.outlook.com"
+            : "include:<your-provider-spf-host>";
+
+      return {
+        domain,
+        mailboxProvider: mailbox.provider,
+        checkedAt: new Date().toISOString(),
+        healthScore,
+        overallStatus: spfStatus === "pass" && dmarcStatus === "pass" && dkimStatus === "pass" ? "healthy" : "attention",
+        spf: {
+          status: spfStatus,
+          record: spfRecord,
+          records: spfLookup.records,
+          error: spfLookup.error,
+        },
+        dmarc: {
+          status: dmarcStatus,
+          record: dmarcRecord,
+          records: dmarcLookup.records,
+          error: dmarcLookup.error,
+        },
+        dkim: {
+          status: dkimStatus,
+          selector: matchedDkim?.selector ?? null,
+          checkedSelectors: selectors,
+        },
+        setupGuidance: {
+          spf: {
+            host: "@",
+            type: "TXT",
+            valueExample: `v=spf1 ${recommendedSpfInclude} ~all`,
+          },
+          dmarc: {
+            host: "_dmarc",
+            type: "TXT",
+            valueExample: `v=DMARC1; p=none; rua=mailto:postmaster@${domain}`,
+          },
+          dkim: {
+            notes:
+              mailbox.provider === "google"
+                ? "Generate DKIM key in Google Admin > Apps > Google Workspace > Gmail > Authenticate email."
+                : mailbox.provider === "microsoft"
+                  ? "Enable DKIM for your domain in Microsoft Defender/Exchange admin and publish the CNAME/TXT records provided."
+                  : "Enable DKIM in your mailbox provider and publish the selector records they provide.",
+            examples: [
+              { host: "selector1._domainkey", type: "TXT", valueExample: "v=DKIM1; k=rsa; p=<public-key>" },
+              { host: "selector2._domainkey", type: "TXT", valueExample: "v=DKIM1; k=rsa; p=<public-key>" },
+            ],
+          },
+        },
+      };
+    }),
 
   startConnectOAuth: protectedProcedure
     .input(z.object({ provider: z.enum(["google", "microsoft"]) }))

@@ -30,7 +30,7 @@ import { toast } from "sonner";
 import {
   Mail, CheckCircle2, XCircle, RefreshCw,
   Play, AlertCircle, Users, CreditCard, MailPlus,
-  Pencil, Trash2, ChevronDown, ChevronUp,
+  Pencil, Trash2, ChevronDown, ChevronUp, ShieldCheck, ShieldAlert,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -268,6 +268,135 @@ function ProviderConnectTile(props: {
   );
 }
 
+function MailboxDomainSetupCard(props: {
+  mailbox: { id: number; email: string; provider: "google" | "microsoft" | "smtp" };
+  recheckAllToken: number;
+}) {
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
+  const { data, isFetching, refetch, isFetched } = trpc.mailboxes.checkDomainSetup.useQuery(
+    { mailboxId: props.mailbox.id },
+    {
+      enabled: autoRefreshEnabled,
+      refetchOnWindowFocus: false,
+      refetchInterval: autoRefreshEnabled ? 5 * 60 * 1000 : false,
+    },
+  );
+
+  useEffect(() => {
+    if (!props.recheckAllToken) return;
+    setAutoRefreshEnabled(true);
+    void refetch();
+  }, [props.recheckAllToken, refetch]);
+
+  const spfOk = data?.spf.status === "pass";
+  const dmarcOk = data?.dmarc.status === "pass";
+  const dkimOk = data?.dkim.status === "pass";
+  const allHealthy = Boolean(spfOk && dmarcOk && dkimOk);
+
+  return (
+    <div className="mt-3 rounded-lg border border-border/40 bg-muted/20 p-3 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {allHealthy ? (
+            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+          ) : (
+            <ShieldAlert className="h-4 w-4 text-amber-500" />
+          )}
+          <p className="text-xs font-medium">Domain setup (SPF, DKIM, DMARC)</p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          onClick={() => {
+            setAutoRefreshEnabled(true);
+            void refetch();
+          }}
+          disabled={isFetching}
+        >
+          {isFetching ? (
+            <span className="inline-flex items-center gap-1.5">
+              <RefreshCw className="h-3 w-3 animate-spin" />
+              Checking...
+            </span>
+          ) : (
+            "Check domain setup"
+          )}
+        </Button>
+      </div>
+
+      {isFetched && data ? (
+        <div className="space-y-2">
+          <p className="text-[11px] text-muted-foreground">
+            Domain: <span className="font-medium text-foreground">{data.domain}</span>
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={spfOk ? "default" : "outline"}>{spfOk ? "SPF OK" : "SPF missing"}</Badge>
+            <Badge variant={dkimOk ? "default" : "outline"}>{dkimOk ? "DKIM OK" : "DKIM missing"}</Badge>
+            <Badge variant={dmarcOk ? "default" : "outline"}>{dmarcOk ? "DMARC OK" : "DMARC missing"}</Badge>
+          </div>
+
+          {!allHealthy ? (
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] text-amber-900 dark:text-amber-100 space-y-1">
+              <p className="font-medium">Setup needed to improve mailbox health and deliverability:</p>
+              <p>- Current health score: {data.healthScore}/100</p>
+              {!spfOk ? (
+                <p>
+                  - SPF: add `{data.setupGuidance.spf.type}` on `{data.setupGuidance.spf.host}` with:
+                  <code className="ml-1">{data.setupGuidance.spf.valueExample}</code>
+                </p>
+              ) : null}
+              {!dkimOk ? (
+                <>
+                  <p>- DKIM: {data.setupGuidance.dkim.notes}</p>
+                  {(data.setupGuidance.dkim.examples ?? []).map((row, idx) => (
+                    <p key={`${row.host}-${idx}`}>
+                      - Add `{row.type}` on `{row.host}` with: <code className="ml-1">{row.valueExample}</code>
+                    </p>
+                  ))}
+                </>
+              ) : null}
+              {!dmarcOk ? (
+                <p>
+                  - DMARC: add `{data.setupGuidance.dmarc.type}` on `{data.setupGuidance.dmarc.host}` with:
+                  <code className="ml-1">{data.setupGuidance.dmarc.valueExample}</code>
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
+              SPF, DKIM, and DMARC are detected. Health score: {data.healthScore}/100.
+            </p>
+          )}
+          {autoRefreshEnabled ? (
+            <p className="text-[10px] text-muted-foreground">Auto re-check runs every 5 minutes.</p>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          Run a check to verify DNS authentication records for this mailbox domain.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function MailboxHealthScoreBadge(props: { mailboxId: number }) {
+  const { data } = trpc.mailboxes.checkDomainSetup.useQuery(
+    { mailboxId: props.mailboxId },
+    {
+      refetchOnWindowFocus: false,
+      refetchInterval: 10 * 60 * 1000,
+    },
+  );
+  if (!data) {
+    return <Badge variant="outline">Health --</Badge>;
+  }
+  const tone = data.healthScore >= 100 ? "default" : "outline";
+  return <Badge variant={tone}>Health {data.healthScore}</Badge>;
+}
+
 export default function Settings() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
@@ -348,6 +477,8 @@ export default function Settings() {
   const [showManualMailboxSetup, setShowManualMailboxSetup] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState("organization");
   const [mailboxesSubTab, setMailboxesSubTab] = useState("inboxes");
+  const [recheckAllToken, setRecheckAllToken] = useState(0);
+  const [isRecheckingAllMailboxes, setIsRecheckingAllMailboxes] = useState(false);
   const [selectedSignatureMailboxId, setSelectedSignatureMailboxId] = useState<number | null>(null);
   const logoUploadMailboxIdRef = useRef<number | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
@@ -630,6 +761,19 @@ export default function Settings() {
   const orgAddonUnitPrice = 49;
   const orgAddonTotal = additionalOrganizations * orgAddonUnitPrice;
   const estimatedMonthlyTotal = selectedPlan.priceEur + mailboxAddonTotal + orgAddonTotal;
+  const recheckAllMailboxes = async () => {
+    if (!mailboxes?.length) return;
+    setIsRecheckingAllMailboxes(true);
+    try {
+      setRecheckAllToken(prev => prev + 1);
+      await utils.mailboxes.checkDomainSetup.invalidate();
+      toast.success("Recheck started for all connected mailboxes.");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Could not recheck all mailboxes.");
+    } finally {
+      setIsRecheckingAllMailboxes(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -964,6 +1108,22 @@ export default function Settings() {
                       <p className="text-sm font-medium">Connected inboxes</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <Badge variant="outline">{connectedMailboxCount}/{mailboxLimit}</Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8"
+                          onClick={() => void recheckAllMailboxes()}
+                          disabled={connectedMailboxCount === 0 || isRecheckingAllMailboxes}
+                        >
+                          {isRecheckingAllMailboxes ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              Rechecking...
+                            </span>
+                          ) : (
+                            "Recheck all mailboxes"
+                          )}
+                        </Button>
                         <Input
                           className="h-8 w-64 bg-background/30 border-border/50"
                           value={mailboxTestEmail}
@@ -992,6 +1152,7 @@ export default function Settings() {
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
+                              <MailboxHealthScoreBadge mailboxId={mailbox.id} />
                               <Badge variant={mailbox.status === "connected" ? "default" : "outline"}>
                                 {mailbox.status}
                               </Badge>
@@ -1032,6 +1193,14 @@ export default function Settings() {
                               Disconnect
                             </Button>
                           </div>
+                          <MailboxDomainSetupCard
+                            mailbox={{
+                              id: mailbox.id,
+                              email: mailbox.email,
+                              provider: mailbox.provider,
+                            }}
+                            recheckAllToken={recheckAllToken}
+                          />
                           <div className="mt-4 space-y-2 border-t border-border/30 pt-3">
                             <p className="text-xs text-muted-foreground leading-relaxed">
                               Unsubscribe applies per connected mailbox. Anyone who shares this mailbox shares the same suppression list.

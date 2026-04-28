@@ -2506,7 +2506,8 @@ export async function markEmailReplied(
   }
 
   const { ingestEmailReply } = await import("./services/replyIngestion");
-  await ingestEmailReply(emailLogId, { forceSentiment: "unknown" });
+  // Reuse classifier so manual "Mark Replied" still gets intent detection.
+  await ingestEmailReply(emailLogId);
 }
 
 export async function getEmailLogByProviderMessageId(providerMessageId: string) {

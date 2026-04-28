@@ -18,6 +18,8 @@ export async function ingestEmailReply(
     textSnippet?: string | null;
     /** If set, skip LLM (e.g. manual mark) */
     forceSentiment?: ReplySentimentLabel;
+    /** Re-run classification even if reply was already marked. */
+    reclassify?: boolean;
   } = {},
 ) {
   const db = await getDb();
@@ -27,7 +29,7 @@ export async function ingestEmailReply(
   if (!log) return;
 
   const wasReplied = log.repliedAt != null;
-  if (wasReplied) return;
+  if (wasReplied && !opts.reclassify) return;
 
   const snippet = (opts.textSnippet ?? "").trim() || (log.replySnippet as string) || "";
   const sentiment: ReplySentimentLabel = opts.forceSentiment ?? (await classifyReplyText(snippet));
@@ -43,22 +45,24 @@ export async function ingestEmailReply(
     })
     .where(eq(emailLogs.id, logId));
 
-  const [earlier] = await db
-    .select({ n: count() })
-    .from(emailLogs)
-    .where(
-      and(
-        eq(emailLogs.campaignId, log.campaignId),
-        eq(emailLogs.contactId, log.contactId),
-        isNotNull(emailLogs.repliedAt),
-        ne(emailLogs.id, logId),
-      ),
-    );
-  if (Number(earlier?.n ?? 0) === 0) {
-    await db
-      .update(campaigns)
-      .set({ replyCount: sql`${campaigns.replyCount} + 1` })
-      .where(eq(campaigns.id, log.campaignId));
+  if (!wasReplied) {
+    const [earlier] = await db
+      .select({ n: count() })
+      .from(emailLogs)
+      .where(
+        and(
+          eq(emailLogs.campaignId, log.campaignId),
+          eq(emailLogs.contactId, log.contactId),
+          isNotNull(emailLogs.repliedAt),
+          ne(emailLogs.id, logId),
+        ),
+      );
+    if (Number(earlier?.n ?? 0) === 0) {
+      await db
+        .update(campaigns)
+        .set({ replyCount: sql`${campaigns.replyCount} + 1` })
+        .where(eq(campaigns.id, log.campaignId));
+    }
   }
 
   if (!log.campaignContactId) return;

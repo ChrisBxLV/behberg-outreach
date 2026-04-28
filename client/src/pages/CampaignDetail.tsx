@@ -140,6 +140,15 @@ export default function CampaignDetail() {
     onSuccess: () => { toast.success("Marked as replied"); utils.campaigns.emailLogs.invalidate({ campaignId }); },
     onError: (e) => toast.error(e.message),
   });
+  const reclassifyRepliesMutation = trpc.campaigns.reclassifyReplies.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Reclassified ${r.updated} repl${r.updated === 1 ? "y" : "ies"}.`);
+      void utils.campaigns.emailLogs.invalidate({ campaignId });
+      void utils.campaigns.contacts.invalidate({ campaignId });
+      void utils.campaigns.get.invalidate({ id: campaignId });
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const generateVariationsMutation = trpc.email.generateVariations.useMutation({
     onSuccess: (data, vars) => {
@@ -495,6 +504,16 @@ export default function CampaignDetail() {
                       {label}
                     </Button>
                   ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    disabled={reclassifyRepliesMutation.isPending}
+                    onClick={() => reclassifyRepliesMutation.mutate({ campaignId, onlyUnknown: true })}
+                  >
+                    {reclassifyRepliesMutation.isPending ? "Reclassifying..." : "Reclassify unknown"}
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>

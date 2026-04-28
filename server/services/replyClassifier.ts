@@ -2,21 +2,49 @@ import { invokeLLM } from "../_core/llm";
 
 export type ReplySentimentLabel = "positive" | "negative" | "neutral" | "unsubscribe_intent" | "unknown";
 
-const UNSUB = /\b(unsubscribe|opt\s*out|remove\s*me|stop\s*email|don'?t\s*contact|leave\s*me\s*alone|not\s*interested|no\s*thanks|cease|take\s*me\s*off)\b/i;
-const NEG = /\b(not\s*interested|no\s*thank|decline|pass|not\s*now|wrong\s*person|don'?t\s*reach|fuck|stop\s*contact|harass|legal|lawsuit)\b/i;
-const POS = /\b(yes|interested|sounds?\s*good|let'?s?\s*talk|schedule|call\s*me|book|meeting|work[s]?\s*for\s*us|re\s*:\s*)/i;
+const UNSUB = /\b(unsubscribe|opt\s*out|remove\s*me|stop\s*email(?:ing)?|don'?t\s*contact|leave\s*me\s*alone|cease|take\s*me\s*off(?:\s*the)?\s*list)\b/i;
+const NEG = /\b(not\s*interested|no\s*thank|decline|pass|not\s*now|not\s*at\s*the\s*moment|wrong\s*person|don'?t\s*reach|stop\s*contact|harass|legal|lawsuit)\b/i;
+const POS = /\b(yes|interested|sounds?\s*good|let'?s?\s*talk|schedule|call\s*me|book|meeting|work[s]?\s*for\s*us|send\s*(?:it|them|details?|info|information|over)|can\s+you\s+send|could\s+you\s+send)\b/i;
+const QUESTION = /\?/;
+const POSITIVE_QUESTION_HINT = /\b(pricing|price|cost|demo|details?|info|information|proposal|deck|brochure|availability|timeline|next\s*step|next\s*steps)\b/i;
+
+function decodeEntities(input: string): string {
+  return input
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'");
+}
+
+function normalizeReplyText(input: string): string {
+  const decoded = decodeEntities(input ?? "");
+  const deQuoted = decoded
+    .split("\n")
+    .filter(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      if (trimmed.startsWith(">")) return false;
+      if (/^on .+wrote:$/i.test(trimmed)) return false;
+      return true;
+    })
+    .join(" ");
+  return deQuoted.replace(/\s+/g, " ").trim();
+}
 
 export function classifyReplyWithRules(text: string): ReplySentimentLabel | null {
-  const t = (text ?? "").trim();
+  const t = normalizeReplyText(text);
   if (!t) return null;
   if (UNSUB.test(t)) return "unsubscribe_intent";
   if (NEG.test(t) && !POS.test(t)) return "negative";
+  if (QUESTION.test(t) && POSITIVE_QUESTION_HINT.test(t)) return "positive";
   if (POS.test(t) && !UNSUB.test(t)) return "positive";
   return null;
 }
 
 export async function classifyReplyText(text: string): Promise<ReplySentimentLabel> {
-  const stripped = (text ?? "").trim();
+  const stripped = normalizeReplyText(text);
   const fromRules = classifyReplyWithRules(stripped);
   if (fromRules) return fromRules;
   if (!stripped) return "unknown";

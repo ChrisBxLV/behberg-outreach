@@ -28,6 +28,7 @@ import {
   getOutreachStatsForOrganization,
 } from "../db";
 import { launchCampaign, processEmailQueue } from "../services/sequenceScheduler";
+import { ingestEmailReply } from "../services/replyIngestion";
 
 export const campaignsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -315,6 +316,27 @@ export const campaignsRouter = router({
       });
       await markEmailReplied(input.emailLogId, scope);
       return { success: true };
+    }),
+
+  reclassifyReplies: protectedProcedure
+    .input(z.object({ campaignId: z.number(), onlyUnknown: z.boolean().default(true) }))
+    .mutation(async ({ input, ctx }) => {
+      const scope = requireTenantQueryScope(ctx.user);
+      const campaign = await getCampaignById(input.campaignId, scope);
+      assertCampaignScope(campaign, ctx.user);
+      const rows = await getEmailLogsByCampaign(input.campaignId);
+      let updated = 0;
+      for (const row of rows) {
+        if (!row.log.repliedAt) continue;
+        const sentiment = (row.log.replySentiment ?? "").toString().trim().toLowerCase();
+        if (input.onlyUnknown && sentiment && sentiment !== "unknown") continue;
+        await ingestEmailReply(row.log.id, {
+          textSnippet: row.log.replySnippet ?? "",
+          reclassify: true,
+        });
+        updated += 1;
+      }
+      return { success: true as const, updated };
     }),
 
   processQueue: protectedProcedure.mutation(async () => {
