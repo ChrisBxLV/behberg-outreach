@@ -1066,6 +1066,28 @@ export async function findDuplicateContact(input: InsertContact): Promise<typeof
     if (found) return found;
   }
 
+  // If we don't have strong identifiers (email/LinkedIn), avoid fuzzy merges.
+  // CSV exports sometimes omit email, and fuzzy matching can incorrectly merge different people
+  // (e.g. common first names at the same company). In that case, only treat exact fullName
+  // (and optionally company) as a duplicate.
+  if (!email && !linkedin) {
+    const fullName = normalizeOptionalLower(input.fullName);
+    if (!fullName) return null;
+    const incomingCompany = normalizeOptionalLower(input.company);
+    const rows = await db
+      .select()
+      .from(contacts)
+      .where(and(scopeCond, isNotNull(contacts.fullName)))
+      .orderBy(desc(contacts.updatedAt))
+      .limit(500);
+    const found = rows.find((row) => {
+      if (normalizeOptionalLower(row.fullName) !== fullName) return false;
+      if (!incomingCompany) return true;
+      return normalizeOptionalLower(row.company) === incomingCompany;
+    });
+    return found ?? null;
+  }
+
   const incomingNameTokens = nameTokenSet(input.fullName);
   const incomingCompany = normalizeOptionalLower(input.company);
   const incomingTitle = normalizeOptionalLower(input.title);

@@ -624,7 +624,7 @@ export default function Contacts() {
                   <th className="px-3 py-3 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[24%] xl:w-[24%]">Email</th>
                   <th className="px-2 py-3 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[5.5rem] xl:w-[5.5rem]">Stage</th>
                   <th className="hidden px-3 py-3 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap xl:table-cell xl:w-[10%]">Location</th>
-                  <th className="py-3 pl-2 pr-3 text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[9.5rem] xl:w-[9.5rem]">Actions</th>
+                  <th className="py-3 pl-2 pr-3 text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[6.5rem] xl:w-[6.5rem]">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -734,7 +734,7 @@ export default function Contacts() {
                         </div>
                       </td>
                       <td className="py-3 pl-2 pr-3">
-                        <div className="flex flex-nowrap justify-end gap-2">
+                        <div className="flex flex-wrap justify-end gap-2">
                           <Button
                             size={("icon" as any)}
                             variant="outline"

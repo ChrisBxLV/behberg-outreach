@@ -97,6 +97,12 @@ function guessFieldFromHeader(normalized: string): CsvMappedField | null {
   const h = normalized;
   if (!h) return null;
 
+  // Never guess-map internal identifiers (Apollo exports include lots of "... Id" columns).
+  // These often contain 24-char hex IDs and should not populate name/company/email fields.
+  if (h.includes("apollo ") || /\bid\b/.test(h) || h.endsWith(" id")) {
+    return null;
+  }
+
   // Heuristics for unknown exports (kept conservative).
   if (h.includes("email")) {
     if (!isLikelyEmailAddressColumnName(h)) return null;
