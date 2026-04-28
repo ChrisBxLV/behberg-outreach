@@ -87,6 +87,37 @@ async function copyToClipboard(value: string) {
   }
 }
 
+function downloadCsvExample() {
+  const rows = [
+    ["First Name", "Last Name", "Email", "Title", "Company Name", "LinkedIn URL", "Location", "Keywords"],
+    ["Jane", "Doe", "jane.doe@example.com", "Head of Compliance", "Example Capital", "https://www.linkedin.com/in/janedoe", "Dubai, United Arab Emirates", "finance;compliance"],
+    ["John", "Smith", "john.smith@example.com", "Risk Manager", "Acme Group", "https://www.linkedin.com/in/johnsmith", "London, United Kingdom", "risk,insurance"],
+  ];
+
+  const csv = rows
+    .map((r) =>
+      r
+        .map((cell) => {
+          const s = String(cell ?? "");
+          const needsQuotes = /[",\r\n]/.test(s);
+          const escaped = s.replace(/"/g, '""');
+          return needsQuotes ? `"${escaped}"` : escaped;
+        })
+        .join(","),
+    )
+    .join("\r\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "contacts-import-example.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 /** Stable section order in enrichment results dialog */
 const ENRICHMENT_SOURCE_ORDER = ["manual", "domain", "website", "tech_detector"] as const;
 
@@ -308,11 +339,7 @@ export default function Contacts() {
             description: duplicateDesc + skippedDesc,
           });
 
-          // UX: don't auto-set Search (it feels like a "mystery filter").
-          // If it matched one existing contact, open their profile instead.
-          if (distinctMatched === 1 && matchedContactIds[0] != null) {
-            setProfileContactId(matchedContactIds[0]!);
-          }
+          // UX: don't auto-set Search or open dialogs after import.
         } else if (summary.length > 0) {
           toast.success(summary);
         } else {
@@ -379,6 +406,15 @@ export default function Contacts() {
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowAddDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />Add Contact
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={downloadCsvExample}
+              title="Download an example CSV you can edit and re-upload"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              CSV Example
             </Button>
             <Button
               size="sm"

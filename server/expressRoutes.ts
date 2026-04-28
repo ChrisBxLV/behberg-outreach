@@ -51,6 +51,16 @@ const TRACKING_PIXEL = Buffer.from(
 );
 
 export function registerExpressRoutes(app: Express) {
+  // ── Version (debug deploy) ────────────────────────────────────────────────
+  app.get("/api/version", (_req, res) => {
+    return res.status(200).json({
+      ok: true,
+      commit: process.env.GIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+      buildTime: process.env.BUILD_TIME ?? null,
+      nodeEnv: process.env.NODE_ENV ?? null,
+    });
+  });
+
   // ── Mailbox OAuth callbacks ────────────────────────────────────────────────
   app.get("/api/mailboxes/oauth/:provider/callback", async (req, res) => {
     const appBaseUrl =
@@ -287,7 +297,14 @@ export function registerExpressRoutes(app: Express) {
       const result = await importCsvContacts(req.file.buffer, req.file.originalname, {
         organizationId: user.organizationId ?? null,
       });
-      res.json({ success: true, ...result });
+      res.json({
+        success: true,
+        ...result,
+        serverBuild: {
+          commit: process.env.GIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+          buildTime: process.env.BUILD_TIME ?? null,
+        },
+      });
     } catch (err: any) {
       console.error("[CSV Import] Error:", err.message);
       res.status(500).json({ error: err.message });
