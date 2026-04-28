@@ -624,7 +624,7 @@ describe("settings", () => {
 describe("csvImport service", () => {
   it("parses Apollo CSV buffer correctly", async () => {
     const { importCsvContacts } = await import("./services/csvImport");
-    const { createOrMergeContact, findDuplicateContact } = await import("./db");
+    const { createOrMergeContact } = await import("./db");
 
     const csvContent = `First Name,Last Name,Title,Company,Email,LinkedIn URL,City,State,Country
 John,Doe,CTO,Acme Corp,john.doe@acme.com,https://linkedin.com/in/johndoe,London,,UK
@@ -636,7 +636,6 @@ Jane,Smith,VP Sales,TechCo,jane.smith@techco.com,https://linkedin.com/in/janesmi
     expect(result).toHaveProperty("skipped");
     expect(result.matchedExisting).toBe(0);
     expect(result.imported).toBeGreaterThanOrEqual(0);
-    expect(vi.mocked(findDuplicateContact)).toHaveBeenCalled();
     expect(vi.mocked(createOrMergeContact)).toHaveBeenCalled();
   });
 

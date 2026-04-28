@@ -682,7 +682,14 @@ export async function getContacts(opts: {
   const offset = opts.offset ?? 0;
 
   const [rows, countResult] = await Promise.all([
-    db.select().from(contacts).where(where).orderBy(desc(contacts.createdAt)).limit(limit).offset(offset),
+    db
+      .select()
+      .from(contacts)
+      .where(where)
+      // Prefer most recently touched contacts (CSV re-imports / enrich / edits) over original insert time.
+      .orderBy(desc(contacts.updatedAt), desc(contacts.createdAt))
+      .limit(limit)
+      .offset(offset),
     db.select({ count: sql<number>`count(*)` }).from(contacts).where(where),
   ]);
 

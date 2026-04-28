@@ -3,7 +3,6 @@ import { v4 as uuidv4 } from "uuid";
 import {
   createImportBatch,
   createOrMergeContact,
-  findDuplicateContact,
   updateImportBatch,
 } from "../db";
 import type { InsertContact } from "../../drizzle/schema";
@@ -262,15 +261,13 @@ export async function importCsvContacts(
         continue;
       }
 
-      const existing = await findDuplicateContact(contact);
-      if (existing) {
+      const upsert = await createOrMergeContact(contact);
+      if (upsert.action === "merged") {
         matchedExisting++;
-        matchedContactIdSet.add(existing.id);
-        continue;
+        matchedContactIdSet.add(upsert.contact.id);
+      } else {
+        imported++;
       }
-
-      await createOrMergeContact(contact);
-      imported++;
     } catch (err: any) {
       errors.push(`Row ${i + 2}: ${err.message}`);
       skipped++;
