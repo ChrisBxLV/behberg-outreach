@@ -37,7 +37,7 @@ import {
   Sun,
   Moon,
 } from "lucide-react";
-import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { ProfileRegistrationModal } from "@/components/ProfileRegistrationModal";
@@ -77,25 +77,12 @@ function showSuperadminInNav(
   );
 }
 
-const SIDEBAR_WIDTH_KEY = "sidebar-width";
-const DEFAULT_WIDTH = 280;
-const MIN_WIDTH = 200;
-const MAX_WIDTH = 480;
-
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
-  });
   const { loading, user } = useAuth();
-
-  useEffect(() => {
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
-  }, [sidebarWidth]);
 
   if (loading) {
     return <DashboardLayoutSkeleton />
@@ -140,38 +127,24 @@ export default function DashboardLayout({
   return (
     <>
       <ProfileRegistrationModal user={user} />
-      <SidebarProvider
-        style={
-          {
-            "--sidebar-width": `${sidebarWidth}px`,
-          } as CSSProperties
-        }
-      >
-        <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
-          {children}
-        </DashboardLayoutContent>
+      <SidebarProvider>
+        <DashboardLayoutContent>{children}</DashboardLayoutContent>
       </SidebarProvider>
     </>
   );
 }
 
-type DashboardLayoutContentProps = {
-  children: React.ReactNode;
-  setSidebarWidth: (width: number) => void;
-};
-
 function DashboardLayoutContent({
   children,
-  setSidebarWidth,
-}: DashboardLayoutContentProps) {
+}: {
+  children: React.ReactNode;
+}) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme, switchable } = useTheme();
   const { data: loginOpts } = trpc.auth.loginOptions.useQuery();
   const [location, setLocation] = useLocation();
-  const { state, toggleSidebar } = useSidebar();
+  const { state, toggleSidebar, openMobile, setOpenMobile } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const [isResizing, setIsResizing] = useState(false);
-  const sidebarRef = useRef<HTMLDivElement>(null);
   const superNav = showSuperadminInNav(user, loginOpts?.defaultAdminLogin);
   const menuItems = superNav
     ? [...baseMenuItems, { icon: Shield, label: "Superadmin", path: "/app/superadmin" }]
@@ -181,13 +154,53 @@ function DashboardLayoutContent({
       item.path === location ||
       (item.path !== "/app" && location.startsWith(`${item.path}/`)),
   );
-  const isMobile = useIsMobile();
+  const isMobileLegacy = useIsMobile();
   const idleTimeoutRef = useRef<number | null>(null);
   const logoutRef = useRef(logout);
+  const mobileAutoCloseTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     logoutRef.current = logout;
   }, [logout]);
+
+  // We still keep the local breakpoint hook to render the sticky mobile header.
+  // Closing the Sheet should not depend on breakpoint initialization timing.
+
+  // Auto-close the mobile sidebar after navigation.
+  useEffect(() => {
+    if (!openMobile) return;
+    setOpenMobile(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
+
+  // Auto-close the mobile sidebar after a short idle period while open.
+  useEffect(() => {
+    if (!openMobile) return;
+
+    const closeSoon = () => {
+      if (mobileAutoCloseTimerRef.current) {
+        window.clearTimeout(mobileAutoCloseTimerRef.current);
+      }
+      mobileAutoCloseTimerRef.current = window.setTimeout(() => {
+        setOpenMobile(false);
+      }, 12_000);
+    };
+
+    closeSoon();
+
+    const onActivity = () => closeSoon();
+    const events: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "touchstart", "scroll"];
+    const listenerOptions: AddEventListenerOptions = { passive: true };
+    for (const evt of events) window.addEventListener(evt, onActivity, listenerOptions);
+
+    return () => {
+      for (const evt of events) window.removeEventListener(evt, onActivity, listenerOptions);
+      if (mobileAutoCloseTimerRef.current) {
+        window.clearTimeout(mobileAutoCloseTimerRef.current);
+        mobileAutoCloseTimerRef.current = null;
+      }
+    };
+  }, [openMobile, setOpenMobile]);
 
   const resetIdleTimer = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -238,55 +251,18 @@ function DashboardLayoutContent({
     };
   }, [resetIdleTimer, user]);
 
-  useEffect(() => {
-    if (isCollapsed) {
-      setIsResizing(false);
-    }
-  }, [isCollapsed]);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-
-      const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
-      const newWidth = e.clientX - sidebarLeft;
-      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
-        setSidebarWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    if (isResizing) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-    }
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-  }, [isResizing, setSidebarWidth]);
-
   return (
     <>
-      <div className="relative" ref={sidebarRef}>
+      <div className="relative">
         <Sidebar
           collapsible="icon"
           className="border-r-0"
-          disableTransition={isResizing}
         >
-          <SidebarHeader className="h-16 justify-center">
+          <SidebarHeader className="h-14 justify-center">
             <div
               className={[
                 "flex items-center transition-all w-full",
-                isCollapsed ? "justify-center px-0" : "gap-3 px-2",
+                isCollapsed ? "justify-center px-0" : "gap-2 px-1.5",
               ].join(" ")}
             >
               <button
@@ -313,7 +289,7 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
+            <SidebarMenu className="px-1.5 py-1">
               {menuItems.map(item => {
                 const isActive =
                   location === item.path ||
@@ -322,7 +298,11 @@ function DashboardLayoutContent({
                   <SidebarMenuItem key={item.path}>
                     <SidebarMenuButton
                       isActive={isActive}
-                      onClick={() => setLocation(item.path)}
+                      onClick={() => {
+                        setLocation(item.path);
+                        // Always close the mobile Sheet after navigation.
+                        setOpenMobile(false);
+                      }}
                       tooltip={item.label}
                       className="font-normal"
                     >
@@ -337,7 +317,7 @@ function DashboardLayoutContent({
             </SidebarMenu>
           </SidebarContent>
 
-          <SidebarFooter className="p-3">
+          <SidebarFooter className="p-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -396,18 +376,10 @@ function DashboardLayoutContent({
             </DropdownMenu>
           </SidebarFooter>
         </Sidebar>
-        <div
-          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
-          onMouseDown={() => {
-            if (isCollapsed) return;
-            setIsResizing(true);
-          }}
-          style={{ zIndex: 50 }}
-        />
       </div>
 
       <SidebarInset>
-        {isMobile && (
+        {isMobileLegacy && (
           <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
@@ -436,7 +408,7 @@ function DashboardLayoutContent({
             ) : null}
           </div>
         )}
-        <main className="min-w-0 flex-1 p-4">{children}</main>
+        <main className="min-w-0 flex-1 p-2 md:p-3">{children}</main>
       </SidebarInset>
     </>
   );

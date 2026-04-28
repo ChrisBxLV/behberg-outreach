@@ -17,6 +17,7 @@ import {
   ChevronLeft, ChevronRight, ExternalLink, Mail, Building2,
   MapPin, Tag, Plus, RefreshCw, Download, Sparkles, Link2, Pencil
 } from "lucide-react";
+import { Copy } from "lucide-react";
 
 const STAGE_OPTIONS = [
   { value: "all", label: "All Stages" },
@@ -54,6 +55,38 @@ const EMAIL_STATUS_COLORS: Record<string, string> = {
   unknown: "bg-slate-500/20 text-slate-400",
 };
 
+function apiBaseUrl() {
+  // Allows running the client separately from the API server (otherwise relative /api/* is fine).
+  return String((import.meta as any).env?.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+}
+
+async function readJsonOrText(res: Response) {
+  const ct = res.headers.get("content-type") ?? "";
+  if (ct.toLowerCase().includes("application/json")) {
+    return await res.json();
+  }
+  const text = await res.text();
+  return { __nonJson: true as const, text };
+}
+
+async function copyToClipboard(value: string) {
+  const v = String(value ?? "").trim();
+  if (!v) return;
+  try {
+    await navigator.clipboard.writeText(v);
+  } catch {
+    const el = document.createElement("textarea");
+    el.value = v;
+    el.setAttribute("readonly", "");
+    el.style.position = "fixed";
+    el.style.left = "-9999px";
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand("copy");
+    document.body.removeChild(el);
+  }
+}
+
 /** Stable section order in enrichment results dialog */
 const ENRICHMENT_SOURCE_ORDER = ["manual", "domain", "website", "tech_detector"] as const;
 
@@ -88,6 +121,7 @@ export default function Contacts() {
   const [showBulkStageDialog, setShowBulkStageDialog] = useState(false);
   const [bulkStage, setBulkStage] = useState<string>("enriched");
   const [enrichContactId, setEnrichContactId] = useState<number | null>(null);
+  const [profileContactId, setProfileContactId] = useState<number | null>(null);
   const [linkedinEdit, setLinkedinEdit] = useState<{ contactId: number; value: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
@@ -154,6 +188,10 @@ export default function Contacts() {
     enrichContactId != null ? { id: enrichContactId } : skipToken,
   );
 
+  const profileContactQuery = trpc.contacts.get.useQuery(
+    profileContactId != null ? { id: profileContactId } : skipToken,
+  );
+
   /** Only trust contact meta when it matches the open dialog target (handles cache during contact switches). */
   const enrichmentContactForDialog =
     enrichContactId != null &&
@@ -181,12 +219,29 @@ export default function Contacts() {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res = await fetch("/api/import/csv", { method: "POST", body: formData });
-      const result = await res.json();
+      const base = apiBaseUrl();
+      const res = await fetch(`${base}/api/import/csv`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      const result = await readJsonOrText(res);
+
+      if ((result as any)?.__nonJson) {
+        const snippet = String((result as any).text ?? "").slice(0, 160).replace(/\s+/g, " ").trim();
+        throw new Error(
+          `Import failed: expected JSON but got ${res.status} ${res.statusText || ""}. ${snippet ? `Body: ${snippet}` : ""}`.trim()
+        );
+      }
+
       if (result.success) {
         const imported = Number(result.imported ?? 0);
         const skipped = Number(result.skipped ?? 0);
         const matchedExisting = Number(result.matchedExisting ?? 0);
+        const matchedContactIds = Array.isArray(result.matchedContactIds)
+          ? (result.matchedContactIds as unknown[]).filter(x => typeof x === "number")
+          : [];
+        const distinctMatched = matchedContactIds.length;
         const errors: string[] = Array.isArray(result.errors) ? result.errors : [];
         const parts: string[] = [];
         if (imported > 0) parts.push(`${imported} new`);
@@ -206,7 +261,11 @@ export default function Contacts() {
           const duplicateDesc =
             matchedExisting === 1
               ? "That CSV row matched someone already in this workspace; nothing new was inserted."
-              : `${matchedExisting} CSV rows skipped — each matched someone already in this workspace (often many rows sharing one email). Pipeline count unchanged.`;
+              : distinctMatched === 1
+                ? `${matchedExisting} CSV rows all matched the same person already in this list (repeated rows or one shared email). Nothing was added—you should see that contact in the table above.`
+                : distinctMatched > 1
+                  ? `${matchedExisting} CSV row${matchedExisting === 1 ? "" : "s"} matched ${distinctMatched} existing contacts here—no new people added.`
+                  : `${matchedExisting} CSV row${matchedExisting === 1 ? "" : "s"} skipped; they matched people already in this workspace. Pipeline count unchanged.`;
           const skippedDesc =
             skipped > 0
               ? skipped === 1
@@ -272,7 +331,7 @@ export default function Contacts() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 p-2">
+      <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -299,8 +358,8 @@ export default function Contacts() {
         {/* Filters */}
         <Card className="border-border/50 bg-card/80">
           <CardContent className="p-4">
-            <div className="flex flex-wrap gap-3">
-              <div className="relative flex-1 min-w-48">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
+              <div className="relative lg:flex-1 lg:min-w-48">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search name, email, company..."
@@ -310,7 +369,7 @@ export default function Contacts() {
                 />
               </div>
               <Select value={stage} onValueChange={v => { setStage(v); setPage(0); }}>
-                <SelectTrigger className="w-44 bg-muted/30 border-border/50">
+                <SelectTrigger className="w-full bg-muted/30 border-border/50 lg:w-44">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -318,7 +377,7 @@ export default function Contacts() {
                 </SelectContent>
               </Select>
               <Select value={emailStatus} onValueChange={v => { setEmailStatus(v); setPage(0); }}>
-                <SelectTrigger className="w-44 bg-muted/30 border-border/50">
+                <SelectTrigger className="w-full bg-muted/30 border-border/50 lg:w-44">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -326,7 +385,7 @@ export default function Contacts() {
                 </SelectContent>
               </Select>
               <Select value={country} onValueChange={v => { setCountry(v); setPage(0); }}>
-                <SelectTrigger className="w-44 bg-muted/30 border-border/50">
+                <SelectTrigger className="w-full bg-muted/30 border-border/50 lg:w-44">
                   <SelectValue placeholder="Country" />
                 </SelectTrigger>
                 <SelectContent>
@@ -337,7 +396,7 @@ export default function Contacts() {
                 </SelectContent>
               </Select>
               <Select value={industry} onValueChange={v => { setIndustry(v); setPage(0); }}>
-                <SelectTrigger className="w-44 bg-muted/30 border-border/50">
+                <SelectTrigger className="w-full bg-muted/30 border-border/50 lg:w-44">
                   <SelectValue placeholder="Industry" />
                 </SelectTrigger>
                 <SelectContent>
@@ -347,7 +406,7 @@ export default function Contacts() {
                   ))}
                 </SelectContent>
               </Select>
-              <div className="relative min-w-56">
+              <div className="relative lg:min-w-56">
                 <Input
                   placeholder="Keywords (custom)"
                   value={keywords}
@@ -377,11 +436,132 @@ export default function Contacts() {
 
         {/* Contacts Table */}
         <Card className="border-border/50 bg-card/80">
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-hidden">
+            {/* Mobile list (better readability, no horizontal squeeze) */}
+            <div className="md:hidden">
+              {isLoading ? (
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="rounded-md border border-border/50 bg-muted/10 p-3">
+                      <div className="h-4 w-40 rounded bg-muted/40 animate-pulse" />
+                      <div className="mt-2 h-3 w-56 rounded bg-muted/30 animate-pulse" />
+                      <div className="mt-3 h-8 w-full rounded bg-muted/20 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              ) : contacts.length === 0 ? (
+                <div className="p-10 text-center text-muted-foreground">
+                  <Users className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No contacts found</p>
+                  <p className="text-sm mt-1">Import a CSV from Apollo or LinkedIn to get started</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border/40">
+                  {contacts.map((contact) => {
+                    const displayName =
+                      contact.fullName ?? (`${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "—");
+                    const selected = selectedIds.includes(contact.id);
+                    return (
+                      <div key={contact.id} className="p-4">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={selected}
+                            onCheckedChange={() => toggleSelect(contact.id)}
+                            aria-label={`Select contact ${contact.fullName ?? contact.email ?? contact.id}`}
+                            className="mt-1 border-muted-foreground/60 bg-background/80"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-medium">{displayName}</div>
+                                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                                  <span className="truncate max-w-[70vw]">{contact.email ?? "—"}</span>
+                                  {contact.company ? (
+                                    <span className="truncate max-w-[70vw]">· {contact.company}</span>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <Badge className={`ml-auto text-[11px] border ${STAGE_COLORS[contact.stage] ?? ""}`}>
+                                {contact.stage.replace("_", " ")}
+                              </Badge>
+                            </div>
+
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              <div className="rounded-md border border-border/50 bg-muted/10 px-2 py-1.5">
+                                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Location</div>
+                                <div className="mt-0.5 truncate text-xs">{contact.location ?? "—"}</div>
+                              </div>
+                              <div className="rounded-md border border-border/50 bg-muted/10 px-2 py-1.5">
+                                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Enrich.</div>
+                                <div className="mt-0.5 flex items-center gap-2">
+                                  <Badge variant="secondary" className="text-[11px]">
+                                    {String((contact as any).enrichmentStatus ?? "not_enriched").replaceAll("_", " ")}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8"
+                                onClick={() => setProfileContactId(contact.id)}
+                              >
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                Profile
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8"
+                                onClick={() => {
+                                  setEnrichContactId(contact.id);
+                                  enrichMutation.mutate({ contactId: contact.id });
+                                }}
+                                disabled={enrichMutation.isPending}
+                              >
+                                <Sparkles className="h-3 w-3 mr-1" />
+                                Enrich
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8"
+                                onClick={() => setEnrichContactId(contact.id)}
+                              >
+                                <Link2 className="h-3 w-3 mr-1" />
+                                Results
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8"
+                                onClick={() =>
+                                  setLinkedinEdit({
+                                    contactId: contact.id,
+                                    value: (contact as any).linkedinUrl ?? "",
+                                  })
+                                }
+                              >
+                                <Pencil className="h-3 w-3 mr-1" />
+                                LinkedIn
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop table */}
+            <table className="hidden w-full table-fixed md:table">
               <thead>
                 <tr className="border-b border-border/50">
-                  <th className="p-4 w-10">
+                  <th className="px-3 py-3 w-10">
                     <Checkbox
                       checked={
                         contacts.length > 0 && selectedIds.length > 0
@@ -394,14 +574,14 @@ export default function Contacts() {
                       className="border-muted-foreground/60 bg-background/80"
                     />
                   </th>
-                  <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Contact</th>
-                  <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Company</th>
-                  <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Title</th>
-                  <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</th>
-                  <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Stage</th>
-                  <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Location</th>
-                  <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Enrichment</th>
-                  <th className="p-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[18%] xl:w-[16%]">Contact</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[12%] xl:w-[12%]">Company</th>
+                  <th className="hidden px-3 py-3 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap xl:table-cell xl:w-[10%]">Title</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[18%] xl:w-[18%]">Email</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[8%] xl:w-[8%]">Stage</th>
+                  <th className="hidden px-3 py-3 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap xl:table-cell xl:w-[10%]">Location</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[10%] xl:w-[10%]">Enrich.</th>
+                  <th className="px-3 py-3 text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap w-[12%] xl:w-[12%]">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -426,7 +606,7 @@ export default function Contacts() {
                 ) : (
                   contacts.map(contact => (
                     <tr key={contact.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
-                      <td className="p-4">
+                      <td className="px-3 py-3">
                         <Checkbox
                           checked={selectedIds.includes(contact.id)}
                           onCheckedChange={() => toggleSelect(contact.id)}
@@ -434,80 +614,137 @@ export default function Contacts() {
                           className="border-muted-foreground/60 bg-background/80"
                         />
                       </td>
-                      <td className="p-4">
-                        <div>
-                          <p className="text-sm font-medium">{contact.fullName ?? (`${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "—")}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{contact.title ?? "—"}</p>
+                      <td className="px-3 py-3 min-w-0">
+                        <div className="group relative pr-8">
+                          <p className="text-sm font-medium truncate">
+                            {contact.fullName ?? (`${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "—")}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate xl:hidden">
+                            {contact.company ?? "—"}
+                          </p>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-0 top-0 h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const name =
+                                contact.fullName ??
+                                (`${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "");
+                              void copyToClipboard(name);
+                              toast.success("Copied name");
+                            }}
+                            aria-label="Copy name"
+                            title="Copy name"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
                         </div>
                       </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-1.5">
+                      <td className="px-3 py-3 min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
                           <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
-                          <span className="text-sm truncate max-w-32">{contact.company ?? "—"}</span>
+                          <span className="text-sm truncate">{contact.company ?? "—"}</span>
                         </div>
                       </td>
-                      <td className="p-4">
-                        <span className="text-sm truncate max-w-40 block">{contact.title ?? "—"}</span>
+                      <td className="hidden px-3 py-3 xl:table-cell">
+                        <span className="text-sm truncate block">{contact.title ?? "—"}</span>
                       </td>
-                      <td className="p-4">
-                        <div className="space-y-1">
-                          <p className="text-sm truncate max-w-48">{contact.email ?? "—"}</p>
+                      <td className="px-3 py-3 min-w-0">
+                        <div className="group relative space-y-1 pr-8">
+                          <p className="text-sm truncate">{contact.email ?? "—"}</p>
                           {contact.emailStatus && contact.emailStatus !== "unknown" && (
                             <Badge className={`text-xs px-1.5 py-0 ${EMAIL_STATUS_COLORS[contact.emailStatus] ?? ""}`}>
                               {contact.emailStatus}
                               {contact.emailConfidence != null && ` ${Math.round(contact.emailConfidence * 100)}%`}
                             </Badge>
                           )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-0 top-0 h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              void copyToClipboard(String(contact.email ?? ""));
+                              toast.success("Copied email");
+                            }}
+                            aria-label="Copy email"
+                            title="Copy email"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
                         </div>
                       </td>
-                      <td className="p-4">
+                      <td className="px-3 py-3">
                         <Badge className={`text-xs border ${STAGE_COLORS[contact.stage] ?? ""}`}>
                           {contact.stage.replace("_", " ")}
                         </Badge>
                       </td>
-                      <td className="p-4">
+                      <td className="hidden px-3 py-3 xl:table-cell">
                         <div className="flex items-center gap-1.5 text-muted-foreground">
                           {contact.location && <MapPin className="h-3 w-3 shrink-0" />}
-                          <span className="text-sm truncate max-w-28">{contact.location ?? "—"}</span>
+                          <span className="text-sm truncate">{contact.location ?? "—"}</span>
                         </div>
                       </td>
-                      <td className="p-4">
+                      <td className="px-3 py-3">
                         <div className="space-y-1">
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge
+                            variant="secondary"
+                            className="text-[11px] px-1.5 py-0 truncate max-w-[10rem] inline-flex"
+                          >
                             {String((contact as any).enrichmentStatus ?? "not_enriched").replaceAll("_", " ")}
                           </Badge>
                           {(contact as any).enrichmentUpdatedAt ? (
-                            <div className="text-[11px] text-muted-foreground">
+                            <div className="hidden xl:block text-[11px] text-muted-foreground">
                               {new Date((contact as any).enrichmentUpdatedAt).toLocaleString()}
                             </div>
                           ) : null}
                         </div>
                       </td>
-                      <td className="p-4">
+                      <td className="px-3 py-3">
                         <div className="flex flex-wrap gap-2">
                           <Button
-                            size="sm"
+                            size={("icon" as any)}
                             variant="outline"
+                            className="h-8 w-8 xl:w-auto xl:px-3"
+                            onClick={() => setProfileContactId(contact.id)}
+                          >
+                            <ExternalLink className="h-4 w-4 xl:h-3 xl:w-3 xl:mr-1" />
+                            <span className="hidden xl:inline">Profile</span>
+                            <span className="sr-only xl:hidden">Profile</span>
+                          </Button>
+                          <Button
+                            size={("icon" as any)}
+                            variant="outline"
+                            className="h-8 w-8 xl:w-auto xl:px-3"
                             onClick={() => {
                               setEnrichContactId(contact.id);
                               enrichMutation.mutate({ contactId: contact.id });
                             }}
                             disabled={enrichMutation.isPending}
                           >
-                            <Sparkles className="h-3 w-3 mr-1" />
-                            Enrich
+                            <Sparkles className="h-4 w-4 xl:h-3 xl:w-3 xl:mr-1" />
+                            <span className="hidden xl:inline">Enrich</span>
+                            <span className="sr-only xl:hidden">Enrich</span>
                           </Button>
                           <Button
-                            size="sm"
+                            size={("icon" as any)}
                             variant="outline"
+                            className="h-8 w-8 xl:w-auto xl:px-3"
                             onClick={() => setEnrichContactId(contact.id)}
                           >
-                            <Link2 className="h-3 w-3 mr-1" />
-                            Results
+                            <Link2 className="h-4 w-4 xl:h-3 xl:w-3 xl:mr-1" />
+                            <span className="hidden xl:inline">Results</span>
+                            <span className="sr-only xl:hidden">Results</span>
                           </Button>
                           <Button
-                            size="sm"
+                            size={("icon" as any)}
                             variant="outline"
+                            className="h-8 w-8 xl:w-auto xl:px-3"
                             onClick={() =>
                               setLinkedinEdit({
                                 contactId: contact.id,
@@ -515,8 +752,9 @@ export default function Contacts() {
                               })
                             }
                           >
-                            <Pencil className="h-3 w-3 mr-1" />
-                            LinkedIn
+                            <Pencil className="h-4 w-4 xl:h-3 xl:w-3 xl:mr-1" />
+                            <span className="hidden xl:inline">LinkedIn</span>
+                            <span className="sr-only xl:hidden">LinkedIn</span>
                           </Button>
                         </div>
                       </td>
@@ -576,6 +814,133 @@ export default function Contacts() {
         {/* Add Contact Dialog */}
         <AddContactDialog open={showAddDialog} onClose={() => setShowAddDialog(false)} onSuccess={() => utils.contacts.list.invalidate()} />
       </div>
+
+      {/* Contact Profile Dialog */}
+      <Dialog open={profileContactId != null} onOpenChange={(open) => { if (!open) setProfileContactId(null); }}>
+        <DialogContent className="bg-card border-border max-h-[min(90vh,820px)] overflow-hidden p-0 sm:max-w-2xl">
+          <div className="border-b border-border/60 px-6 pt-6 pb-4">
+            <DialogHeader className="text-left">
+              <DialogTitle>Contact profile</DialogTitle>
+            </DialogHeader>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Full details for this contact.
+            </p>
+          </div>
+          <div className="max-h-[calc(90vh-120px)] overflow-y-auto px-6 py-4">
+            {profileContactQuery.isLoading ? (
+              <div className="text-sm text-muted-foreground">Loading…</div>
+            ) : !profileContactQuery.data ? (
+              <div className="text-sm text-muted-foreground">Contact not found.</div>
+            ) : (
+              (() => {
+                const c: any = profileContactQuery.data;
+                const fullName =
+                  c.fullName ?? (`${c.firstName ?? ""} ${c.lastName ?? ""}`.trim() || "—");
+                const tags: string[] = Array.isArray(c.tags) ? c.tags : [];
+                return (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-lg font-semibold truncate">{fullName}</div>
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          <Badge className={`text-xs border ${STAGE_COLORS[String(c.stage)] ?? ""}`}>
+                            {String(c.stage ?? "new").replace("_", " ")}
+                          </Badge>
+                          {c.emailStatus ? (
+                            <Badge variant="secondary" className="text-xs">
+                              {String(c.emailStatus).replaceAll("_", " ")}
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEnrichContactId(Number(c.id));
+                            enrichMutation.mutate({ contactId: Number(c.id) });
+                          }}
+                          disabled={enrichMutation.isPending}
+                        >
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          Enrich
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setEnrichContactId(Number(c.id))}>
+                          <Link2 className="h-3 w-3 mr-1" />
+                          Results
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Email</div>
+                        <div className="mt-1 text-sm break-all">{c.email ?? "—"}</div>
+                      </div>
+                      <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Company</div>
+                        <div className="mt-1 text-sm">{c.company ?? "—"}</div>
+                      </div>
+                      <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Title</div>
+                        <div className="mt-1 text-sm">{c.title ?? "—"}</div>
+                      </div>
+                      <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Location</div>
+                        <div className="mt-1 text-sm">{c.location ?? "—"}</div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">LinkedIn</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <div className="min-w-0 text-sm break-all text-muted-foreground">
+                          {c.linkedinUrl ?? "—"}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="ml-auto"
+                          onClick={() => setLinkedinEdit({ contactId: Number(c.id), value: String(c.linkedinUrl ?? "") })}
+                        >
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Edit
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Tags</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {tags.length ? (
+                          tags.map((t) => (
+                            <Badge key={t} variant="secondary" className="text-xs">
+                              {t}
+                            </Badge>
+                          ))
+                        ) : (
+                          <div className="text-sm text-muted-foreground">—</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Notes</div>
+                      <div className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                        {c.notes?.trim?.() ? c.notes : "—"}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
+            )}
+          </div>
+          <DialogFooter className="border-t border-border/60 px-6 py-4">
+            <Button variant="outline" onClick={() => setProfileContactId(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Enrichment Results Dialog */}
       <Dialog open={enrichContactId != null} onOpenChange={(open) => { if (!open) setEnrichContactId(null); }}>

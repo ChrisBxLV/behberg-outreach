@@ -75,12 +75,34 @@ function normalizeHeader(h: string): string {
     .replace(/\s+/g, " ");
 }
 
+/** True if the header is probably the mailbox column, not a boolean/status (e.g. "Has Email" → false). */
+function isLikelyEmailAddressColumnName(h: string): boolean {
+  if (!h.includes("email")) return true;
+  if (h.startsWith("has ") || h.startsWith("had ")) return false;
+  if (/\bhas\s+work\s+email\b|\bhad\s+work\s+email\b|\bhas\s+email\b|\bhad\s+email\b/.test(h)) return false;
+  // "Work email verified", "Email status" (handled in FIELD_MAP), etc.
+  if (
+    /\b(work|primary|personal|corporate|company|business)\s+email\s+(verified|valid|confirmed|present|found|exists?|active|inactive|missing|unknown)\b/i.test(h)
+  ) {
+    return false;
+  }
+  if (/\bemail\s+(verified|valid|confirmed|active|inactive|present|exists?|found|missing|unknown|status|quality|score|grade|bounce|open|click|sent|reply|sentiment)\b/i.test(h)) {
+    return false;
+  }
+  if (/\bemail\s+(1|2|3|4)\b/.test(h)) return true; // "email 1" variants
+  if (/\b(confidence|risk score|guess|tier|grade)\b/i.test(h) && h.includes("email")) return false;
+  return true;
+}
+
 function guessFieldFromHeader(normalized: string): CsvMappedField | null {
   const h = normalized;
   if (!h) return null;
 
   // Heuristics for unknown exports (kept conservative).
-  if (h.includes("email")) return "email";
+  if (h.includes("email")) {
+    if (!isLikelyEmailAddressColumnName(h)) return null;
+    return "email";
+  }
   if (h.includes("linkedin")) return "linkedinUrl";
   if (h.includes("website") || h.includes("url") || h.includes("domain")) return "companyWebsite";
   if (h.includes("company") || h.includes("organization") || h.includes("account")) return "company";
@@ -192,7 +214,15 @@ export async function importCsvContacts(
           const existing = contact.tags ?? [];
           contact.tags = Array.from(new Set([...existing, ...parsed]));
         } else {
-          (contact as any)[field] = value.trim();
+          const v = value.trim();
+          if (
+            field === "email" &&
+            /^(true|false|yes|no)$/i.test(v) &&
+            v.length <= 5
+          ) {
+            continue; // boolean export column mis-mapped to email (e.g. "Has Email")
+          }
+          (contact as any)[field] = v;
         }
       }
 

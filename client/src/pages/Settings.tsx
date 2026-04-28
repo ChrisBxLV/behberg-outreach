@@ -35,6 +35,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/_core/hooks/useAuth";
 
+function apiBaseUrl() {
+  // Allows running the client separately from the API server (otherwise relative /api/* is fine).
+  return String((import.meta as any).env?.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+}
+
 const SUBSCRIPTION_PLANS = [
   {
     id: "free",
@@ -207,7 +212,12 @@ function ProviderConnectTile(props: {
             isMicrosoft ? "border-sky-500/30 bg-sky-500/10" : "border-rose-500/30 bg-rose-500/10",
           ].join(" ")}
         >
-          <Icon className={["h-4 w-4", isMicrosoft ? "text-sky-300" : "text-rose-300"].join(" ")} />
+          <Icon
+            className={[
+              "h-4 w-4",
+              isMicrosoft ? "text-sky-700 dark:text-sky-300" : "text-rose-700 dark:text-rose-300",
+            ].join(" ")}
+          />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -216,12 +226,15 @@ function ProviderConnectTile(props: {
               <p className="mt-0.5 text-xs text-muted-foreground">{props.subtitle}</p>
             </div>
             {props.ready ? (
-              <Badge className="bg-emerald-500/15 text-emerald-200 border-emerald-500/25">
+              <Badge className="border-emerald-500/25 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200">
                 <CheckCircle2 className="h-3 w-3" />
                 Ready
               </Badge>
             ) : (
-              <Badge variant="outline" className="border-amber-500/30 text-amber-200 bg-amber-500/10">
+              <Badge
+                variant="outline"
+                className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+              >
                 <AlertCircle className="h-3 w-3" />
                 Needs setup
               </Badge>
@@ -863,10 +876,10 @@ export default function Settings() {
             </div>
 
             {mailboxLimitReached ? (
-              <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-100">
+              <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100">
                 <AlertCircle />
                 <AlertTitle>Mailbox limit reached</AlertTitle>
-                <AlertDescription className="text-amber-100/90">
+                <AlertDescription className="text-amber-900/90 dark:text-amber-100/90">
                   You have reached your mailbox limit ({connectedMailboxCount}/{mailboxLimit}). Purchase additional
                   licenses to connect more inboxes.
                   <div className="mt-3">
@@ -879,10 +892,10 @@ export default function Settings() {
             ) : null}
 
             {!canStartAnyOAuth ? (
-              <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-100">
+              <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100">
                 <AlertCircle />
                 <AlertTitle>OAuth connect is blocked</AlertTitle>
-                <AlertDescription className="text-amber-100/90">
+                <AlertDescription className="text-amber-900/90 dark:text-amber-100/90">
                   Fix the setup requirements below, then retry connect.
                   <div className="mt-3 space-y-1 text-xs">
                     <p>
@@ -915,7 +928,8 @@ export default function Settings() {
                   const fd = new FormData();
                   fd.append("file", file);
                   fd.append("mailboxId", String(mid));
-                  const res = await fetch(`${window.location.origin}/api/mailboxes/signature-asset`, {
+                  const base = apiBaseUrl();
+                  const res = await fetch(`${base}/api/mailboxes/signature-asset`, {
                     method: "POST",
                     body: fd,
                     credentials: "include",
