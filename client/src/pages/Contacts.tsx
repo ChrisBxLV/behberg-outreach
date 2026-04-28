@@ -308,26 +308,10 @@ export default function Contacts() {
             description: duplicateDesc + skippedDesc,
           });
 
-          // UX: if the CSV only matched one existing person, jump to them (they might be on an older page).
+          // UX: don't auto-set Search (it feels like a "mystery filter").
+          // If it matched one existing contact, open their profile instead.
           if (distinctMatched === 1 && matchedContactIds[0] != null) {
-            try {
-              const matched = await utils.contacts.get.fetch({ id: matchedContactIds[0]! });
-              const email = String((matched as any)?.email ?? "").trim();
-              const q =
-                (email.includes("@") ? email : "") ||
-                String((matched as any)?.fullName ?? "").trim() ||
-                String(`${(matched as any)?.firstName ?? ""} ${(matched as any)?.lastName ?? ""}`.trim());
-              if (q) {
-                setStage("all");
-                setEmailStatus("all");
-                setCountry("all");
-                setIndustry("all");
-                setKeywords("");
-                setSearch(q);
-              }
-            } catch {
-              // ignore: fallback is the regular list view + toast
-            }
+            setProfileContactId(matchedContactIds[0]!);
           }
         } else if (summary.length > 0) {
           toast.success(summary);

@@ -110,7 +110,9 @@ function guessFieldFromHeader(normalized: string): CsvMappedField | null {
   }
   if (h.includes("linkedin")) return "linkedinUrl";
   if (h.includes("website") || h.includes("url") || h.includes("domain")) return "companyWebsite";
-  if (h.includes("company") || h.includes("organization") || h.includes("account")) return "company";
+  // Note: don't guess-map "account" → company. Many exports include "account owner" which is an email
+  // and would incorrectly become the company value for every row.
+  if (h.includes("company") || h.includes("organization")) return "company";
   if (h.includes("job title") || h === "title" || h.includes("position")) return "title";
 
   // Name columns: prefer explicit first/last; otherwise treat "name" as full name.
@@ -251,6 +253,10 @@ export async function importCsvContacts(
           if (field === "email" && !isProbablyEmail(v)) {
             // If a non-email value lands in the email column, it causes all rows to collapse into one "duplicate".
             // Treat it as absent and let other identifiers (name/company/linkedin) drive matching/creation.
+            continue;
+          }
+          if (field === "company" && isProbablyEmail(v)) {
+            // Avoid setting company to an owner email ("Account Owner", etc).
             continue;
           }
           if ((field === "company" || field === "companyWebsite") && looksLikeId(v)) {
