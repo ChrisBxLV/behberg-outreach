@@ -124,6 +124,21 @@ function formatEnrichmentStatus(raw: unknown) {
   }
 }
 
+function displayEmail(raw: unknown) {
+  const v = String(raw ?? "").trim();
+  return v.includes("@") ? v : "—";
+}
+
+function displayCompany(raw: unknown) {
+  const v = String(raw ?? "").trim();
+  if (!v) return "—";
+  // Hide obvious internal IDs that slipped in from CSV exports.
+  if (/^[0-9a-f]{24}$/i.test(v)) return "—";
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) return "—";
+  if (/^\d{6,}$/.test(v)) return "—";
+  return v;
+}
+
 export default function Contacts() {
   const [search, setSearch] = useState("");
   const [stage, setStage] = useState("all");
@@ -297,12 +312,11 @@ export default function Contacts() {
           if (distinctMatched === 1 && matchedContactIds[0] != null) {
             try {
               const matched = await utils.contacts.get.fetch({ id: matchedContactIds[0]! });
+              const email = String((matched as any)?.email ?? "").trim();
               const q =
-                String((matched as any)?.email ?? "").trim() ||
+                (email.includes("@") ? email : "") ||
                 String((matched as any)?.fullName ?? "").trim() ||
-                String(
-                  `${(matched as any)?.firstName ?? ""} ${(matched as any)?.lastName ?? ""}`.trim(),
-                );
+                String(`${(matched as any)?.firstName ?? ""} ${(matched as any)?.lastName ?? ""}`.trim());
               if (q) {
                 setStage("all");
                 setEmailStatus("all");
@@ -515,10 +529,8 @@ export default function Contacts() {
                               <div className="min-w-0">
                                 <div className="truncate text-sm font-medium">{displayName}</div>
                                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                                  <span className="truncate max-w-[70vw]">{contact.email ?? "—"}</span>
-                                  {contact.company ? (
-                                    <span className="truncate max-w-[70vw]">· {contact.company}</span>
-                                  ) : null}
+                                  <span className="truncate max-w-[70vw]">{displayEmail(contact.email)}</span>
+                                  <span className="truncate max-w-[70vw]">· {displayCompany(contact.company)}</span>
                                 </div>
                               </div>
                               <Badge className={`ml-auto text-[11px] border ${STAGE_COLORS[contact.stage] ?? ""}`}>
@@ -651,7 +663,7 @@ export default function Contacts() {
                             {contact.fullName ?? (`${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "—")}
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5 truncate xl:hidden">
-                            {contact.company ?? "—"}
+                            {displayCompany(contact.company)}
                           </p>
                           <Button
                             type="button"
@@ -677,7 +689,7 @@ export default function Contacts() {
                       <td className="px-3 py-3 min-w-0">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
-                          <span className="text-sm truncate">{contact.company ?? "—"}</span>
+                          <span className="text-sm truncate">{displayCompany(contact.company)}</span>
                         </div>
                       </td>
                       <td className="hidden px-3 py-3 xl:table-cell">
@@ -685,7 +697,7 @@ export default function Contacts() {
                       </td>
                       <td className="px-3 py-3 min-w-0">
                         <div className="group relative space-y-1 pr-8">
-                          <p className="text-sm truncate">{contact.email ?? "—"}</p>
+                          <p className="text-sm truncate">{displayEmail(contact.email)}</p>
                           {contact.emailStatus && contact.emailStatus !== "unknown" && (
                             <Badge className={`text-xs px-1.5 py-0 ${EMAIL_STATUS_COLORS[contact.emailStatus] ?? ""}`}>
                               {contact.emailStatus}

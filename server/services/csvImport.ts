@@ -135,6 +135,27 @@ function splitKeywords(raw: string): string[] {
     .filter(Boolean);
 }
 
+function isProbablyEmail(raw: string): boolean {
+  const v = raw.trim();
+  if (!v) return false;
+  // Guard against common mis-maps (timestamps/UUIDs/etc). Keep permissive but require '@' + a dot later.
+  if (!v.includes("@")) return false;
+  if (v.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
+function looksLikeId(raw: string): boolean {
+  const v = raw.trim();
+  if (!v) return false;
+  // Mongo ObjectId / Apollo-ish IDs
+  if (/^[0-9a-f]{24}$/i.test(v)) return true;
+  // UUID
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) return true;
+  // Pure numeric identifiers
+  if (/^\d{6,}$/.test(v)) return true;
+  return false;
+}
+
 export interface ImportResult {
   batchId: string;
   total: number;
@@ -220,6 +241,15 @@ export async function importCsvContacts(
             v.length <= 5
           ) {
             continue; // boolean export column mis-mapped to email (e.g. "Has Email")
+          }
+          if (field === "email" && !isProbablyEmail(v)) {
+            // If a non-email value lands in the email column, it causes all rows to collapse into one "duplicate".
+            // Treat it as absent and let other identifiers (name/company/linkedin) drive matching/creation.
+            continue;
+          }
+          if ((field === "company" || field === "companyWebsite") && looksLikeId(v)) {
+            // Some exports put internal IDs in "Company" columns; don't store them as a company name.
+            continue;
           }
           (contact as any)[field] = v;
         }
