@@ -931,6 +931,28 @@ function normalizeDomainish(value: string | null | undefined): string | null {
   return hostOnly.replace(/^www\./i, "").toLowerCase().trim() || null;
 }
 
+function normalizeLinkedInUrlForDedupe(value: string | null | undefined): string | null {
+  const v = normalizeOptionalText(value);
+  if (!v) return null;
+  try {
+    const withProto = /^https?:\/\//i.test(v) ? v : `https://${v}`;
+    const u = new URL(withProto);
+    const host = u.hostname.toLowerCase().replace(/^www\./i, "");
+    if (host !== "linkedin.com" && !host.endsWith(".linkedin.com")) {
+      return null;
+    }
+    const path = u.pathname.replace(/\/+$/g, "");
+    const m =
+      path.match(/^\/in\/([A-Za-z0-9_-]+)$/i) ||
+      path.match(/^\/company\/([A-Za-z0-9_-]+)$/i);
+    if (!m?.[1]) return null;
+    const kind = path.toLowerCase().startsWith("/company/") ? "company" : "in";
+    return `linkedin.com/${kind}/${String(m[1]).toLowerCase()}`;
+  } catch {
+    return null;
+  }
+}
+
 function nameTokenSet(fullName: string | null | undefined): Set<string> {
   const v = normalizeOptionalLower(fullName);
   if (!v) return new Set();
@@ -1054,7 +1076,7 @@ export async function findDuplicateContact(input: InsertContact): Promise<typeof
     if (found) return found;
   }
 
-  const linkedin = normalizeDomainish(input.linkedinUrl);
+  const linkedin = normalizeLinkedInUrlForDedupe(input.linkedinUrl);
   if (linkedin) {
     const rows = await db
       .select()
@@ -1062,7 +1084,7 @@ export async function findDuplicateContact(input: InsertContact): Promise<typeof
       .where(and(scopeCond, isNotNull(contacts.linkedinUrl)))
       .orderBy(desc(contacts.updatedAt))
       .limit(300);
-    const found = rows.find(r => normalizeDomainish(r.linkedinUrl) === linkedin);
+    const found = rows.find(r => normalizeLinkedInUrlForDedupe(r.linkedinUrl) === linkedin);
     if (found) return found;
   }
 
