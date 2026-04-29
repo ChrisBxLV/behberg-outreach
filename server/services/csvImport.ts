@@ -176,6 +176,12 @@ export interface ImportResult {
   /** Distinct database contact IDs that CSV rows matched (already on the dashboard) */
   matchedContactIds: number[];
   errors: string[];
+  /** Debug-only mapping info (no row values). */
+  debug?: {
+    organizationId: number | null;
+    detectedHeaders: string[];
+    sampleHeaderMapping: Partial<Record<"email" | "company" | "fullName" | "linkedinUrl", string>>;
+  };
 }
 
 type ImportCsvOptions = {
@@ -193,6 +199,11 @@ export async function importCsvContacts(
   let skipped = 0;
   let matchedExisting = 0;
   const matchedContactIdSet = new Set<number>();
+  const debug: ImportResult["debug"] = {
+    organizationId: options.organizationId ?? null,
+    detectedHeaders: [],
+    sampleHeaderMapping: {},
+  };
 
   let records: Record<string, string>[];
   try {
@@ -209,6 +220,12 @@ export async function importCsvContacts(
   const total = records.length;
   await createImportBatch({ batchId, filename, totalRows: total });
 
+  if (records[0]) {
+    debug.detectedHeaders = Object.keys(records[0])
+      .map((k) => normalizeHeader(k))
+      .filter(Boolean);
+  }
+
   for (let i = 0; i < records.length; i++) {
     const row = records[i];
     try {
@@ -222,6 +239,7 @@ export async function importCsvContacts(
       };
       let csvCountry = "";
       let mappedAny = false;
+      const headerUsed: Partial<Record<"email" | "company" | "fullName" | "linkedinUrl", string>> = {};
 
       // Map columns
       for (const [rawKey, value] of Object.entries(row)) {
@@ -262,6 +280,9 @@ export async function importCsvContacts(
           if ((field === "company" || field === "companyWebsite") && looksLikeId(v)) {
             // Some exports put internal IDs in "Company" columns; don't store them as a company name.
             continue;
+          }
+          if ((field === "email" || field === "company" || field === "fullName" || field === "linkedinUrl") && !headerUsed[field]) {
+            headerUsed[field] = normalized;
           }
           (contact as any)[field] = v;
         }
@@ -310,6 +331,10 @@ export async function importCsvContacts(
       } else {
         imported++;
       }
+
+      if (i === 0) {
+        debug.sampleHeaderMapping = headerUsed;
+      }
     } catch (err: any) {
       errors.push(`Row ${i + 2}: ${err.message}`);
       skipped++;
@@ -331,5 +356,6 @@ export async function importCsvContacts(
     matchedExisting,
     matchedContactIds: Array.from(matchedContactIdSet).sort((a, b) => a - b),
     errors,
+    debug,
   };
 }

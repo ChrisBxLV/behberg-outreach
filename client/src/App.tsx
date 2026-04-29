@@ -74,7 +74,7 @@ function App() {
   return (
     <ErrorBoundary>
       <CookieConsentProvider>
-        <ThemeProvider defaultTheme="dark" switchable>
+        <ThemeProvider defaultTheme="light" switchable forceDefaultTheme>
           <TooltipProvider>
             <Toaster richColors />
             <ThemeDropMotion />

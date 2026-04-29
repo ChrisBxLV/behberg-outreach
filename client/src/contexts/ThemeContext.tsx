@@ -26,15 +26,17 @@ interface ThemeProviderProps {
   children: React.ReactNode;
   defaultTheme?: Theme;
   switchable?: boolean;
+  forceDefaultTheme?: boolean;
 }
 
 export function ThemeProvider({
   children,
   defaultTheme = "light",
   switchable = false,
+  forceDefaultTheme = false,
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
-    if (switchable) {
+    if (switchable && !forceDefaultTheme) {
       const stored = localStorage.getItem("theme");
       return (stored as Theme) || defaultTheme;
     }
@@ -54,6 +56,18 @@ export function ThemeProvider({
       localStorage.setItem("theme", theme);
     }
   }, [theme, switchable]);
+
+  useEffect(() => {
+    if (!forceDefaultTheme) return;
+    setTheme(defaultTheme);
+    // Persisting is helpful even when not currently switchable, since
+    // other parts of the app (or future config) may read it.
+    try {
+      localStorage.setItem("theme", defaultTheme);
+    } catch {
+      // ignore
+    }
+  }, [defaultTheme, forceDefaultTheme, switchable]);
 
   const readThemeBackground = (t: Theme) => {
     // Read CSS variables for the given theme without changing the app theme.
