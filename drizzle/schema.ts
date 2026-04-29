@@ -98,6 +98,7 @@ export const contacts = mysqlTable("contacts", {
   lastName: varchar("lastName", { length: 128 }),
   fullName: varchar("fullName", { length: 256 }),
   email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 64 }),
   emailConfidence: float("emailConfidence"), // 0-1 from Apollo
   emailStatus: mysqlEnum("emailStatus", ["unknown", "valid", "invalid", "catch_all", "risky"]).default("unknown"),
   // Professional

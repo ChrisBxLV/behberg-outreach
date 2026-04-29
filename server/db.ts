@@ -997,6 +997,7 @@ function mergeContactFields(existing: typeof contacts.$inferSelect, incoming: In
     "lastName",
     "fullName",
     "email",
+    "phone",
     "title",
     "company",
     "industry",

@@ -160,13 +160,30 @@ function displayEmail(raw: unknown) {
   return v.includes("@") ? v : "—";
 }
 
-function displayCompany(raw: unknown) {
+function displayCompany(raw: unknown, location?: unknown) {
   const v = String(raw ?? "").trim();
   if (!v) return "—";
   // Hide obvious internal IDs that slipped in from CSV exports.
   if (/^[0-9a-f]{24}$/i.test(v)) return "—";
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) return "—";
   if (/^\d{6,}$/.test(v)) return "—";
+  // If "company" equals the last part of location (often a country), hide it.
+  const loc = String(location ?? "").trim();
+  if (loc) {
+    const parts = loc.split(",").map((p) => p.trim()).filter(Boolean);
+    const countryLike = parts[parts.length - 1] ?? "";
+    if (countryLike && countryLike.localeCompare(v, undefined, { sensitivity: "accent" }) === 0) {
+      return "—";
+    }
+  }
+  return v;
+}
+
+function displayPhone(raw: unknown) {
+  const v = String(raw ?? "").trim();
+  if (!v) return "—";
+  const digits = (v.match(/\d/g) ?? []).length;
+  if (digits < 7) return "—";
   return v;
 }
 
@@ -550,7 +567,7 @@ export default function Contacts() {
                                 <div className="truncate text-sm font-medium">{displayName}</div>
                                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                                   <span className="truncate max-w-[70vw]">{displayEmail(contact.email)}</span>
-                                  <span className="truncate max-w-[70vw]">· {displayCompany(contact.company)}</span>
+                                  <span className="truncate max-w-[70vw]">· {displayCompany(contact.company, contact.location)}</span>
                                 </div>
                               </div>
                               <Badge className={`ml-auto text-[11px] border ${STAGE_COLORS[contact.stage] ?? ""}`}>
@@ -683,7 +700,7 @@ export default function Contacts() {
                             {contact.fullName ?? (`${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "—")}
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5 truncate xl:hidden">
-                            {displayCompany(contact.company)}
+                            {displayCompany(contact.company, contact.location)}
                           </p>
                           <Button
                             type="button"
@@ -709,7 +726,7 @@ export default function Contacts() {
                       <td className="px-3 py-3 min-w-0">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
-                          <span className="text-sm truncate">{displayCompany(contact.company)}</span>
+                          <span className="text-sm truncate">{displayCompany(contact.company, contact.location)}</span>
                         </div>
                       </td>
                       <td className="hidden px-3 py-3 xl:table-cell">
@@ -927,6 +944,10 @@ export default function Contacts() {
                         <div className="mt-1 text-sm break-all">{c.email ?? "—"}</div>
                       </div>
                       <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Phone</div>
+                        <div className="mt-1 text-sm break-all">{displayPhone(c.phone)}</div>
+                      </div>
+                      <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
                         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Enrichment</div>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
                           <Badge variant="secondary" className="text-xs">
@@ -941,7 +962,7 @@ export default function Contacts() {
                       </div>
                       <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
                         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Company</div>
-                        <div className="mt-1 text-sm">{c.company ?? "—"}</div>
+                        <div className="mt-1 text-sm">{displayCompany(c.company, c.location)}</div>
                       </div>
                       <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
                         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Title</div>
@@ -1136,6 +1157,7 @@ function AddContactDialog({ open, onClose, onSuccess }: { open: boolean; onClose
     firstName: "",
     lastName: "",
     email: "",
+    phone: "",
     title: "",
     company: "",
     industry: "",
@@ -1154,6 +1176,7 @@ function AddContactDialog({ open, onClose, onSuccess }: { open: boolean; onClose
         firstName: "",
         lastName: "",
         email: "",
+        phone: "",
         title: "",
         company: "",
         industry: "",
@@ -1176,6 +1199,7 @@ function AddContactDialog({ open, onClose, onSuccess }: { open: boolean; onClose
             { key: "firstName", label: "First Name" },
             { key: "lastName", label: "Last Name" },
             { key: "email", label: "Email", colSpan: true },
+            { key: "phone", label: "Phone", colSpan: true },
             { key: "title", label: "Job Title" },
             { key: "company", label: "Company" },
             { key: "industry", label: "Industry" },
@@ -1207,6 +1231,7 @@ function AddContactDialog({ open, onClose, onSuccess }: { open: boolean; onClose
                 firstName: form.firstName || undefined,
                 lastName: form.lastName || undefined,
                 email: form.email || undefined,
+                phone: form.phone || undefined,
                 title: form.title || undefined,
                 company: form.company || undefined,
                 industry: form.industry || undefined,

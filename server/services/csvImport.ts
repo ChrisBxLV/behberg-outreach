@@ -52,6 +52,12 @@ const FIELD_MAP: Record<string, CsvMappedField> = {
   "location": "location",
   "city": "location",
   "country": "__country",
+  // Phone
+  "phone": "phone",
+  "work direct phone": "phone",
+  "work phone": "phone",
+  "mobile phone": "phone",
+  "corporate phone": "phone",
   // Keywords / tags
   "keyword": "__keywords",
   "keywords": "__keywords",
@@ -102,6 +108,11 @@ function guessFieldFromHeader(normalized: string): CsvMappedField | null {
   if (h.includes("apollo ") || /\bid\b/.test(h) || h.endsWith(" id")) {
     return null;
   }
+
+  // Avoid mis-mapping phone/address/location metadata into company/name fields.
+  if (h.includes("phone") || h.includes("fax")) return null;
+  if (h.includes("address")) return null;
+  if (h.includes("company ") && (h.includes(" city") || h.includes(" state") || h.includes(" country"))) return null;
 
   // Heuristics for unknown exports (kept conservative).
   if (h.includes("email")) {
@@ -162,6 +173,15 @@ function looksLikeId(raw: string): boolean {
   // Pure numeric identifiers
   if (/^\d{6,}$/.test(v)) return true;
   return false;
+}
+
+function looksLikePhone(raw: string): boolean {
+  const v = raw.trim();
+  if (!v) return false;
+  // Allow "+", spaces, hyphens, parentheses; require enough digits.
+  if (!/^[+()\-\s.\d]+$/.test(v)) return false;
+  const digits = (v.match(/\d/g) ?? []).length;
+  return digits >= 7;
 }
 
 export interface ImportResult {
@@ -275,6 +295,17 @@ export async function importCsvContacts(
           }
           if (field === "company" && isProbablyEmail(v)) {
             // Avoid setting company to an owner email ("Account Owner", etc).
+            continue;
+          }
+          if (field === "company" && looksLikePhone(v)) {
+            // Avoid setting company to phone numbers ("Company Phone", etc).
+            continue;
+          }
+          if (field === "phone") {
+            // Prefer the first non-empty phone we see (CSV exports often include multiple phone columns).
+            if (!contact.phone && looksLikePhone(v)) {
+              contact.phone = v;
+            }
             continue;
           }
           if ((field === "company" || field === "companyWebsite") && looksLikeId(v)) {

@@ -257,19 +257,32 @@ async function fetchHtmlWithRedirectValidation(startUrl: string): Promise<{ fina
       if (!reader) throw new Error("No response body");
       const chunks: Uint8Array[] = [];
       let total = 0;
+      let truncated = false;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         if (!value) continue;
-        total += value.byteLength;
-        if (total > maxBytes) {
-          ac.abort();
-          throw new Error("HTML too large");
+        const nextTotal = total + value.byteLength;
+        if (nextTotal > maxBytes) {
+          // Don't fail enrichment on large pages; keep the first bytes and parse what we can.
+          const remaining = Math.max(0, maxBytes - total);
+          if (remaining > 0) {
+            chunks.push(value.slice(0, remaining));
+            total += remaining;
+          }
+          truncated = true;
+          try {
+            await reader.cancel();
+          } catch {
+            // ignore
+          }
+          break;
         }
+        total = nextTotal;
         chunks.push(value);
       }
       const buf = Buffer.concat(chunks.map(u => Buffer.from(u)));
-      const html = buf.toString("utf8");
+      const html = buf.toString("utf8") + (truncated ? "\n<!-- truncated -->\n" : "");
       return { finalUrl: current.toString(), html };
     } finally {
       clearTimeout(t);
