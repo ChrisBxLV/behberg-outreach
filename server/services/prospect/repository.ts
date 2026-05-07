@@ -425,9 +425,9 @@ export async function enqueueJobs(jobs: QueueJobDraft[]): Promise<void> {
     availableAt: j.availableAt ?? new Date(),
     status: "pending",
   }));
-  for (const chunk of chunk(rows, 50)) {
+  for (const batch of chunk(rows, 50)) {
     try {
-      await db.insert(prospectCrawlQueue).values(chunk);
+      await db.insert(prospectCrawlQueue).values(batch);
     } catch (err: any) {
       console.warn(`[ProspectRepo] enqueueJobs failed:`, err?.message ?? err);
     }
