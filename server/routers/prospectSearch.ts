@@ -10,6 +10,9 @@
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gte, inArray, isNotNull, like, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { parse } from "csv-parse/sync";
 import { protectedProcedure, router } from "../_core/trpc";
 import { dataScopeOrganizationId } from "../_core/orgScope";
 import { createOrMergeContact, getDb } from "../db";
@@ -23,6 +26,9 @@ import {
   prospectDailyBudget,
   prospectEmployees,
 } from "../../drizzle/schema";
+import { seedProspectDb } from "../services/prospect/seedProspectDb";
+import { enqueueJobs, normalizeDomain, upsertCompany } from "../services/prospect/repository";
+import { tickQueueCompany, tickQueueEmployee, tickSeeds } from "../services/prospect/crawler";
 
 const COMPANY_LIMIT = 50;
 const EMPLOYEE_LIMIT = 50;
@@ -674,6 +680,67 @@ export const prospectSearchRouter = router({
     };
   }),
 
+  initializePlatform: protectedProcedure
+    .input(
+      z.object({
+        importBootstrapCsv: z.boolean().default(false),
+        bootstrapCsvPath: z.string().trim().min(1).max(400).default("scripts/bootstrap_companies_1000_with_domains.csv"),
+        runTicks: z.boolean().default(true),
+      }).default({ importBootstrapCsv: false, bootstrapCsvPath: "scripts/bootstrap_companies_1000_with_domains.csv", runTicks: true }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "superadmin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+      }
+      await seedProspectDb();
+
+      let importedCompanies = 0;
+      let enqueuedJobs = 0;
+      if (input.importBootstrapCsv) {
+        const p = resolve(process.cwd(), input.bootstrapCsvPath);
+        const raw = await readFile(p, "utf8");
+        const records = parse(raw, { columns: true, skip_empty_lines: true, trim: true }) as Array<Record<string, string>>;
+        for (const row of records) {
+          const name = (row.name ?? "").trim();
+          if (!name) continue;
+          const domain = normalizeDomain((row.domain ?? "").trim() || null);
+          const source = (row.source ?? "user_import").trim() || "user_import";
+          const sourceEvidenceUrl = (row.sourceEvidenceUrl ?? "bootstrap_csv").trim() || "bootstrap_csv";
+          const upserted = await upsertCompany({
+            name,
+            domain,
+            source: source as any,
+            sourceEvidenceUrl,
+          });
+          if (!upserted) continue;
+          importedCompanies++;
+          if (!upserted.company.domain) {
+            await enqueueJobs([{ kind: "resolve_domain", payload: { companyId: upserted.company.id }, priority: 2 }]);
+            enqueuedJobs++;
+          } else {
+            await enqueueJobs([{ kind: "crawl_website", payload: { companyId: upserted.company.id }, priority: 2 }]);
+            enqueuedJobs++;
+          }
+        }
+      }
+
+      let ticks = { seeds: { processed: 0, errors: 0 }, queueCompany: { processed: 0, errors: 0 }, queueEmployee: { processed: 0, errors: 0 } };
+      if (input.runTicks) {
+        ticks = {
+          seeds: await tickSeeds(),
+          queueCompany: await tickQueueCompany(),
+          queueEmployee: await tickQueueEmployee(),
+        };
+      }
+
+      return {
+        seeded: true,
+        importedCompanies,
+        enqueuedJobs,
+        ticks,
+      };
+    }),
+
   /**
    * Platform-wide health snapshot of the autonomous catalogue. Restricted to
    * superadmins so they can monitor crawler growth, queue depth, and sources.
@@ -686,6 +753,8 @@ export const prospectSearchRouter = router({
     if (!db) return emptyPlatformOverview();
 
     try {
+      // Ensure seed rows exist even if scheduler wasn't running yet.
+      await seedProspectDb();
       const [companyTotals] = await db
       .select({
         all: sql<number>`COUNT(*)`,

@@ -1455,12 +1455,26 @@ const PROSPECT_QUEUE_KIND_LABELS: Record<string, string> = {
 };
 
 function ProspectDbPanel() {
+  const utils = trpc.useUtils();
   const overview = trpc.prospectSearch.platformOverview.useQuery();
+  const initialize = trpc.prospectSearch.initializePlatform.useMutation({
+    onSuccess: async (res) => {
+      toast.success(
+        `Prospect init done. Imported ${res.importedCompanies}, queued ${res.enqueuedJobs}, ticks: seeds ${res.ticks.seeds.processed}/${res.ticks.seeds.errors} errors.`,
+      );
+      await Promise.all([
+        utils.prospectSearch.platformOverview.invalidate(),
+        utils.prospectSearch.platformContacts.invalidate(),
+      ]);
+    },
+    onError: err => toast.error(err.message),
+  });
   const [scope, setScope] = useState<"employees" | "companies">("employees");
   const [browserQ, setBrowserQ] = useState("");
   const [browserSource, setBrowserSource] = useState<string>("any");
   const [browserEmail, setBrowserEmail] = useState<string>("any");
   const [browserCursor, setBrowserCursor] = useState(0);
+  const [importBootstrap, setImportBootstrap] = useState(true);
 
   const browser = trpc.prospectSearch.platformContacts.useQuery({
     scope,
@@ -1493,6 +1507,48 @@ function ProspectDbPanel() {
 
   return (
     <div className="space-y-4">
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="text-base">Initialization</CardTitle>
+          <CardDescription>
+            If Prospect DB is empty, seed crawl sources and optionally import the 1,000-company bootstrap CSV,
+            then run one immediate crawler cycle.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-3">
+          <label className="inline-flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={importBootstrap}
+              onCheckedChange={v => setImportBootstrap(v === true)}
+            />
+            Import bootstrap CSV (`scripts/bootstrap_companies_1000_with_domains.csv`)
+          </label>
+          <Button
+            onClick={() =>
+              initialize.mutate({
+                importBootstrapCsv: importBootstrap,
+                runTicks: true,
+              })
+            }
+            disabled={initialize.isPending}
+          >
+            {initialize.isPending ? "Running…" : "Initialize & Run Crawler Now"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() =>
+              initialize.mutate({
+                importBootstrapCsv: false,
+                runTicks: true,
+              })
+            }
+            disabled={initialize.isPending}
+          >
+            Run Ticks Only
+          </Button>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <ProspectStat label="Companies" value={t.companies} hint={`${t.companiesActive.toLocaleString()} active`} />
         <ProspectStat
