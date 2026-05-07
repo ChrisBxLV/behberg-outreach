@@ -75,24 +75,8 @@ export async function bridgeCsvImportToProspectDb(contacts: CsvBridgeContact[]):
         source: "user_import",
       });
       if (!upserted) continue;
-      const fullName = (contact.fullName ?? `${contact.firstName ?? ""} ${contact.lastName ?? ""}`).trim();
-      if (!fullName || fullName.split(/\s+/g).length < 2) continue;
-      const linkedinUrl = sanitizeLinkedinPersonUrl(contact.linkedinUrl ?? null);
-      const employee = await upsertEmployee({
-        companyId: upserted.company.id,
-        companyDomainHint: domain,
-        companyNameHint: company,
-        firstName: contact.firstName ?? null,
-        lastName: contact.lastName ?? null,
-        fullName,
-        title: contact.title ?? null,
-        linkedinUrl,
-        emailHint: contact.email ?? null,
-        emailHintVerified: contact.emailVerified === true,
-        source: "user_import",
-      });
-
-      // Enqueue follow-up jobs only when we don't yet have what we need.
+      // Enqueue follow-up jobs for the company even when the row doesn't
+      // include a valid person record (bootstrap company-only imports).
       const followups: Array<Parameters<typeof enqueueJobs>[0][number]> = [];
       if (!upserted.company.domain && !domain) {
         followups.push({
@@ -107,12 +91,31 @@ export async function bridgeCsvImportToProspectDb(contacts: CsvBridgeContact[]):
           priority: 2,
         });
       }
-      if (employee && !employee.email && employee.emailStatus === "unknown") {
-        followups.push({
-          kind: "guess_emails",
-          payload: { employeeId: employee.id },
-          priority: 2,
+
+      const fullName = (contact.fullName ?? `${contact.firstName ?? ""} ${contact.lastName ?? ""}`).trim();
+      let employee: Awaited<ReturnType<typeof upsertEmployee>> = null;
+      if (fullName && fullName.split(/\s+/g).length >= 2) {
+        const linkedinUrl = sanitizeLinkedinPersonUrl(contact.linkedinUrl ?? null);
+        employee = await upsertEmployee({
+          companyId: upserted.company.id,
+          companyDomainHint: domain,
+          companyNameHint: company,
+          firstName: contact.firstName ?? null,
+          lastName: contact.lastName ?? null,
+          fullName,
+          title: contact.title ?? null,
+          linkedinUrl,
+          emailHint: contact.email ?? null,
+          emailHintVerified: contact.emailVerified === true,
+          source: "user_import",
         });
+        if (employee && !employee.email && employee.emailStatus === "unknown") {
+          followups.push({
+            kind: "guess_emails",
+            payload: { employeeId: employee.id },
+            priority: 2,
+          });
+        }
       }
       if (followups.length) await enqueueJobs(followups);
     } catch (err: any) {
