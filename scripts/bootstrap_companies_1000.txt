@@ -1,0 +1,1000 @@
+﻿3M
+A. O. Smith
+Abbott Laboratories
+AbbVie
+Accenture
+Adobe Inc.
+Advanced Micro Devices
+AES Corporation
+Aflac
+Agilent Technologies
+Air Products
+Airbnb
+Akamai Technologies
+Albemarle Corporation
+Alexandria Real Estate Equities
+Align Technology
+Allegion
+Alliant Energy
+Allstate
+Alphabet Inc. (Class A)
+Alphabet Inc. (Class C)
+Altria
+Amazon
+Amcor
+Ameren
+American Electric Power
+American Express
+American International Group
+American Tower
+American Water Works
+Ameriprise Financial
+Ametek
+Amgen
+Amphenol
+Analog Devices
+Aon plc
+APA Corporation
+Apollo Global Management
+Apple Inc.
+Applied Materials
+AppLovin
+Aptiv
+Arch Capital Group
+Archer Daniels Midland
+Ares Management
+Arista Networks
+Arthur J. Gallagher & Co.
+Assurant
+AT&T
+Atmos Energy
+Autodesk
+Automatic Data Processing
+AutoZone
+AvalonBay Communities
+Avery Dennison
+Axon Enterprise
+Baker Hughes
+Ball Corporation
+Bank of America
+Baxter International
+Becton Dickinson
+Berkshire Hathaway
+Best Buy
+Bio-Techne
+Biogen
+BlackRock
+Blackstone Inc.
+Block, Inc.
+BNY Mellon
+Boeing
+Booking Holdings
+Boston Scientific
+Bristol Myers Squibb
+Broadcom
+Broadridge Financial Solutions
+Brown & Brown
+Brown–Forman
+Builders FirstSource
+Bunge Global
+BXP, Inc.
+C.H. Robinson
+Cadence Design Systems
+Camden Property Trust
+Campbell's Company (The)
+Capital One
+Cardinal Health
+Carnival
+Carrier Global
+Carvana
+Casey's
+Caterpillar Inc.
+Cboe Global Markets
+CBRE Group
+CDW Corporation
+Cencora
+Centene Corporation
+CenterPoint Energy
+CF Industries
+Charles River Laboratories
+Charles Schwab Corporation
+Charter Communications
+Chevron Corporation
+Chipotle Mexican Grill
+Chubb Limited
+Church & Dwight
+Ciena
+Cigna
+Cincinnati Financial
+Cintas
+Cisco
+Citigroup
+Citizens Financial Group
+Clorox
+CME Group
+CMS Energy
+Coca-Cola Company (The)
+Cognizant
+Coherent Corp.
+Coinbase
+Colgate-Palmolive
+Comcast
+Comfort Systems USA
+Conagra Brands
+ConocoPhillips
+Consolidated Edison
+Constellation Brands
+Constellation Energy
+Cooper Companies (The)
+Copart
+Corning Inc.
+Corpay
+Corteva
+CoStar Group
+Costco
+Coterra
+CRH plc
+CrowdStrike
+Crown Castle
+CSX Corporation
+Cummins
+CVS Health
+Danaher Corporation
+Darden Restaurants
+Datadog
+DaVita
+Deckers Brands
+Deere & Company
+Dell Technologies
+Delta Air Lines
+Devon Energy
+Dexcom
+Diamondback Energy
+Digital Realty
+Dollar General
+Dollar Tree
+Dominion Energy
+Domino's
+DoorDash
+Dover Corporation
+Dow Inc.
+D. R. Horton
+DTE Energy
+Duke Energy
+DuPont
+Eaton Corporation
+eBay Inc.
+EchoStar
+Ecolab
+Edison International
+Edwards Lifesciences
+Electronic Arts
+Elevance Health
+Emcor
+Emerson Electric
+Entergy
+EOG Resources
+EPAM Systems
+EQT Corporation
+Equifax
+Equinix
+Equity Residential
+Erie Indemnity
+Essex Property Trust
+Estée Lauder Companies (The)
+Everest Group
+Evergy
+Eversource Energy
+Exelon
+Expand Energy
+Expedia Group
+Expeditors International
+Extra Space Storage
+ExxonMobil
+F5, Inc.
+FactSet
+Fair Isaac
+Fastenal
+Federal Realty Investment Trust
+FedEx
+Fidelity National Information Services
+Fifth Third Bancorp
+First Solar
+FirstEnergy
+Fiserv
+Ford Motor Company
+Fortinet
+Fortive
+Fox Corporation (Class A)
+Fox Corporation (Class B)
+Franklin Resources
+Freeport-McMoRan
+Garmin
+Gartner
+GE Aerospace
+GE HealthCare
+GE Vernova
+Gen Digital
+Generac
+General Dynamics
+General Mills
+General Motors
+Genuine Parts Company
+Gilead Sciences
+Global Payments
+Globe Life
+GoDaddy
+Goldman Sachs
+Halliburton
+Hartford (The)
+Hasbro
+HCA Healthcare
+Healthpeak Properties
+Henry Schein
+Hershey Company (The)
+Hewlett Packard Enterprise
+Hilton Worldwide
+Home Depot (The)
+Honeywell
+Hormel Foods
+Host Hotels & Resorts
+Howmet Aerospace
+HP Inc.
+Hubbell Incorporated
+Humana
+Huntington Bancshares
+Huntington Ingalls Industries
+IBM
+IDEX Corporation
+Idexx Laboratories
+Illinois Tool Works
+Incyte
+Ingersoll Rand
+Insulet Corporation
+Intel
+Interactive Brokers
+Intercontinental Exchange
+International Flavors & Fragrances
+International Paper
+Intuit
+Intuitive Surgical
+Invesco
+Invitation Homes
+IQVIA
+Iron Mountain
+J.B. Hunt
+Jabil
+Jack Henry & Associates
+Jacobs Solutions
+Johnson & Johnson
+Johnson Controls
+JPMorgan Chase
+Kenvue
+Keurig Dr Pepper
+KeyCorp
+Keysight Technologies
+Kimberly-Clark
+Kimco Realty
+Kinder Morgan
+KKR & Co.
+KLA Corporation
+Kraft Heinz
+Kroger
+L3Harris
+Labcorp
+Lam Research
+Las Vegas Sands
+Leidos
+Lennar
+Lennox International
+Lilly (Eli)
+Linde plc
+Live Nation Entertainment
+Lockheed Martin
+Loews Corporation
+Lowe's
+Lululemon Athletica
+Lumentum
+LyondellBasell
+M&T Bank
+Marathon Petroleum
+Marriott International
+Marsh McLennan
+Martin Marietta Materials
+Masco
+Mastercard
+McCormick & Company
+McDonald's
+McKesson Corporation
+Medtronic
+Merck & Co.
+Meta Platforms
+MetLife
+Mettler Toledo
+MGM Resorts
+Microchip Technology
+Micron Technology
+Microsoft
+Mid-America Apartment Communities
+Moderna
+Molson Coors Beverage Company
+Mondelez International
+Monolithic Power Systems
+Monster Beverage
+Moody's Corporation
+Morgan Stanley
+Mosaic Company (The)
+Motorola Solutions
+MSCI Inc.
+Nasdaq, Inc.
+NetApp
+Netflix
+Newmont
+News Corp (Class A)
+News Corp (Class B)
+NextEra Energy
+Nike, Inc.
+NiSource
+Nordson Corporation
+Norfolk Southern
+Northern Trust
+Northrop Grumman
+Norwegian Cruise Line Holdings
+NRG Energy
+Nucor
+Nvidia
+NVR, Inc.
+NXP Semiconductors
+O’Reilly Automotive
+Occidental Petroleum
+Old Dominion
+Omnicom Group
+ON Semiconductor
+Oneok
+Oracle Corporation
+Otis Worldwide
+Paccar
+Packaging Corporation of America
+Palantir Technologies
+Palo Alto Networks
+Paramount Skydance Corporation
+Parker Hannifin
+Paychex
+PayPal
+Pentair
+PepsiCo
+Pfizer
+PG&E Corporation
+Philip Morris International
+Phillips 66
+Pinnacle West Capital
+PNC Financial Services
+Pool Corporation
+PPG Industries
+PPL Corporation
+Principal Financial Group
+Procter & Gamble
+Progressive Corporation
+Prologis
+Prudential Financial
+Public Service Enterprise Group
+PTC Inc.
+Public Storage
+PulteGroup
+Quanta Services
+Qualcomm
+Quest Diagnostics
+Qnity Electronics
+Ralph Lauren Corporation
+Raymond James Financial
+RTX Corporation
+Realty Income
+Regency Centers
+Regeneron Pharmaceuticals
+Regions Financial Corporation
+Republic Services
+ResMed
+Revvity
+Robinhood Markets
+Rockwell Automation
+Rollins, Inc.
+Roper Technologies
+Ross Stores
+Royal Caribbean Group
+S&P Global
+Salesforce
+Sandisk
+SBA Communications
+Schlumberger
+Seagate Technology
+Sempra
+ServiceNow
+Sherwin-Williams
+Simon Property Group
+Skyworks Solutions
+J.M. Smucker Company (The)
+Smurfit Westrock
+Snap-on
+Solventum
+Southern Company
+Southwest Airlines
+Stanley Black & Decker
+Starbucks
+State Street Corporation
+Steel Dynamics
+Steris
+Stryker Corporation
+Supermicro
+Synchrony Financial
+Synopsys
+Sysco
+T-Mobile US
+T. Rowe Price
+Take-Two Interactive
+Tapestry, Inc.
+Targa Resources
+Target Corporation
+TE Connectivity
+Teledyne Technologies
+Teradyne
+Tesla, Inc.
+Texas Instruments
+Texas Pacific Land Corporation
+Textron
+Thermo Fisher Scientific
+TJX Companies
+TKO Group Holdings
+Trade Desk (The)
+Tractor Supply
+Trane Technologies
+TransDigm Group
+Travelers Companies (The)
+Trimble Inc.
+Truist Financial
+Tyler Technologies
+Tyson Foods
+U.S. Bancorp
+Uber
+UDR, Inc.
+Ulta Beauty
+Union Pacific Corporation
+United Airlines Holdings
+United Parcel Service
+United Rentals
+UnitedHealth Group
+Universal Health Services
+Valero Energy
+Ventas
+Veralto
+Verisign
+Verisk Analytics
+Verizon
+Vertex Pharmaceuticals
+Vertiv
+Viatris
+Vici Properties
+Visa Inc.
+Vistra Corp.
+Vulcan Materials Company
+W. R. Berkley Corporation
+W. W. Grainger
+Wabtec
+Walmart
+Walt Disney Company (The)
+Warner Bros. Discovery
+Waste Management
+Waters Corporation
+WEC Energy Group
+Wells Fargo
+Welltower
+West Pharmaceutical Services
+Western Digital
+Weyerhaeuser
+Williams-Sonoma, Inc.
+Williams Companies
+Willis Towers Watson
+Workday, Inc.
+Wynn Resorts
+Xcel Energy
+Xylem Inc.
+Yum! Brands
+Zebra Technologies
+Zimmer Biomet
+Zoetis
+ATA Creativity Global
+American Airlines Group, Inc.
+Atlantic American Corporation
+Applied Optoelectronics, Inc.
+AAON, Inc.
+Ascentage Pharma Group International
+Aardvark Therapeutics, Inc.
+American Battery Technology Company
+AbCellera Biologics Inc.
+Abeona Therapeutics Inc.
+Able View Global Inc.
+Airbnb, Inc.
+Acumen Pharmaceuticals, Inc.
+Absci Corporation
+American Bitcoin Corp.
+Abits Group Inc
+Arbutus Biopharma Corporation
+ABVC BioPharma, Inc.
+Above Food Ingredients Inc.
+Abivax SA
+ACADIA Pharmaceuticals Inc.
+Aurora Cannabis Inc.
+Acco Group Holdings Limited
+ProFrac Holding Corp.
+Adicet Bio, Inc.
+Acorn Energy, Inc.
+Arch Capital Group Ltd.
+Acadia Healthcare Company, Inc.
+Achieve Life Sciences, Inc.
+American Coastal Insurance Corporation
+AC Immune SA
+ACI Worldwide, Inc.
+Axcelis Technologies, Inc.
+ACM Research, Inc.
+ACNB Corporation
+Ascent Industries Co.
+Alpha Cognition Inc.
+Aclarion, Inc.
+Aclaris Therapeutics, Inc.
+Acrivon Therapeutics, Inc.
+Enact Holdings, Inc.
+Acacia Research Corporation
+Actuate Therapeutics, Inc.
+Acurx Pharmaceuticals, Inc.
+Adagene Inc.
+Adamas Trust, Inc.
+Adeia Inc.
+Adagio Medical Holdings, Inc
+Analog Devices, Inc.
+Adial Pharmaceuticals, Inc
+ADMA Biologics Inc
+Automatic Data Processing, Inc.
+Adaptive Biotechnologies Corporation
+ADS-TEC ENERGY PLC
+Autodesk, Inc.
+ADTRAN Holdings, Inc.
+Aditxt, Inc.
+Aduro Clean Technologies Inc.
+Addus HomeCare Corporation
+Advantage Solutions Inc.
+Advanced Biomed Inc.
+Addex Therapeutics Ltd
+Aebi Schmidt Holding AG
+Anfield Energy Inc.
+Antelope Enterprise Holdings Limited
+Aehr Test Systems
+Alset Inc.
+Advanced Energy Industries, Inc.
+Aethlon Medical, Inc.
+Alliance Entertainment Holding Corporation
+American Electric Power Company, Inc.
+Aeries Technology, Inc.
+Aeva Technologies, Inc.
+AudioEye, Inc.
+Affinity Bancshares, Inc.
+Advanced Flower Capital Inc.
+Aimei Health Technology Co., Ltd
+Forafric Global PLC
+Affirm Holdings, Inc.
+Afya Limited
+Allied Gaming & Entertainment Inc.
+Agencia Comercial Spirits Ltd
+Agenus Inc.
+Aureus Greenway Holdings Inc.
+Agios Pharmaceuticals, Inc.
+AgomAb Therapeutics NV
+AGM Group Holdings Inc.
+AGNC Investment Corp.
+Axe Compute Inc.
+Agroz Inc.
+Agilysys, Inc.
+AdaptHealth Corp.
+Akso Health Group
+Ambitions Enterprise Management Co. L.L.C
+20/20 Biolabs, Inc.
+AI Financial Corporation
+Firefly Neuroscience, Inc.
+AIFU Inc.
+Senmiao Technology Limited
+Robo.ai Inc.
+Ainos, Inc.
+AIOS Tech Inc.
+PowerFleet, Inc.
+Arteris, Inc.
+reAlpha Tech Corp.
+Airgain, Inc.
+AirJoule Technologies Corporation
+AIRO Group Holdings, Inc.
+AirSculpt Technologies, Inc.
+Air T, Inc.
+Airship AI Holdings, Inc
+AIxCrypto Holdings, Inc.
+XIAO-I Corporation
+Akamai Technologies, Inc.
+Akanda Corp.
+Akebia Therapeutics, Inc.
+Aktis Oncology, Inc.
+Akari Therapeutics Plc
+Astera Labs, Inc.
+Alarum Technologies Ltd.
+Avalon GloboCare Corp.
+Alico, Inc.
+Aldel Financial II Inc.
+Aldeyra Therapeutics, Inc.
+Alector, Inc.
+Allegro MicroSystems, Inc.
+Align Technology, Inc.
+Aligos Therapeutics, Inc.
+Allegiant Travel Company
+Alignment Healthcare, Inc.
+Alkermes plc
+Alkami Technology, Inc.
+Allogene Therapeutics, Inc.
+Allarity Therapeutics, Inc.
+Allot Ltd.
+Almonty Industries Inc.
+Alamar Biosciences, Inc.
+Alumis Inc.
+Aeluma, Inc.
+Allient Inc.
+Alnylam Pharmaceuticals, Inc.
+AstroNova, Inc.
+REalloys Inc.
+Alpha Compute Corp
+ALPS Group Inc
+Alarm.com Holdings, Inc.
+Alerus Financial Corporation
+Altimmune, Inc.
+AlTi Global, Inc.
+Alto Ingredients, Inc.
+Alvotech
+ALX Oncology Holdings Inc.
+Alzamend Neuro, Inc.
+Amalgamated Financial Corp.
+Applied Materials, Inc.
+Ambarella, Inc.
+Amber International Holding Limited
+AMC Robotics Corporation
+AMC Global Media Inc.
+Advanced Micro Devices, Inc.
+Amgen Inc.
+Autonomix Medical, Inc.
+Amkor Technology, Inc.
+Amylyx Pharmaceuticals, Inc.
+Alpha Modus Holdings, Inc.
+Amplitech Group, Inc.
+Amphastar Pharmaceuticals, Inc.
+Amplitude, Inc.
+Amarin Corporation plc
+Amneal Pharmaceuticals, Inc.
+American Superconductor Corporation
+AMERISAFE, Inc.
+Amesite Inc.
+Aemetis, Inc
+American Woodmark Corporation
+Amazon.com, Inc.
+AnaptysBio, Inc.
+The Andersons, Inc.
+Anghami Inc.
+Angi Inc.
+AngioDynamics, Inc.
+Anika Therapeutics Inc.
+ANI Pharmaceuticals, Inc.
+Anixa Biosciences, Inc.
+Adlai Nortye Ltd.
+AleAnna, Inc.
+Annexon, Inc.
+Rich Sparkle Holdings Limited
+Antalpha Platform Holding Company
+AN2 Therapeutics, Inc.
+Sphere 3D Corp.
+Alpha and Omega Semiconductor Limited
+American Outdoor Brands, Inc.
+ARKO Petroleum Corp.
+American Public Education, Inc.
+Apogee Therapeutics, Inc.
+Agora, Inc.
+Applied Digital Corporation
+Apollomics Inc.
+Apellis Pharmaceuticals, Inc.
+Aptorum Group Limited
+Apogee Enterprises, Inc.
+Applovin Corporation
+AppFolio, Inc.
+Appian Corporation
+Digital Turbine, Inc.
+Aprea Therapeutics, Inc.
+Aptevo Therapeutics Inc.
+Asia Pacific Wire & Cable Corporation Limited
+Apex Treasury Corporation
+Apyx Medical Corporation
+AquaBounty Technologies, Inc.
+Aqua Metals, Inc.
+Aquestive Therapeutics, Inc.
+Arrive AI Inc.
+Accuray Incorporated
+ARB IOT Group Limited
+Arbe Robotics Ltd.
+Argo Blockchain plc
+ArcBest Corporation
+Ares Capital Corporation
+Archimedes Tech SPAC Partners III Co.
+Arcturus Therapeutics Holdings Inc.
+Ardelyx, Inc.
+American Rebel Holdings, Inc.
+American Resources Corporation
+argenx SE
+Arhaus, Inc.
+ARKO Corp.
+Ark Restaurants Corp.
+Alliance Resource Partners, L.P.
+Arm Holdings plc
+Arrow Financial Corporation
+Arq, Inc.
+Arqit Quantum Inc.
+Arcutis Biotherapeutics, Inc.
+Array Technologies, Inc.
+Artelo Biosciences, Inc.
+Artesian Resources Corporation
+Artiva Biotherapeutics, Inc.
+Art's-Way Manufacturing Co., Inc.
+Arvinas, Inc.
+Arrowhead Pharmaceuticals, Inc.
+Arxis, Inc.
+Aspire Biopharma Holdings, Inc.
+AerSale Corporation
+Assembly Biosciences, Inc.
+ASML Holding N.V.
+Ascendis Pharma A/S
+Academy Sports and Outdoors, Inc.
+ASP Isotopes Inc.
+Altisource Portfolio Solutions S.A.
+Assertio Holdings, Inc.
+AmeriServ Financial Inc.
+Strive, Inc.
+Astrotech Corporation
+Astec Industries, Inc.
+Astrana Health Inc.
+Ascent Solar Technologies, Inc
+Algoma Steel Group Inc.
+AST SpaceMobile, Inc.
+Asure Software Inc
+Amtech Systems, Inc.
+AtaiBeckley Inc.
+Atour Lifestyle Holdings Limited
+Atlas Critical Minerals Corporation
+Alphatec Holdings, Inc.
+Aterian, Inc.
+Anterix Inc.
+Alpha Technology Group Limited
+Alterity Therapeutics Limited
+Aether Holdings, Inc.
+Archimedes Tech SPAC Partners II Co.
+Atlanticus Holdings Corporation
+Atlantic International Corp.
+Ames National Corporation
+Atlas Lithium Corporation
+ATN International, Inc.
+Atomera Incorporated
+Atossa Therapeutics, Inc.
+Agape ATP Corporation
+Atara Biotherapeutics, Inc.
+AtriCure, Inc.
+Astronics Corporation
+Addentax Group Corp.
+aTyr Pharma, Inc.
+Auburn National Bancorporation, Inc.
+AudioCodes Ltd.
+Aura Minerals Inc.
+authID Inc.
+Aurinia Pharmaceuticals Inc
+Aurora Innovation, Inc.
+Aura Biosciences, Inc.
+Aurelion Inc.
+Autolus Therapeutics plc
+Auddia Inc.
+Aveanna Healthcare Holdings Inc.
+AeroVironment, Inc.
+Avidbank Holdings, Inc.
+ArriVent BioPharma, Inc.
+Broadcom Inc.
+Atea Pharmaceuticals, Inc.
+Avalyn Pharma Inc.
+Aviat Networks, Inc.
+Mission Produce, Inc.
+AvePoint, Inc.
+Anteris Technologies Global Corp.
+Avnet, Inc.
+Avalo Therapeutics, Inc.
+Avax One Technology Ltd.
+Anavex Life Sciences Corp.
+Aware, Inc.
+Solowin Holdings
+Axogen, Inc.
+Axon Enterprise, Inc.
+Axsome Therapeutics, Inc.
+AXT Inc
+Aytu BioPharma, Inc.
+A2Z Cust2Mate Solutions Corp.
+Autozi Internet Technology (Global) Ltd.
+Azenta, Inc.
+Bridger Aerospace Group Holdings, Inc.
+BayFirst Financial Corp.
+Bandwidth Inc.
+BancFirst Corporation
+CBL International Limited
+Banner Corporation
+ArrowMark Financial Corp.
+Baosheng Media Group Holdings Limited
+Atlanta Braves Holdings, Inc.
+Concrete Pumping Holdings, Inc.
+Beasley Broadcast Group, Inc.
+BridgeBio Pharma, Inc.
+Bone Biologics Corp
+Beta Bionics, Inc.
+BridgeBio Oncology Therapeutics, Inc.
+Barrett Business Services, Inc.
+BioAtla, Inc.
+California BanCorp
+Bicara Therapeutics Inc.
+BCB Bancorp, Inc. (NJ)
+BioCardia, Inc.
+Binah Capital Group, Inc.
+BCP Investment Corporation
+BayCom Corp
+Balchem Corporation
+BioCryst Pharmaceuticals, Inc.
+BriaCell Therapeutics Corp.
+Bicycle Therapeutics plc
+BTC Development Corp.
+Baird Medical Investment Holdings Ltd
+Biodexa Pharmaceuticals plc
+Biodesix, Inc.
+Black Diamond Therapeutics, Inc.
+Beam Therapeutics Inc.
+Heartbeam, Inc.
+Beam Global
+Mobile Infrastructure Corporation
+Bel Fuse Inc.
+Beneficient
+Better Home & Finance Holding Company
+Bank First Corporation
+Bullfrog AI Holdings, Inc.
+Biofrontera Inc.
+Business First Bancshares, Inc.
+BGC Group, Inc.
+Big Digital Energy, Inc.
+Bgin Blockchain Limited
+Blue Gold Limited
+BioNexus Gene Lab Corp
+BGM Group Ltd.
+Bio Green Med Solution, Inc.
+Brighthouse Financial, Inc.
+Burke & Herbert Financial Services Corp.
+BioHarvest Sciences Inc.
+bioAffinity Technologies, Inc.
+Baidu, Inc.
+Biogen Inc.
+Bilibili Inc.
+BioAge Labs, Inc.
+Bioceres Crop Solutions Corp.
+Allbirds, Inc.
+BioVie Inc.
+Baiya International Group Inc.
+Bluejay Diagnostics, Inc.
+BJ's Restaurants, Inc.
+Booking Holdings Inc.
+Baker Hughes Company
+BIO-key International, Inc.
+BlackLine, Inc.
+Blue Bird Corporation
+Ballard Power Systems, Inc.
+BioLife Solutions, Inc.
+Bridgeline Digital, Inc.
+BeLive Holdings
+Blackbaud, Inc.
+BillionToOne, Inc.
+Bloomin' Brands, Inc.
+Beeline Holdings, Inc.
+Blink Charging Co.
+BioLineRx Ltd.
+Belite Bio, Inc
+Backblaze, Inc.
+Bumble Inc.
+Biomea Fusion, Inc.
+Basel Medical Group Ltd
+Bluemount Holdings Limited
+Blue Moon Metals Inc.
+Beamr Imaging Ltd.
+Biomerica, Inc.
+Bank of Marin Bancorp
+BioMarin Pharmaceutical Inc.
+Brand Engagement Network Inc.
+BNB Plus Corp.
+CEA Industries Inc.
+Bionano Genomics, Inc.
+Bonk, Inc.
+Burning Rock Biotech Limited
+Brenmiller Energy Ltd
+Benitec Biopharma Inc.
+BioNTech SE
+Banzai International, Inc.
+The Beachbody Company, Inc.
+BranchOut Food Inc.
+BOK Financial Corporation
+Boundless Bio, Inc.
+Bolt Biotherapeutics, Inc.
+Bon Natural Life Limited
+DMC Global Inc.
+B.O.S. Better Online Solutions
+Bank of the James Financial Group, Inc.
+Boxlight Corporation
+Popular, Inc.
+Princeton Bancorp, Inc.
+Brookfield Property Partners L.P.
+Bragg Gaming Group Inc.
+Braiin Limited
+BRBI BR Partners S.A.
+Black Rock Coffee Bar, Inc.
+Barfresh Food Group Inc.
+Bridgford Foods Corporation
+Bruker Corporation
+Borealis Foods Inc.
+Brilliant Earth Group, Inc.
+Barinthus Biotherapeutics plc
+ProCap Financial, Inc.
+BioRestorative Therapies, Inc.
+Braze, Inc.
+Bogota Financial Corp.
+Bassett Furniture Industries, Incorporated
+Sierra Bancorp
+Bank7 Corp.
+Bentley Systems, Incorporated
+BioXcel Therapeutics, Inc.
+BT Brands, Inc.
+Bit Digital, Inc.
+BTCS Inc.
+BTC Digital Ltd.
+Bitdeer Technologies Group
+Bitcoin Depot Inc.
+Biote Corp.
+Armlogi Holding Corp.
+Bit Origin Limited
+BTQ Technologies Corp.
+Black Titan Corp
+Webull Corporation
+First Busey Corporation
+BUUU Group Limited
+BitVentures Limited
+BV Financial, Inc.
+Bioventus Inc.
+BrainsWay Ltd.
+Bridgewater Bancshares, Inc.
+Broadwind, Inc.
+Bankwell Financial Group, Inc.
+The Baldwin Insurance Group, Inc.
+Bowman Consulting Group Ltd.
+Park Ha Biological Technology Co., Ltd.
+Broadway Financial Corporation
+Beyond Meat, Inc.
+Byrna Technologies, Inc.
+BeyondSpring, Inc.
+KANZHUN LIMITED
+Blaize Holdings, Inc.
+BuzzFeed, Inc.
+Baozun Inc.
+China Automotive Systems, Inc.
+Cabaletta Bio, Inc.
+Caring Brands, Inc.
+Camden National Corporation
+Credit Acceptance Corporation
+Candel Therapeutics, Inc.
+Cantor Equity Partners III, Inc.
+Caris Life Sciences, Inc.
+The Cheesecake Factory Incorporated
+CalciMedica, Inc.
+Cal-Maine Foods, Inc.

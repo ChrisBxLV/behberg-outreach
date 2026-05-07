@@ -52,6 +52,37 @@ const COMPANY_SORTS = ["recent", "name_asc", "name_desc", "headcount_desc", "hea
 const EMPLOYEE_SORTS = ["recent", "name_asc", "seniority", "with_email_first"] as const;
 const EMAIL_FILTERS = ["any", "with_email", "without_email", "mx_absent"] as const;
 
+function emptyPlatformOverview() {
+  return {
+    totals: {
+      companies: 0,
+      companiesActive: 0,
+      companiesWithDomain: 0,
+      companiesVerified: 0,
+      companiesWithLinkedin: 0,
+      employees: 0,
+      employeesWithEmail: 0,
+      employeesWithLinkedin: 0,
+    },
+    bySource: { companies: [] as Array<{ source: string | null; count: number }>, employees: [] as Array<{ source: string | null; count: number }> },
+    byCountry: [] as Array<{ country: string | null; count: number }>,
+    byIndustry: [] as Array<{ industryCode: string | null; count: number }>,
+    bySeniority: [] as Array<{ level: string | null; count: number }>,
+    byHeadcountBand: [] as Array<{ band: string | null; count: number }>,
+    growth: {
+      companies: [] as Array<{ day: string; count: number }>,
+      employees: [] as Array<{ day: string; count: number }>,
+    },
+    queue: {
+      byStatus: [] as Array<{ status: string | null; count: number }>,
+      byKind: [] as Array<{ kind: string | null; status: string | null; count: number }>,
+    },
+    recentRuns: [] as Array<unknown>,
+    seedHealth: [] as Array<unknown>,
+    budget: [] as Array<unknown>,
+  };
+}
+
 /** Lowercase + trim the linkedin URL exactly the same way we store it. */
 function normalizeLinkedin(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -652,32 +683,10 @@ export const prospectSearchRouter = router({
       throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
     }
     const db = await getDb();
-    if (!db) {
-      return {
-        totals: {
-          companies: 0,
-          companiesActive: 0,
-          companiesWithDomain: 0,
-          companiesVerified: 0,
-          companiesWithLinkedin: 0,
-          employees: 0,
-          employeesWithEmail: 0,
-          employeesWithLinkedin: 0,
-        },
-        bySource: { companies: [], employees: [] },
-        byCountry: [],
-        byIndustry: [],
-        bySeniority: [],
-        byHeadcountBand: [],
-        growth: { companies: [], employees: [] },
-        queue: { byStatus: [], byKind: [] },
-        recentRuns: [],
-        seedHealth: [],
-        budget: [],
-      };
-    }
+    if (!db) return emptyPlatformOverview();
 
-    const [companyTotals] = await db
+    try {
+      const [companyTotals] = await db
       .select({
         all: sql<number>`COUNT(*)`,
         active: sql<number>`SUM(CASE WHEN ${prospectCompanies.status} = 'active' THEN 1 ELSE 0 END)`,
@@ -800,37 +809,41 @@ export const prospectSearchRouter = router({
       .where(gte(prospectDailyBudget.bucketDay, sevenDaysAgo))
       .orderBy(desc(prospectDailyBudget.bucketDay));
 
-    return {
-      totals: {
-        companies: Number(companyTotals?.all ?? 0),
-        companiesActive: Number(companyTotals?.active ?? 0),
-        companiesWithDomain: Number(companyTotals?.withDomain ?? 0),
-        companiesVerified: Number(companyTotals?.verified ?? 0),
-        companiesWithLinkedin: Number(companyTotals?.withLinkedin ?? 0),
-        employees: Number(empTotals?.all ?? 0),
-        employeesWithEmail: Number(empTotals?.withEmail ?? 0),
-        employeesWithLinkedin: Number(empTotals?.withLinkedin ?? 0),
-      },
-      bySource: {
-        companies: companiesBySource.map(r => ({ source: r.source, count: Number(r.count) })),
-        employees: employeesBySource.map(r => ({ source: r.source, count: Number(r.count) })),
-      },
-      byCountry: byCountry.map(r => ({ country: r.country, count: Number(r.count) })),
-      byIndustry: byIndustry.map(r => ({ industryCode: r.industryCode, count: Number(r.count) })),
-      bySeniority: bySeniority.map(r => ({ level: r.level, count: Number(r.count) })),
-      byHeadcountBand: byHeadcountBand.map(r => ({ band: r.band, count: Number(r.count) })),
-      growth: {
-        companies: companiesGrowth.map(r => ({ day: r.day, count: Number(r.count) })),
-        employees: employeesGrowth.map(r => ({ day: r.day, count: Number(r.count) })),
-      },
-      queue: {
-        byStatus: queueByStatus.map(r => ({ status: r.status, count: Number(r.count) })),
-        byKind: queueByKind.map(r => ({ kind: r.kind, status: r.status, count: Number(r.count) })),
-      },
-      recentRuns,
-      seedHealth,
-      budget,
-    };
+      return {
+        totals: {
+          companies: Number(companyTotals?.all ?? 0),
+          companiesActive: Number(companyTotals?.active ?? 0),
+          companiesWithDomain: Number(companyTotals?.withDomain ?? 0),
+          companiesVerified: Number(companyTotals?.verified ?? 0),
+          companiesWithLinkedin: Number(companyTotals?.withLinkedin ?? 0),
+          employees: Number(empTotals?.all ?? 0),
+          employeesWithEmail: Number(empTotals?.withEmail ?? 0),
+          employeesWithLinkedin: Number(empTotals?.withLinkedin ?? 0),
+        },
+        bySource: {
+          companies: companiesBySource.map(r => ({ source: r.source, count: Number(r.count) })),
+          employees: employeesBySource.map(r => ({ source: r.source, count: Number(r.count) })),
+        },
+        byCountry: byCountry.map(r => ({ country: r.country, count: Number(r.count) })),
+        byIndustry: byIndustry.map(r => ({ industryCode: r.industryCode, count: Number(r.count) })),
+        bySeniority: bySeniority.map(r => ({ level: r.level, count: Number(r.count) })),
+        byHeadcountBand: byHeadcountBand.map(r => ({ band: r.band, count: Number(r.count) })),
+        growth: {
+          companies: companiesGrowth.map(r => ({ day: r.day, count: Number(r.count) })),
+          employees: employeesGrowth.map(r => ({ day: r.day, count: Number(r.count) })),
+        },
+        queue: {
+          byStatus: queueByStatus.map(r => ({ status: r.status, count: Number(r.count) })),
+          byKind: queueByKind.map(r => ({ kind: r.kind, status: r.status, count: Number(r.count) })),
+        },
+        recentRuns,
+        seedHealth,
+        budget,
+      };
+    } catch (err: any) {
+      console.warn(`[prospectSearch.platformOverview] returning empty snapshot:`, err?.message ?? err);
+      return emptyPlatformOverview();
+    }
   }),
 
   /**
@@ -855,8 +868,8 @@ export const prospectSearchRouter = router({
       const db = await getDb();
       if (!db) return { items: [] as Array<unknown>, nextCursor: null as number | null };
       const offset = input.cursor ?? 0;
-
-      if (input.scope === "companies") {
+      try {
+        if (input.scope === "companies") {
         const conds = [];
         if (input.q) {
           if (input.q.length >= 4) {
@@ -924,5 +937,9 @@ export const prospectSearchRouter = router({
       }));
       const nextCursor = rows.length > input.limit ? offset + input.limit : null;
       return { items, nextCursor };
+      } catch (err: any) {
+        console.warn(`[prospectSearch.platformContacts] returning empty rows:`, err?.message ?? err);
+        return { items: [] as Array<unknown>, nextCursor: null as number | null };
+      }
     }),
 });
