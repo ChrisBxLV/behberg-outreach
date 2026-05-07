@@ -25,6 +25,12 @@ if (!url?.trim()) {
 }
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
+const SAFE_IDEMPOTENT_CODES = new Set([
+  "ER_TABLE_EXISTS_ERROR", // create table when table already exists
+  "ER_DUP_FIELDNAME", // add column when column already exists
+  "ER_DUP_KEYNAME", // add index/constraint when key name already exists
+  "ER_CANT_DROP_FIELD_OR_KEY", // drop key/column that is already missing
+]);
 
 async function main() {
   if (typeof readMigrationFiles !== "function") {
@@ -87,7 +93,17 @@ async function main() {
       for (const stmt of migration.sql) {
         const trimmed = stmt.trim();
         if (!trimmed) continue;
-        await conn.query(trimmed);
+        try {
+          await conn.query(trimmed);
+        } catch (err) {
+          const e = err;
+          const code = e && typeof e === "object" && "code" in e ? e.code : undefined;
+          if (code && SAFE_IDEMPOTENT_CODES.has(String(code))) {
+            console.warn(`[db:migrate] Skip idempotent statement (${code})`);
+            continue;
+          }
+          throw err;
+        }
       }
 
       await conn.query(
