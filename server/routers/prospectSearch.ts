@@ -89,6 +89,28 @@ function emptyPlatformOverview() {
   };
 }
 
+async function hasProspectSchema(): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  try {
+    const rows = await db.execute(sql`
+      SELECT COUNT(*) AS c
+      FROM information_schema.tables
+      WHERE table_schema = DATABASE()
+        AND table_name IN (
+          'prospect_crawl_seeds',
+          'prospect_crawl_queue',
+          'prospect_companies',
+          'prospect_employees'
+        )
+    `);
+    const count = Number((rows as any)?.[0]?.c ?? 0);
+    return count >= 4;
+  } catch {
+    return false;
+  }
+}
+
 /** Lowercase + trim the linkedin URL exactly the same way we store it. */
 function normalizeLinkedin(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -692,6 +714,13 @@ export const prospectSearchRouter = router({
       if (ctx.user.role !== "superadmin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
       }
+      if (!(await hasProspectSchema())) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Prospect DB tables are missing in the current database. Run `pnpm db:migrate` on this environment, then retry initialization.",
+        });
+      }
       await seedProspectDb();
 
       let importedCompanies = 0;
@@ -748,6 +777,9 @@ export const prospectSearchRouter = router({
   platformOverview: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user.role !== "superadmin") {
       throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+    }
+    if (!(await hasProspectSchema())) {
+      return emptyPlatformOverview();
     }
     const db = await getDb();
     if (!db) return emptyPlatformOverview();
