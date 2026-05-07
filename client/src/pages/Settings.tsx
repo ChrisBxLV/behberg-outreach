@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Dialog,
@@ -292,6 +291,13 @@ function MailboxDomainSetupCard(props: {
   const dmarcOk = data?.dmarc.status === "pass";
   const dkimOk = data?.dkim.status === "pass";
   const allHealthy = Boolean(spfOk && dmarcOk && dkimOk);
+  const healthScore = data?.healthScore ?? 0;
+  const healthToneClass =
+    healthScore <= 35
+      ? "bg-red-500"
+      : healthScore <= 69
+        ? "bg-amber-500"
+        : "bg-emerald-500";
 
   return (
     <div className="mt-3 rounded-lg border border-border/40 bg-muted/20 p-3 space-y-3">
@@ -331,6 +337,15 @@ function MailboxDomainSetupCard(props: {
           <p className="text-[11px] text-muted-foreground">
             Domain: <span className="font-medium text-foreground">{data.domain}</span>
           </p>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground">Mailbox health</span>
+              <span className="font-medium text-foreground">{healthScore}/100</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div className={`h-full transition-all ${healthToneClass}`} style={{ width: `${healthScore}%` }} />
+            </div>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={spfOk ? "default" : "outline"}>{spfOk ? "SPF OK" : "SPF missing"}</Badge>
             <Badge variant={dkimOk ? "default" : "outline"}>{dkimOk ? "DKIM OK" : "DKIM missing"}</Badge>
@@ -393,8 +408,18 @@ function MailboxHealthScoreBadge(props: { mailboxId: number }) {
   if (!data) {
     return <Badge variant="outline">Health --</Badge>;
   }
-  const tone = data.healthScore >= 100 ? "default" : "outline";
-  return <Badge variant={tone}>Health {data.healthScore}</Badge>;
+  const score = data.healthScore;
+  const toneClass =
+    score <= 35
+      ? "border-red-500/35 bg-red-500/12 text-red-700 dark:text-red-300"
+      : score <= 69
+        ? "border-amber-500/35 bg-amber-500/12 text-amber-800 dark:text-amber-200"
+        : "border-emerald-500/35 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300";
+  return (
+    <Badge variant="outline" className={toneClass}>
+      Health {score}
+    </Badge>
+  );
 }
 
 export default function Settings() {
@@ -477,6 +502,7 @@ export default function Settings() {
   const [showManualMailboxSetup, setShowManualMailboxSetup] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState("organization");
   const [mailboxesSubTab, setMailboxesSubTab] = useState("inboxes");
+  const mailboxesTabInitializedRef = useRef(false);
   const [recheckAllToken, setRecheckAllToken] = useState(0);
   const [isRecheckingAllMailboxes, setIsRecheckingAllMailboxes] = useState(false);
   const [selectedSignatureMailboxId, setSelectedSignatureMailboxId] = useState<number | null>(null);
@@ -644,6 +670,13 @@ export default function Settings() {
       if (prev != null && mailboxes.some(m => m.id === prev)) return prev;
       return mailboxes[0]!.id;
     });
+  }, [mailboxes]);
+
+  useEffect(() => {
+    if (mailboxesTabInitializedRef.current) return;
+    if (!mailboxes) return;
+    setMailboxesSubTab(mailboxes.length > 0 ? "inboxes" : "connect");
+    mailboxesTabInitializedRef.current = true;
   }, [mailboxes]);
 
   useEffect(() => {
@@ -996,67 +1029,6 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <ProviderConnectTile
-                provider="google"
-                title="Gmail"
-                subtitle="Fastest connect for Google Workspace and personal Gmail."
-                ready={googleReady}
-                reasons={googleReasons}
-                onConnect={() => startOAuthFor("google")}
-                disabled={startOAuthMutation.isPending || mailboxLimitReached || completeOAuthMutation.isPending}
-                isPending={startOAuthMutation.isPending || completeOAuthMutation.isPending}
-              />
-              <ProviderConnectTile
-                provider="microsoft"
-                title="Microsoft"
-                subtitle="Outlook.com and Microsoft 365 via Graph OAuth."
-                ready={microsoftReady}
-                reasons={microsoftReasons}
-                onConnect={() => startOAuthFor("microsoft")}
-                disabled={startOAuthMutation.isPending || mailboxLimitReached || completeOAuthMutation.isPending}
-                isPending={startOAuthMutation.isPending || completeOAuthMutation.isPending}
-              />
-            </div>
-
-            {mailboxLimitReached ? (
-              <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100">
-                <AlertCircle />
-                <AlertTitle>Mailbox limit reached</AlertTitle>
-                <AlertDescription className="text-amber-900/90 dark:text-amber-100/90">
-                  You have reached your mailbox limit ({connectedMailboxCount}/{mailboxLimit}). Purchase additional
-                  licenses to connect more inboxes.
-                  <div className="mt-3">
-                    <Button size="sm" variant="outline" onClick={() => setActiveSettingsTab("subscription")}>
-                      Manage subscription
-                    </Button>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            {!canStartAnyOAuth ? (
-              <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100">
-                <AlertCircle />
-                <AlertTitle>OAuth connect is blocked</AlertTitle>
-                <AlertDescription className="text-amber-900/90 dark:text-amber-100/90">
-                  Fix the setup requirements below, then retry connect.
-                  <div className="mt-3 space-y-1 text-xs">
-                    <p>
-                      <span className="font-medium">Google:</span>{" "}
-                      {googleReasons.length > 0 ? googleReasons.map(oauthReasonLabel).join(" ") : "Ready."}
-                    </p>
-                    <p>
-                      <span className="font-medium">Microsoft:</span>{" "}
-                      {microsoftReasons.length > 0 ? microsoftReasons.map(oauthReasonLabel).join(" ") : "Ready."}
-                    </p>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            <Separator className="bg-border/50" />
-
             <input
               ref={logoFileInputRef}
               type="file"
@@ -1098,7 +1070,9 @@ export default function Settings() {
             <Tabs value={mailboxesSubTab} onValueChange={setMailboxesSubTab}>
               <TabsList className="bg-muted/30 border border-border/50">
                 <TabsTrigger value="inboxes">Connected Inboxes</TabsTrigger>
+                <TabsTrigger value="mailbox-health">Mailbox Health</TabsTrigger>
                 <TabsTrigger value="signatures">Signatures</TabsTrigger>
+                <TabsTrigger value="connect">Connect Mailbox</TabsTrigger>
               </TabsList>
 
               <TabsContent value="inboxes" className="mt-4">
@@ -1193,6 +1167,62 @@ export default function Settings() {
                               Disconnect
                             </Button>
                           </div>
+                          <div className="mt-4 space-y-2 border-t border-border/30 pt-3">
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              Unsubscribe applies per connected mailbox. Anyone who shares this mailbox shares the same suppression list.
+                            </p>
+                            <MailboxSuppressionsPanel mailboxId={mailbox.id} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="mailbox-health" className="mt-4">
+                <div className="rounded-lg bg-muted/20 border border-border/30 p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">Mailbox health</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        0-35 red, 36-69 yellow, 70-100 green.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      onClick={() => void recheckAllMailboxes()}
+                      disabled={connectedMailboxCount === 0 || isRecheckingAllMailboxes}
+                    >
+                      {isRecheckingAllMailboxes ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          Rechecking...
+                        </span>
+                      ) : (
+                        "Recheck all mailboxes"
+                      )}
+                    </Button>
+                  </div>
+                  {connectedMailboxCount === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border/50 bg-background/30 p-4 text-sm text-muted-foreground">
+                      Connect an inbox first to monitor mailbox health.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {(mailboxes ?? []).map((mailbox) => (
+                        <div key={mailbox.id} className="rounded-lg border border-border/40 p-3 bg-background/40">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{mailbox.displayName ?? mailbox.email}</p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {mailbox.provider.toUpperCase()} · {mailbox.email}
+                              </p>
+                            </div>
+                            <MailboxHealthScoreBadge mailboxId={mailbox.id} />
+                          </div>
                           <MailboxDomainSetupCard
                             mailbox={{
                               id: mailbox.id,
@@ -1201,12 +1231,6 @@ export default function Settings() {
                             }}
                             recheckAllToken={recheckAllToken}
                           />
-                          <div className="mt-4 space-y-2 border-t border-border/30 pt-3">
-                            <p className="text-xs text-muted-foreground leading-relaxed">
-                              Unsubscribe applies per connected mailbox. Anyone who shares this mailbox shares the same suppression list.
-                            </p>
-                            <MailboxSuppressionsPanel mailboxId={mailbox.id} />
-                          </div>
                         </div>
                       ))}
                     </div>
@@ -1330,6 +1354,70 @@ export default function Settings() {
                       </Button>
                     </div>
                   )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="connect" className="mt-4">
+                <div className="space-y-4 rounded-lg bg-muted/20 border border-border/30 p-4">
+                  <p className="text-sm font-medium">Connect mailbox</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <ProviderConnectTile
+                      provider="google"
+                      title="Gmail"
+                      subtitle="Fastest connect for Google Workspace and personal Gmail."
+                      ready={googleReady}
+                      reasons={googleReasons}
+                      onConnect={() => startOAuthFor("google")}
+                      disabled={startOAuthMutation.isPending || mailboxLimitReached || completeOAuthMutation.isPending}
+                      isPending={startOAuthMutation.isPending || completeOAuthMutation.isPending}
+                    />
+                    <ProviderConnectTile
+                      provider="microsoft"
+                      title="Microsoft"
+                      subtitle="Outlook.com and Microsoft 365 via Graph OAuth."
+                      ready={microsoftReady}
+                      reasons={microsoftReasons}
+                      onConnect={() => startOAuthFor("microsoft")}
+                      disabled={startOAuthMutation.isPending || mailboxLimitReached || completeOAuthMutation.isPending}
+                      isPending={startOAuthMutation.isPending || completeOAuthMutation.isPending}
+                    />
+                  </div>
+
+                  {mailboxLimitReached ? (
+                    <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100">
+                      <AlertCircle />
+                      <AlertTitle>Mailbox limit reached</AlertTitle>
+                      <AlertDescription className="text-amber-900/90 dark:text-amber-100/90">
+                        You have reached your mailbox limit ({connectedMailboxCount}/{mailboxLimit}). Purchase additional
+                        licenses to connect more inboxes.
+                        <div className="mt-3">
+                          <Button size="sm" variant="outline" onClick={() => setActiveSettingsTab("subscription")}>
+                            Manage subscription
+                          </Button>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+
+                  {!canStartAnyOAuth ? (
+                    <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100">
+                      <AlertCircle />
+                      <AlertTitle>OAuth connect is blocked</AlertTitle>
+                      <AlertDescription className="text-amber-900/90 dark:text-amber-100/90">
+                        Fix the setup requirements below, then retry connect.
+                        <div className="mt-3 space-y-1 text-xs">
+                          <p>
+                            <span className="font-medium">Google:</span>{" "}
+                            {googleReasons.length > 0 ? googleReasons.map(oauthReasonLabel).join(" ") : "Ready."}
+                          </p>
+                          <p>
+                            <span className="font-medium">Microsoft:</span>{" "}
+                            {microsoftReasons.length > 0 ? microsoftReasons.map(oauthReasonLabel).join(" ") : "Ready."}
+                          </p>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
                 </div>
               </TabsContent>
             </Tabs>
