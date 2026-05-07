@@ -547,3 +547,207 @@ export const signalIngestionRuns = mysqlTable("signal_ingestion_runs", {
 export type SignalIngestionRun = typeof signalIngestionRuns.$inferSelect;
 export type InsertSignalIngestionRun = typeof signalIngestionRuns.$inferInsert;
 
+// ─── Prospect Database ────────────────────────────────────────────────────────
+// Autonomous, organization-agnostic catalogue of companies + employees that
+// grows in the background via deterministic crawlers. Independent of `contacts`
+// (which remains the per-org CRM list).
+
+export const industries = mysqlTable("industries", {
+  code: varchar("code", { length: 64 }).primaryKey(),
+  label: varchar("label", { length: 128 }).notNull(),
+  parentCode: varchar("parentCode", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Industry = typeof industries.$inferSelect;
+export type InsertIndustry = typeof industries.$inferInsert;
+
+export const prospectCompanies = mysqlTable(
+  "prospect_companies",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    name: varchar("name", { length: 256 }).notNull(),
+    /** Lowercased, punctuation-stripped name used for dedupe when domain is unknown. */
+    nameNormalized: varchar("nameNormalized", { length: 256 }).notNull(),
+    /** Root domain (lowercased, no www). Unique when set. */
+    domain: varchar("domain", { length: 255 }),
+    hqCountry: varchar("hqCountry", { length: 2 }),
+    hqAdmin1: varchar("hqAdmin1", { length: 8 }),
+    hqCity: varchar("hqCity", { length: 128 }),
+    headcount: int("headcount"),
+    /** "1-10","11-50","51-200","201-500","501-1k","1k-5k","5k-10k","10k+" */
+    headcountBand: varchar("headcountBand", { length: 16 }),
+    industryCode: varchar("industryCode", { length: 64 }),
+    subIndustryCode: varchar("subIndustryCode", { length: 64 }),
+    linkedinUrl: varchar("linkedinUrl", { length: 512 }),
+    websiteVerified: boolean("websiteVerified").default(false).notNull(),
+    source: varchar("source", { length: 32 }).default("unknown").notNull(),
+    sourceEvidenceUrl: varchar("sourceEvidenceUrl", { length: 1024 }),
+    /** "active","stale","blocked","excluded_self_employed" */
+    status: varchar("status", { length: 32 }).default("active").notNull(),
+    firstSeenAt: timestamp("firstSeenAt").defaultNow().notNull(),
+    lastEnrichedAt: timestamp("lastEnrichedAt"),
+    lastVerifiedAt: timestamp("lastVerifiedAt"),
+  },
+  table => ({
+    domainUnique: uniqueIndex("prospect_companies_domain_unique").on(table.domain),
+    linkedinUrlUnique: uniqueIndex("prospect_companies_linkedin_unique").on(table.linkedinUrl),
+  }),
+);
+
+export type ProspectCompany = typeof prospectCompanies.$inferSelect;
+export type InsertProspectCompany = typeof prospectCompanies.$inferInsert;
+
+export const prospectEmployees = mysqlTable(
+  "prospect_employees",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("companyId")
+      .notNull()
+      .references(() => prospectCompanies.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    firstName: varchar("firstName", { length: 128 }),
+    lastName: varchar("lastName", { length: 128 }),
+    fullName: varchar("fullName", { length: 256 }).notNull(),
+    title: varchar("title", { length: 256 }),
+    titleNormalized: varchar("titleNormalized", { length: 256 }),
+    /** "c_level","head","director","manager","ic","unknown" */
+    seniorityLevel: varchar("seniorityLevel", { length: 16 }).default("unknown").notNull(),
+    locationCountry: varchar("locationCountry", { length: 2 }),
+    locationAdmin1: varchar("locationAdmin1", { length: 8 }),
+    locationCity: varchar("locationCity", { length: 128 }),
+    linkedinUrl: varchar("linkedinUrl", { length: 512 }),
+    email: varchar("email", { length: 320 }),
+    /** Pattern code that produced `email`, e.g. "first.last", "f.last". */
+    emailPattern: varchar("emailPattern", { length: 32 }),
+    /** "unknown","mx_present","mx_absent","excluded" */
+    emailStatus: varchar("emailStatus", { length: 16 }).default("unknown").notNull(),
+    emailGuesses: json("emailGuesses").$type<string[]>(),
+    source: varchar("source", { length: 32 }).default("unknown").notNull(),
+    sourceEvidenceUrl: varchar("sourceEvidenceUrl", { length: 1024 }),
+    firstSeenAt: timestamp("firstSeenAt").defaultNow().notNull(),
+    lastVerifiedAt: timestamp("lastVerifiedAt"),
+  },
+  table => ({
+    linkedinUrlUnique: uniqueIndex("prospect_employees_linkedin_unique").on(table.linkedinUrl),
+    companyFullNameUnique: uniqueIndex("prospect_employees_company_fullname_unique").on(
+      table.companyId,
+      table.fullName,
+    ),
+  }),
+);
+
+export type ProspectEmployee = typeof prospectEmployees.$inferSelect;
+export type InsertProspectEmployee = typeof prospectEmployees.$inferInsert;
+
+export const prospectEmailPatterns = mysqlTable(
+  "prospect_email_patterns",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("companyId")
+      .notNull()
+      .references(() => prospectCompanies.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    /** Token pattern, e.g. "first.last","first","f.last","flast","first_last","last.first","first-last","last","lastf". */
+    pattern: varchar("pattern", { length: 32 }).notNull(),
+    observedCount: int("observedCount").default(0).notNull(),
+    firstSeenAt: timestamp("firstSeenAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    companyPatternUnique: uniqueIndex("prospect_email_patterns_company_pattern_unique").on(
+      table.companyId,
+      table.pattern,
+    ),
+  }),
+);
+
+export type ProspectEmailPattern = typeof prospectEmailPatterns.$inferSelect;
+export type InsertProspectEmailPattern = typeof prospectEmailPatterns.$inferInsert;
+
+export const prospectCrawlSeeds = mysqlTable("prospect_crawl_seeds", {
+  id: int("id").autoincrement().primaryKey(),
+  /**
+   * "linkedin_company_serp","linkedin_employee_serp","wikidata_region","sec_edgar","uk_ch","website_team_page".
+   */
+  kind: varchar("kind", { length: 32 }).notNull(),
+  /** ISO country code, US state code, or "global". */
+  region: varchar("region", { length: 16 }).default("global").notNull(),
+  payload: json("payload").$type<Record<string, unknown>>(),
+  frequencyMinutes: int("frequencyMinutes").default(360).notNull(),
+  enabled: boolean("enabled").default(true).notNull(),
+  consecutiveErrors: int("consecutiveErrors").default(0).notNull(),
+  lastRunAt: timestamp("lastRunAt"),
+  nextRunAt: timestamp("nextRunAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ProspectCrawlSeed = typeof prospectCrawlSeeds.$inferSelect;
+export type InsertProspectCrawlSeed = typeof prospectCrawlSeeds.$inferInsert;
+
+export const prospectCrawlRuns = mysqlTable("prospect_crawl_runs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  seedId: int("seedId").references(() => prospectCrawlSeeds.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+  kind: varchar("kind", { length: 32 }).notNull(),
+  /** "ok","error","throttled" */
+  status: varchar("status", { length: 16 }).default("ok").notNull(),
+  itemsFound: int("itemsFound").default(0).notNull(),
+  itemsNew: int("itemsNew").default(0).notNull(),
+  errorMessage: text("errorMessage"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  finishedAt: timestamp("finishedAt"),
+});
+
+export type ProspectCrawlRun = typeof prospectCrawlRuns.$inferSelect;
+export type InsertProspectCrawlRun = typeof prospectCrawlRuns.$inferInsert;
+
+export const prospectCrawlQueue = mysqlTable("prospect_crawl_queue", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  /** "resolve_domain","crawl_website","guess_emails","verify_mx","harvest_employee" */
+  kind: varchar("kind", { length: 32 }).notNull(),
+  payload: json("payload").$type<Record<string, unknown>>().notNull(),
+  priority: int("priority").default(0).notNull(),
+  availableAt: timestamp("availableAt").defaultNow().notNull(),
+  attempts: int("attempts").default(0).notNull(),
+  /** "pending","in_flight","done","dead" */
+  status: varchar("status", { length: 16 }).default("pending").notNull(),
+  lockedBy: varchar("lockedBy", { length: 64 }),
+  lockedAt: timestamp("lockedAt"),
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ProspectCrawlQueue = typeof prospectCrawlQueue.$inferSelect;
+export type InsertProspectCrawlQueue = typeof prospectCrawlQueue.$inferInsert;
+
+export const prospectHostThrottle = mysqlTable("prospect_host_throttle", {
+  host: varchar("host", { length: 255 }).primaryKey(),
+  nextAllowedAt: timestamp("nextAllowedAt").defaultNow().notNull(),
+  consecutiveErrors: int("consecutiveErrors").default(0).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ProspectHostThrottle = typeof prospectHostThrottle.$inferSelect;
+export type InsertProspectHostThrottle = typeof prospectHostThrottle.$inferInsert;
+
+export const prospectDailyBudget = mysqlTable("prospect_daily_budget", {
+  id: int("id").autoincrement().primaryKey(),
+  /** YYYY-MM-DD UTC */
+  bucketDay: varchar("bucketDay", { length: 10 }).notNull(),
+  /** "http","serp" */
+  bucketKind: varchar("bucketKind", { length: 16 }).notNull(),
+  consumed: int("consumed").default(0).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  dayKindUnique: uniqueIndex("prospect_daily_budget_day_kind_unique").on(
+    table.bucketDay,
+    table.bucketKind,
+  ),
+}));
+
+export type ProspectDailyBudget = typeof prospectDailyBudget.$inferSelect;
+export type InsertProspectDailyBudget = typeof prospectDailyBudget.$inferInsert;
+

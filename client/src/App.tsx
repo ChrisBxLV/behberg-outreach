@@ -19,6 +19,7 @@ import LoginVerify from "./pages/LoginVerify";
 import SignUp from "./pages/SignUp";
 import Onboarding from "./pages/Onboarding";
 import Prospecting from "./pages/Prospecting";
+import SearchPage from "./pages/Search";
 import SuperadminDashboard from "./pages/SuperadminDashboard";
 import Unsubscribe from "./pages/Unsubscribe";
 import Privacy from "./pages/Privacy";
@@ -56,6 +57,7 @@ function Router() {
       <Route path="/app/campaigns" component={Campaigns} />
       <Route path="/app/signals" component={Signals} />
       <Route path="/app/prospecting" component={Prospecting} />
+      <Route path="/app/search" component={SearchPage} />
       <Route path="/app/campaigns/:id" component={CampaignDetail} />
       <Route path="/app/settings" component={Settings} />
       <Route path="/app/superadmin" component={SuperadminDashboard} />

@@ -7,6 +7,13 @@ import {
 import { sendEmail, interpolateTemplate } from "./emailService";
 import { generatePersonalizedEmail } from "./llmPersonalization";
 import { runSignalsSchedulerTick } from "./signalsService";
+import {
+  isProspectCrawlerDisabled,
+  tickQueueCompany,
+  tickQueueEmployee,
+  tickSeeds,
+} from "./prospect/crawler";
+import { seedProspectDb } from "./prospect/seedProspectDb";
 import type { Contact, Campaign, SequenceStep } from "../../drizzle/schema";
 
 let schedulerRunning = false;
@@ -60,6 +67,37 @@ export function startScheduler() {
     }
   });
   console.log("[Scheduler] Microsoft Graph subscription renewal (every 6 hours)");
+
+  // Autonomous prospect crawler (companies + employees).
+  if (!isProspectCrawlerDisabled()) {
+    void seedProspectDb().catch(err => {
+      console.warn("[ProspectCrawler] initial seed failed:", err?.message ?? err);
+    });
+    cron.schedule("*/30 * * * *", async () => {
+      try {
+        await tickSeeds();
+      } catch (err: any) {
+        console.error("[ProspectCrawler] tickSeeds error:", err?.message ?? "unknown");
+      }
+    });
+    cron.schedule("*/5 * * * *", async () => {
+      try {
+        await tickQueueCompany();
+      } catch (err: any) {
+        console.error("[ProspectCrawler] tickQueueCompany error:", err?.message ?? "unknown");
+      }
+    });
+    cron.schedule("*/5 * * * *", async () => {
+      try {
+        await tickQueueEmployee();
+      } catch (err: any) {
+        console.error("[ProspectCrawler] tickQueueEmployee error:", err?.message ?? "unknown");
+      }
+    });
+    console.log("[ProspectCrawler] started (seed every 30m, company queue every 5m, employee queue every 5m)");
+  } else {
+    console.log("[ProspectCrawler] disabled via DISABLE_PROSPECT_CRAWLER");
+  }
 
   console.log("[Scheduler] Email sequence scheduler started (every 5 minutes)");
 }

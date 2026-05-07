@@ -5,6 +5,7 @@ import {
   createOrMergeContact,
   updateImportBatch,
 } from "../db";
+import { bridgeCsvImportToProspectDb } from "./prospect/csvBridge";
 import type { InsertContact } from "../../drizzle/schema";
 
 type CsvMappedField = keyof InsertContact | "__country" | "__keywords";
@@ -239,6 +240,10 @@ export async function importCsvContacts(
 
   const total = records.length;
   await createImportBatch({ batchId, filename, totalRows: total });
+  // Capture (company, domain, person) hints we observed so the autonomous
+  // prospect crawler can enrich this universe in the background. Sent after
+  // the loop so an LLM-free hand-off never blocks the user-facing import.
+  const prospectBridgeQueue: Parameters<typeof bridgeCsvImportToProspectDb>[0] = [];
 
   if (records[0]) {
     debug.detectedHeaders = Object.keys(records[0])
@@ -363,6 +368,19 @@ export async function importCsvContacts(
         imported++;
       }
 
+      prospectBridgeQueue.push({
+        email: contact.email ?? null,
+        emailVerified: contact.emailStatus === "valid",
+        fullName: contact.fullName ?? null,
+        firstName: contact.firstName ?? null,
+        lastName: contact.lastName ?? null,
+        title: contact.title ?? null,
+        company: contact.company ?? null,
+        companyWebsite: contact.companyWebsite ?? null,
+        linkedinUrl: contact.linkedinUrl ?? null,
+        location: contact.location ?? null,
+      });
+
       if (i === 0) {
         debug.sampleHeaderMapping = headerUsed;
       }
@@ -377,6 +395,12 @@ export async function importCsvContacts(
     skippedRows: skipped,
     status: errors.length > 0 && imported === 0 ? "failed" : "completed",
     errorLog: errors.length > 0 ? errors.slice(0, 20).join("\n") : undefined,
+  });
+
+  // Fire-and-forget hand-off to the prospect database. Failures must never
+  // affect the user-visible CSV import result.
+  void bridgeCsvImportToProspectDb(prospectBridgeQueue).catch((err: any) => {
+    console.warn(`[CSV Import] prospect bridge failed:`, err?.message ?? err);
   });
 
   return {

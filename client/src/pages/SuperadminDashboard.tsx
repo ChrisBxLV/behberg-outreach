@@ -571,7 +571,7 @@ export default function SuperadminDashboard() {
   );
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "organizations" | "plans" | "users" | "app"
+    "overview" | "organizations" | "plans" | "users" | "prospect_db" | "app"
   >("overview");
 
   const goTab = (tab: typeof activeTab) => {
@@ -587,6 +587,7 @@ export default function SuperadminDashboard() {
       tab === "organizations" ||
       tab === "plans" ||
       tab === "users" ||
+      tab === "prospect_db" ||
       tab === "app"
     ) {
       setActiveTab(tab);
@@ -664,6 +665,7 @@ export default function SuperadminDashboard() {
             <TabsTrigger value="organizations">Organizations</TabsTrigger>
             <TabsTrigger value="plans">Plans</TabsTrigger>
             <TabsTrigger value="users">Users & access</TabsTrigger>
+            <TabsTrigger value="prospect_db">Prospect DB</TabsTrigger>
             <TabsTrigger value="app">App configuration</TabsTrigger>
           </TabsList>
 
@@ -1141,6 +1143,10 @@ export default function SuperadminDashboard() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="prospect_db" className="space-y-4 mt-4">
+            <ProspectDbPanel />
+          </TabsContent>
+
           <TabsContent value="app" className="space-y-4 mt-4">
             <Card className="border-border/50">
               <CardHeader>
@@ -1424,4 +1430,658 @@ export default function SuperadminDashboard() {
       </div>
     </DashboardLayout>
   );
+}
+
+/* ────────────────────────────────────────────────────────────────────── */
+/* Prospect DB panel (superadmin only)                                    */
+/* ────────────────────────────────────────────────────────────────────── */
+
+const PROSPECT_SOURCE_LABELS: Record<string, string> = {
+  wikidata: "Wikidata",
+  sec_edgar: "SEC EDGAR",
+  uk_ch: "UK Companies House",
+  linkedin_serp: "LinkedIn (SERP)",
+  website: "Company website",
+  user_import: "User CSV imports",
+  unknown: "Unknown",
+};
+
+const PROSPECT_QUEUE_KIND_LABELS: Record<string, string> = {
+  resolve_domain: "Resolve domain",
+  crawl_website: "Crawl website",
+  guess_emails: "Guess emails",
+  verify_mx: "Verify MX",
+  harvest_employee: "Harvest employees",
+};
+
+function ProspectDbPanel() {
+  const overview = trpc.prospectSearch.platformOverview.useQuery();
+  const [scope, setScope] = useState<"employees" | "companies">("employees");
+  const [browserQ, setBrowserQ] = useState("");
+  const [browserSource, setBrowserSource] = useState<string>("any");
+  const [browserEmail, setBrowserEmail] = useState<string>("any");
+  const [browserCursor, setBrowserCursor] = useState(0);
+
+  const browser = trpc.prospectSearch.platformContacts.useQuery({
+    scope,
+    q: browserQ || undefined,
+    sources: browserSource && browserSource !== "any" ? [browserSource as any] : undefined,
+    emailFilter: scope === "employees" ? (browserEmail as any) : undefined,
+    cursor: browserCursor,
+    limit: 50,
+  });
+
+  if (overview.isLoading) {
+    return <p className="text-sm text-muted-foreground py-8 text-center">Loading prospect database…</p>;
+  }
+  if (overview.isError) {
+    return (
+      <Card className="border-destructive/40 bg-destructive/5">
+        <CardHeader>
+          <CardTitle className="text-base">Could not load Prospect DB</CardTitle>
+          <CardDescription>{overview.error.message}</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+  const data = overview.data;
+  if (!data) return null;
+
+  const t = data.totals;
+  const companiesGrowthTotal = data.growth.companies.reduce((s, r) => s + r.count, 0);
+  const employeesGrowthTotal = data.growth.employees.reduce((s, r) => s + r.count, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <ProspectStat label="Companies" value={t.companies} hint={`${t.companiesActive.toLocaleString()} active`} />
+        <ProspectStat
+          label="Domains resolved"
+          value={t.companiesWithDomain}
+          hint={`${pct(t.companiesWithDomain, t.companies)} of catalogue`}
+        />
+        <ProspectStat
+          label="Domains verified"
+          value={t.companiesVerified}
+          hint={`${pct(t.companiesVerified, t.companiesWithDomain)} of resolved`}
+        />
+        <ProspectStat
+          label="LinkedIn pages"
+          value={t.companiesWithLinkedin}
+          hint={`${pct(t.companiesWithLinkedin, t.companies)} of catalogue`}
+        />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <ProspectStat label="People" value={t.employees} />
+        <ProspectStat
+          label="With work emails"
+          value={t.employeesWithEmail}
+          hint={`${pct(t.employeesWithEmail, t.employees)} MX-verified`}
+        />
+        <ProspectStat
+          label="With LinkedIn"
+          value={t.employeesWithLinkedin}
+          hint={`${pct(t.employeesWithLinkedin, t.employees)} of people`}
+        />
+        <ProspectStat
+          label="Last 14 days growth"
+          value={companiesGrowthTotal + employeesGrowthTotal}
+          hint={`${companiesGrowthTotal.toLocaleString()} companies + ${employeesGrowthTotal.toLocaleString()} people`}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="text-base">Growth (last 14 days)</CardTitle>
+            <CardDescription>New companies and people discovered per day.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <GrowthSpark
+              companies={data.growth.companies}
+              employees={data.growth.employees}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="text-base">Source mix</CardTitle>
+            <CardDescription>Where rows are coming from.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <SourceList title="Companies" rows={data.bySource.companies} />
+            <SourceList title="People" rows={data.bySource.employees} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="text-base">Top regions</CardTitle>
+            <CardDescription>Active companies by HQ country (top 30).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TwoColList rows={data.byCountry.map(r => ({ key: r.country ?? "—", count: r.count }))} />
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="text-base">Industries</CardTitle>
+            <CardDescription>Active companies by industry code (top 20).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TwoColList rows={data.byIndustry.map(r => ({ key: r.industryCode ?? "—", count: r.count }))} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="text-base">Headcount distribution</CardTitle>
+            <CardDescription>Active companies grouped by employee band.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TwoColList rows={data.byHeadcountBand.map(r => ({ key: r.band ?? "—", count: r.count }))} />
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="text-base">Seniority mix</CardTitle>
+            <CardDescription>People by inferred seniority level.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TwoColList
+              rows={data.bySeniority.map(r => ({
+                key: prettySeniority(r.level),
+                count: r.count,
+              }))}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="text-base">Crawl queue</CardTitle>
+          <CardDescription>Pipeline depth for the autonomous crawler.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {(["pending", "in_flight", "done", "dead"] as const).map(status => {
+              const row = data.queue.byStatus.find(r => r.status === status);
+              return (
+                <div key={status} className="rounded-lg border border-border/40 bg-muted/20 p-3">
+                  <p className="text-xs text-muted-foreground capitalize">{status.replace("_", " ")}</p>
+                  <p className="text-2xl font-semibold tabular-nums mt-1">{row?.count.toLocaleString() ?? 0}</p>
+                </div>
+              );
+            })}
+          </div>
+          {data.queue.byKind.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Job</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Count</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.queue.byKind.map((r, i) => (
+                  <TableRow key={`${r.kind}-${r.status}-${i}`}>
+                    <TableCell>{PROSPECT_QUEUE_KIND_LABELS[r.kind ?? ""] ?? r.kind}</TableCell>
+                    <TableCell className="capitalize">{(r.status ?? "").replace("_", " ")}</TableCell>
+                    <TableCell className="text-right tabular-nums">{r.count.toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-sm text-muted-foreground">Queue is empty.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="text-base">Recent crawl runs</CardTitle>
+            <CardDescription>Last 20 source executions.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {data.recentRuns.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No crawler runs yet.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Started</TableHead>
+                    <TableHead>Kind</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Found / New</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.recentRuns.map((r: any) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(r.startedAt).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-xs">{r.kind}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={r.status === "ok" ? "secondary" : r.status === "throttled" ? "outline" : "destructive"}
+                          className="text-[10px]"
+                        >
+                          {r.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">
+                        {r.itemsFound} / {r.itemsNew}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="text-base">Daily HTTP / SERP budget</CardTitle>
+            <CardDescription>Consumption tracked per UTC day.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {data.budget.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No budget consumed yet today.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Day</TableHead>
+                    <TableHead>Kind</TableHead>
+                    <TableHead className="text-right">Consumed</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.budget.map((b: any) => (
+                    <TableRow key={`${b.bucketDay}-${b.bucketKind}`}>
+                      <TableCell className="text-xs">{b.bucketDay}</TableCell>
+                      <TableCell className="text-xs uppercase">{b.bucketKind}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs">
+                        {b.consumed.toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="text-base">Crawl seeds health</CardTitle>
+          <CardDescription>
+            Seeds with consecutive errors {">="} 5 are auto-disabled by the scheduler.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {data.seedHealth.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No seeds defined.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Kind</TableHead>
+                  <TableHead>Region</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last run</TableHead>
+                  <TableHead>Next run</TableHead>
+                  <TableHead className="text-right">Errors</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.seedHealth.map((s: any) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="text-xs">{s.kind}</TableCell>
+                    <TableCell className="text-xs">{s.region}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={s.enabled ? "secondary" : "destructive"}
+                        className="text-[10px]"
+                      >
+                        {s.enabled ? "enabled" : "disabled"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {s.lastRunAt ? new Date(s.lastRunAt).toLocaleString() : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {s.nextRunAt ? new Date(s.nextRunAt).toLocaleString() : "—"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-xs">
+                      {s.consecutiveErrors}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="text-base">Browse catalogue</CardTitle>
+          <CardDescription>
+            Inspect rows directly. Use this to spot-check growth and quality across the global
+            prospect tables.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <Tabs value={scope} onValueChange={v => { setScope(v as "employees" | "companies"); setBrowserCursor(0); }}>
+              <TabsList>
+                <TabsTrigger value="employees">People</TabsTrigger>
+                <TabsTrigger value="companies">Companies</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="flex-1 min-w-[200px]">
+              <Label className="text-xs">Search</Label>
+              <Input
+                value={browserQ}
+                onChange={e => { setBrowserQ(e.target.value); setBrowserCursor(0); }}
+                placeholder={scope === "companies" ? "Company name…" : "Person or title…"}
+                className="h-9"
+              />
+            </div>
+            <div className="min-w-[160px]">
+              <Label className="text-xs">Source</Label>
+              <Select value={browserSource} onValueChange={v => { setBrowserSource(v); setBrowserCursor(0); }}>
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any source</SelectItem>
+                  {Object.entries(PROSPECT_SOURCE_LABELS).map(([code, label]) => (
+                    <SelectItem key={code} value={code}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {scope === "employees" ? (
+              <div className="min-w-[160px]">
+                <Label className="text-xs">Email status</Label>
+                <Select value={browserEmail} onValueChange={v => { setBrowserEmail(v); setBrowserCursor(0); }}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any</SelectItem>
+                    <SelectItem value="with_email">With work email</SelectItem>
+                    <SelectItem value="without_email">Email unknown</SelectItem>
+                    <SelectItem value="mx_absent">Domain has no MX</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+          </div>
+
+          {browser.isLoading ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>
+          ) : browser.isError ? (
+            <p className="text-sm text-destructive">{browser.error?.message}</p>
+          ) : (browser.data?.items.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">No rows match.</p>
+          ) : scope === "employees" ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Company</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Added</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(browser.data?.items as any[]).map(emp => (
+                  <TableRow key={emp.id}>
+                    <TableCell className="font-medium">{emp.fullName}</TableCell>
+                    <TableCell className="text-xs">{emp.title ?? "—"}</TableCell>
+                    <TableCell className="text-xs">
+                      {emp.company?.name ?? "—"}
+                      {emp.company?.domain ? <span className="text-muted-foreground"> · {emp.company.domain}</span> : null}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {emp.email ? (
+                        <span className={emp.emailStatus === "mx_present" ? "text-foreground" : "text-muted-foreground"}>
+                          {emp.email}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">{emp.emailStatus}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs">{PROSPECT_SOURCE_LABELS[emp.source] ?? emp.source}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {new Date(emp.firstSeenAt).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Domain</TableHead>
+                  <TableHead>HQ</TableHead>
+                  <TableHead>Industry</TableHead>
+                  <TableHead>Size</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Added</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(browser.data?.items as any[]).map(c => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell className="text-xs">{c.domain ?? "—"}</TableCell>
+                    <TableCell className="text-xs">
+                      {[c.hqCity, c.hqAdmin1, c.hqCountry].filter(Boolean).join(", ") || "—"}
+                    </TableCell>
+                    <TableCell className="text-xs">{c.industryCode ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{c.headcountBand ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{PROSPECT_SOURCE_LABELS[c.source] ?? c.source}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {new Date(c.firstSeenAt).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+
+          <div className="flex justify-between items-center pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={browserCursor === 0 || browser.isFetching}
+              onClick={() => setBrowserCursor(c => Math.max(0, c - 50))}
+            >
+              ← Previous
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Showing rows {browserCursor + 1}–{browserCursor + (browser.data?.items.length ?? 0)}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!browser.data?.nextCursor || browser.isFetching}
+              onClick={() => browser.data?.nextCursor != null && setBrowserCursor(browser.data.nextCursor)}
+            >
+              Next →
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ProspectStat({ label, value, hint }: { label: string; value: number; hint?: string }) {
+  return (
+    <Card className="border-border/50 bg-card/80">
+      <CardContent className="py-4 px-4">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-2xl font-semibold tabular-nums mt-1">{value.toLocaleString()}</p>
+        {hint ? <p className="text-[11px] text-muted-foreground mt-1">{hint}</p> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SourceList({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<{ source: string | null; count: number }>;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div>
+        <p className="text-xs font-medium text-muted-foreground mb-1">{title}</p>
+        <p className="text-xs text-muted-foreground">No data yet.</p>
+      </div>
+    );
+  }
+  const total = rows.reduce((s, r) => s + r.count, 0) || 1;
+  return (
+    <div>
+      <p className="text-xs font-medium text-muted-foreground mb-2">{title}</p>
+      <div className="space-y-1.5">
+        {rows.map(r => (
+          <div key={r.source ?? "?"} className="flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-xs truncate">{PROSPECT_SOURCE_LABELS[r.source ?? ""] ?? r.source ?? "—"}</span>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {r.count.toLocaleString()}
+                </span>
+              </div>
+              <div className="h-1.5 bg-muted rounded">
+                <div
+                  className="h-full bg-primary rounded"
+                  style={{ width: `${Math.round((r.count / total) * 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TwoColList({ rows }: { rows: Array<{ key: string; count: number }> }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-muted-foreground">No data yet.</p>;
+  }
+  const max = Math.max(...rows.map(r => r.count), 1);
+  return (
+    <div className="space-y-1">
+      {rows.slice(0, 30).map(r => (
+        <div key={r.key} className="flex items-center gap-3">
+          <span className="text-xs w-24 truncate">{r.key}</span>
+          <div className="flex-1 h-2 bg-muted rounded">
+            <div
+              className="h-full bg-primary/70 rounded"
+              style={{ width: `${Math.round((r.count / max) * 100)}%` }}
+            />
+          </div>
+          <span className="text-xs w-14 text-right tabular-nums text-muted-foreground">
+            {r.count.toLocaleString()}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GrowthSpark({
+  companies,
+  employees,
+}: {
+  companies: Array<{ day: string; count: number }>;
+  employees: Array<{ day: string; count: number }>;
+}) {
+  const allDays = Array.from(new Set([...companies.map(r => r.day), ...employees.map(r => r.day)])).sort();
+  const cMap = new Map(companies.map(r => [r.day, r.count]));
+  const eMap = new Map(employees.map(r => [r.day, r.count]));
+  if (allDays.length === 0) {
+    return <p className="text-sm text-muted-foreground">No new rows in the last 14 days.</p>;
+  }
+  const max = Math.max(
+    1,
+    ...allDays.map(d => Math.max(cMap.get(d) ?? 0, eMap.get(d) ?? 0)),
+  );
+  return (
+    <div className="space-y-3">
+      <div className="flex items-end gap-1 h-24">
+        {allDays.map(day => {
+          const c = cMap.get(day) ?? 0;
+          const e = eMap.get(day) ?? 0;
+          return (
+            <div key={day} className="flex-1 flex flex-col justify-end gap-0.5" title={`${day}: ${c} companies / ${e} people`}>
+              <div className="bg-primary/70 rounded-sm" style={{ height: `${(c / max) * 100}%` }} />
+              <div className="bg-primary/30 rounded-sm" style={{ height: `${(e / max) * 100}%` }} />
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 rounded bg-primary/70" />
+          Companies
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 rounded bg-primary/30" />
+          People
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function pct(numerator: number, denominator: number): string {
+  if (denominator <= 0) return "0%";
+  return `${Math.round((numerator / denominator) * 100)}%`;
+}
+
+function prettySeniority(level: string): string {
+  switch (level) {
+    case "c_level":
+      return "C-level";
+    case "head":
+      return "Head / VP";
+    case "director":
+      return "Director";
+    case "manager":
+      return "Manager / Lead";
+    case "ic":
+      return "Individual contributor";
+    default:
+      return "Unknown";
+  }
 }

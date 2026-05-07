@@ -127,6 +127,20 @@
       "when": 1774310000001,
       "tag": "0017_contact_enrichment_results",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1774310000002,
+      "tag": "0018_contacts_phone",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1774310000003,
+      "tag": "0019_prospect_db",
+      "breakpoints": true
     }
   ]
 }
