@@ -93,19 +93,15 @@ async function hasProspectSchema(): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
   try {
-    const rows = await db.execute(sql`
-      SELECT COUNT(*) AS c
-      FROM information_schema.tables
-      WHERE table_schema = DATABASE()
-        AND table_name IN (
-          'prospect_crawl_seeds',
-          'prospect_crawl_queue',
-          'prospect_companies',
-          'prospect_employees'
-        )
-    `);
-    const count = Number((rows as any)?.[0]?.c ?? 0);
-    return count >= 4;
+    // Prefer direct probes over information_schema: some managed MySQL setups
+    // restrict metadata visibility but allow querying the actual app tables.
+    await Promise.all([
+      db.select({ n: sql<number>`1` }).from(prospectCrawlSeeds).limit(1),
+      db.select({ n: sql<number>`1` }).from(prospectCrawlQueue).limit(1),
+      db.select({ n: sql<number>`1` }).from(prospectCompanies).limit(1),
+      db.select({ n: sql<number>`1` }).from(prospectEmployees).limit(1),
+    ]);
+    return true;
   } catch {
     return false;
   }
