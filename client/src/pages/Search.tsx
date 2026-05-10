@@ -228,7 +228,8 @@ function SearchContent() {
         <h1 className="text-2xl font-semibold">Search</h1>
         <p className="text-sm text-muted-foreground">
           Browse the autonomous prospect database — companies discovered by the background crawler,
-          their employees, and best-guess work emails verified by MX records.
+          their employees, and best-guess work emails verified by MX records. LinkedIn/SERP sources are
+          disabled by default unless the server sets <span className="font-mono">PROSPECT_ENABLE_SERP_SOURCES=true</span>.
         </p>
       </div>
 
@@ -977,7 +978,8 @@ function CompanyEmployees({ companyId }: { companyId: number }) {
   if (!items.length) {
     return (
       <div className="px-4 py-3 text-sm text-muted-foreground">
-        No employees harvested yet. The crawler will queue this company for LinkedIn discovery on the next pass.
+        No employees harvested yet. LinkedIn/SERP harvesting is disabled by default; an admin can enable it with{" "}
+        <span className="font-mono">PROSPECT_ENABLE_SERP_SOURCES=true</span>.
       </div>
     );
   }

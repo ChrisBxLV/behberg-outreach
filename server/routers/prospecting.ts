@@ -1,3 +1,7 @@
+/**
+ * Prospecting V1 tRPC procedures (`*V1` suffix). Legacy path — keep for compatibility only;
+ * do not add features here. Production search uses the Prospect Database crawler.
+ */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { dataScopeOrganizationId } from "../_core/orgScope";

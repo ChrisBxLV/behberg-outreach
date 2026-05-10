@@ -573,6 +573,7 @@ describe("email", () => {
       lastName: "Smith",
       fullName: "Jane Smith",
       email: "jane@example.com",
+      phone: null,
       emailConfidence: 0.9,
       emailStatus: "valid",
       title: "VP of Sales",

@@ -167,6 +167,11 @@ function displayCompany(raw: unknown, location?: unknown) {
   if (/^[0-9a-f]{24}$/i.test(v)) return "—";
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) return "—";
   if (/^\d{6,}$/.test(v)) return "—";
+  // Hide phone-like values that were incorrectly imported into Company.
+  if (/^[+()\-\s.\d]+$/.test(v)) {
+    const digits = (v.match(/\d/g) ?? []).length;
+    if (digits >= 7) return "—";
+  }
   // If "company" equals the last part of location (often a country), hide it.
   const loc = String(location ?? "").trim();
   if (loc) {

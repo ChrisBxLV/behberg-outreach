@@ -1,3 +1,7 @@
+/**
+ * Prospecting V1 service (basic Signals + site crawl + email guessing). Legacy implementation —
+ * do not expand; retained until callers migrate to Prospect Database crawler flows.
+ */
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { desc, eq } from "drizzle-orm";

@@ -1,3 +1,7 @@
+/**
+ * Prospecting V1 (legacy): basic Signals-driven search. Do not expand this flow;
+ * production search uses the Prospect Database crawler.
+ */
 import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
@@ -8,8 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { ExternalLink, RefreshCw, Search } from "lucide-react";
+import { ExternalLink, Info, RefreshCw, Search } from "lucide-react";
 import { getDecisionMakerAutocompleteTitles } from "@shared/decisionMakerTitles";
 
 type ProspectRow = {
@@ -137,7 +142,7 @@ export default function Prospecting() {
       <div className="space-y-6 p-2">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Search (Basic)</h1>
+            <h1 className="text-2xl font-bold">Search Basic (Legacy)</h1>
             <p className="text-muted-foreground text-sm mt-0.5">
               Cost-free: uses Signals → company websites (team/leadership pages) → email guessing.
             </p>
@@ -162,6 +167,13 @@ export default function Prospecting() {
             Run
           </Button>
         </div>
+
+        <Alert className="border-amber-500/30 bg-amber-500/5">
+          <Info className="text-amber-600 dark:text-amber-500" />
+          <AlertDescription className="text-foreground/90">
+            This legacy search is temporary. The production search uses the Prospect Database crawler.
+          </AlertDescription>
+        </Alert>
 
         <Card className="border-border/50 bg-card/80">
           <CardHeader>

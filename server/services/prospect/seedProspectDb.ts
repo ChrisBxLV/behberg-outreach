@@ -11,6 +11,7 @@ import {
 } from "../../../drizzle/schema";
 import { flattenIndustriesForDb } from "./industryTaxonomy";
 import { REGION_SEEDS } from "./regionSeed";
+import { prospectEnableSerpSources } from "./env";
 
 let seededOnce = false;
 
@@ -68,32 +69,36 @@ async function seedCrawlSeeds(db: NonNullable<Awaited<ReturnType<typeof getDb>>>
   }
 
   // LinkedIn SERP for company discovery — fanned out by region.
-  for (const region of REGION_SEEDS) {
-    seeds.push({
-      kind: "linkedin_company_serp",
-      region: region.code,
-      payload: {
-        searchHint: region.searchHint,
-        countryCode: region.country,
-        admin1: region.admin1 ?? null,
-      },
-      frequencyMinutes: 24 * 60, // daily
-      enabled: true,
-      nextRunAt: stagger(now, region.code, 24 * 60),
-    });
+  if (prospectEnableSerpSources()) {
+    for (const region of REGION_SEEDS) {
+      seeds.push({
+        kind: "linkedin_company_serp",
+        region: region.code,
+        payload: {
+          searchHint: region.searchHint,
+          countryCode: region.country,
+          admin1: region.admin1 ?? null,
+        },
+        frequencyMinutes: 24 * 60, // daily
+        enabled: true,
+        nextRunAt: stagger(now, region.code, 24 * 60),
+      });
+    }
   }
 
   // LinkedIn SERP for employee discovery is queued *per company* (kind=linkedin_employee_serp)
   // by the company tick. We still register a global "tick" seed so the cron worker can
   // promote companies into the employee discovery queue if no other path enqueues them.
-  seeds.push({
-    kind: "linkedin_employee_serp_promote",
-    region: "global",
-    payload: {},
-    frequencyMinutes: 6 * 60, // every 6h
-    enabled: true,
-    nextRunAt: new Date(now.getTime() + 60_000),
-  });
+  if (prospectEnableSerpSources()) {
+    seeds.push({
+      kind: "linkedin_employee_serp_promote",
+      region: "global",
+      payload: {},
+      frequencyMinutes: 6 * 60, // every 6h
+      enabled: true,
+      nextRunAt: new Date(now.getTime() + 60_000),
+    });
+  }
 
   // SEC EDGAR feed (US public companies). Country-scoped only.
   seeds.push({

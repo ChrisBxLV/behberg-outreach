@@ -171,7 +171,7 @@ export default function Home() {
               { icon: Users, color: "bg-blue-500/20 text-blue-400", title: "Import Contacts", sub: "Upload Apollo/LinkedIn CSV export", path: "/app/contacts" },
               { icon: Mail, color: "bg-primary/20 text-primary", title: "Build a Sequence", sub: "Create multi-step email campaigns", path: "/app/campaigns" },
               { icon: TrendingUp, color: "bg-emerald-500/20 text-emerald-400", title: "Review Signals", sub: "Fresh intent + activity signals", path: "/app/signals" },
-              { icon: BarChart3, color: "bg-purple-500/20 text-purple-400", title: "Prospecting", sub: "Find and enrich new leads", path: "/app/prospecting" },
+              { icon: BarChart3, color: "bg-purple-500/20 text-purple-400", title: "Search", sub: "Prospect database & discovery", path: "/app/search" },
               { icon: CheckCircle2, color: "bg-amber-500/20 text-amber-300", title: "Connect Mailboxes", sub: "Set up Google/Microsoft/SMTP", path: "/app/settings?tab=smtp" },
               { icon: CheckCircle2, color: "bg-slate-500/20 text-slate-300", title: "Workspace Settings", sub: "Organization + subscription settings", path: "/app/settings?tab=organization" },
             ].map(({ icon: Icon, color, title, sub, path }) => (

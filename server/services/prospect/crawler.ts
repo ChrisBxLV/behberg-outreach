@@ -21,6 +21,7 @@ import {
 import { checkAndConsumeBudget } from "./throttle";
 import { enqueueJobs, getCompanyById } from "./repository";
 import type { QueueJobDraft, QueueJobKind, SeedAdapter, SeedRunResult } from "./types";
+import { prospectEnableSerpSources } from "./env";
 
 export const PROSPECT_MAX_PER_TICK = clampInt(process.env.PROSPECT_MAX_PER_TICK, 25, 1, 200);
 const PROSPECT_LOCK_OWNER = `worker-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
@@ -45,19 +46,24 @@ async function ensureAdaptersRegistered(): Promise<void> {
   if (adaptersRegistered) return;
   adaptersRegistered = true;
   try {
-    const [{ wikidataSeedAdapter }, { secEdgarSeedAdapter }, { ukCompaniesHouseSeedAdapter }, { linkedinSerpSeedAdapter }, { linkedinEmployeePromoteAdapter }] =
-      await Promise.all([
-        import("./sources/wikidata"),
-        import("./sources/secEdgar"),
-        import("./sources/ukCompaniesHouse"),
-        import("./sources/linkedinSerp"),
-        import("./sources/linkedinEmployeePromote"),
-      ]);
+    const [{ wikidataSeedAdapter }, { secEdgarSeedAdapter }, { ukCompaniesHouseSeedAdapter }] = await Promise.all([
+      import("./sources/wikidata"),
+      import("./sources/secEdgar"),
+      import("./sources/ukCompaniesHouse"),
+    ]);
     registerSeedAdapter(wikidataSeedAdapter);
     registerSeedAdapter(secEdgarSeedAdapter);
     registerSeedAdapter(ukCompaniesHouseSeedAdapter);
-    registerSeedAdapter(linkedinSerpSeedAdapter);
-    registerSeedAdapter(linkedinEmployeePromoteAdapter);
+
+    // LinkedIn/SERP sources are disabled by default for safety. Enable explicitly via env.
+    if (prospectEnableSerpSources()) {
+      const [{ linkedinSerpSeedAdapter }, { linkedinEmployeePromoteAdapter }] = await Promise.all([
+        import("./sources/linkedinSerp"),
+        import("./sources/linkedinEmployeePromote"),
+      ]);
+      registerSeedAdapter(linkedinSerpSeedAdapter);
+      registerSeedAdapter(linkedinEmployeePromoteAdapter);
+    }
   } catch (err: any) {
     console.warn(`[ProspectCrawler] adapter registration failed:`, err?.message ?? err);
   }
@@ -382,6 +388,9 @@ async function processCompanyJob(job: ProspectCrawlQueue): Promise<void> {
 async function processEmployeeJob(job: ProspectCrawlQueue): Promise<void> {
   const payload = (job.payload as Record<string, unknown>) ?? {};
   if (job.kind === "harvest_employee") {
+    // LinkedIn SERP harvesting is disabled by default for safety.
+    // When disabled, we intentionally no-op (job is marked done by the tick loop).
+    if (!prospectEnableSerpSources()) return;
     const companyId = Number(payload.companyId ?? 0);
     if (!companyId) return;
     const ok = await checkAndConsumeBudget("serp", 1);
