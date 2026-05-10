@@ -265,12 +265,12 @@ export async function upsertEmployee(draft: EmployeeDraft): Promise<ProspectEmpl
   if (existing) {
     const updates: Partial<InsertProspectEmployee> = {};
     let changed = false;
-    function bump<K extends keyof InsertProspectEmployee>(key: K, value: InsertProspectEmployee[K]) {
+    const bump = <K extends keyof InsertProspectEmployee>(key: K, value: InsertProspectEmployee[K]) => {
       if (value == null || value === "") return;
       if ((existing as any)[key] != null && (existing as any)[key] !== "") return;
       (updates as any)[key] = value;
       changed = true;
-    }
+    };
     bump("title", draft.title ?? null);
     bump("titleNormalized", normalizeTitle(draft.title ?? null));
     bump("firstName", draft.firstName ?? null);

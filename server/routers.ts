@@ -45,7 +45,6 @@ import { prospectSearchRouter } from "./routers/prospectSearch";
 import { platformRouter } from "./routers/platform";
 import { mailboxesRouter } from "./routers/mailboxes";
 import { dashboardRouter } from "./routers/dashboard";
-import { prospectSearchRouter } from "./routers/prospectSearch";
 
 function safeAuthMeUser(user: User) {
   return {

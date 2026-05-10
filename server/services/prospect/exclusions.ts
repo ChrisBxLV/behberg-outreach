@@ -42,7 +42,8 @@ export function normalizeCompanyName(name: string): string {
   return name
     .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s&]/gu, " ")
+    // Avoid Unicode property escapes so server build can target ES5.
+    .replace(/[^a-z0-9\s&]/gi, " ")
     .replace(/\b(inc|llc|ltd|limited|corp|corporation|gmbh|s\.a\.|sa|ab|ag|bv|oy|plc)\b/gi, " ")
     .replace(/\s+/g, " ")
     .trim();

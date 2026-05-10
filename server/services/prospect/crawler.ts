@@ -57,9 +57,8 @@ async function ensureAdaptersRegistered(): Promise<void> {
 
     // LinkedIn/SERP sources are disabled by default for safety. Enable explicitly via env.
     if (prospectEnableSerpSources()) {
-      const [{ linkedinSerpSeedAdapter }, { linkedinEmployeePromoteAdapter }] = await Promise.all([
+      const [{ linkedinSerpSeedAdapter, linkedinEmployeePromoteAdapter }] = await Promise.all([
         import("./sources/linkedinSerp"),
-        import("./sources/linkedinEmployeePromote"),
       ]);
       registerSeedAdapter(linkedinSerpSeedAdapter);
       registerSeedAdapter(linkedinEmployeePromoteAdapter);

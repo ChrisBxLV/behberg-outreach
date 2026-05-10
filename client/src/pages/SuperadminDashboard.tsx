@@ -1653,7 +1653,7 @@ function ProspectDbPanel() {
           <CardContent>
             <TwoColList
               rows={data.bySeniority.map(r => ({
-                key: prettySeniority(r.level),
+                key: prettySeniority(r.level ?? "unknown"),
                 count: r.count,
               }))}
             />
