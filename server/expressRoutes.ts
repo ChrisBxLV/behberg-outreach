@@ -51,6 +51,49 @@ const TRACKING_PIXEL = Buffer.from(
 );
 
 export function registerExpressRoutes(app: Express) {
+  // ── Public crawler identity page ───────────────────────────────────────────
+  app.get("/crawler", (_req, res) => {
+    const publicUrl = process.env.PROSPECT_CRAWLER_PUBLIC_URL?.trim() || "https://crawler.krot.io";
+    const contactEmail = process.env.PROSPECT_CRAWLER_CONTACT_EMAIL?.trim() || "abuse@krot.io";
+    const serpEnabled = (process.env.PROSPECT_ENABLE_SERP_SOURCES?.trim().toLowerCase() ?? "") === "true";
+    const serpLine = serpEnabled
+      ? "LinkedIn/SERP sources: enabled (explicitly configured)."
+      : "LinkedIn/SERP sources: disabled by default (safe setting).";
+
+    return res
+      .status(200)
+      .set({ "Content-Type": "text/html; charset=utf-8" })
+      .send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>krot.io Prospect Crawler</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 40px; line-height: 1.5; color: #111; }
+      code { background: #f5f5f5; padding: 2px 6px; border-radius: 6px; }
+      .card { max-width: 820px; }
+      h1 { margin: 0 0 10px; font-size: 28px; }
+      p { margin: 10px 0; }
+      ul { margin: 10px 0 0 20px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>krot.io Prospect Crawler</h1>
+      <p>This service discovers and indexes <strong>public company information</strong> (e.g. corporate websites and public registries) to build an internal prospect database for search.</p>
+      <ul>
+        <li>It only visits <strong>publicly accessible company pages</strong> (e.g. About/Team/Leadership/Contact pages) and public registries.</li>
+        <li>${serpLine}</li>
+        <li>Outbound requests use a transparent User-Agent and include safety controls (SSRF/private IP blocking, redirect validation, byte/time limits, and per-host throttling).</li>
+      </ul>
+      <p>Public identity: <a href="${publicUrl}">${publicUrl}</a></p>
+      <p>Contact: <a href="mailto:${contactEmail}">${contactEmail}</a></p>
+    </div>
+  </body>
+</html>`);
+  });
+
   // ── Version (debug deploy) ────────────────────────────────────────────────
   app.get("/api/version", (_req, res) => {
     return res.status(200).json({

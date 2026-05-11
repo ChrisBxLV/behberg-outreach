@@ -42,17 +42,18 @@ async function seedIndustries(db: NonNullable<Awaited<ReturnType<typeof getDb>>>
 }
 
 async function seedCrawlSeeds(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
-  // Skip if any seeds already exist; avoids re-inserting duplicates.
-  const [{ count }] = await db
-    .select({ count: sql<number>`COUNT(*)` })
+  const existing = await db
+    .select({ kind: prospectCrawlSeeds.kind, region: prospectCrawlSeeds.region })
     .from(prospectCrawlSeeds);
-  if (Number(count) > 0) return;
+  const existingKey = new Set(existing.map(r => `${r.kind}::${r.region}`));
 
   const seeds: InsertProspectCrawlSeed[] = [];
   const now = new Date();
 
   // Wikidata: one SPARQL seed per region. Cadence keeps things polite.
   for (const region of REGION_SEEDS) {
+    const key = `wikidata_region::${region.code}`;
+    if (existingKey.has(key)) continue;
     seeds.push({
       kind: "wikidata_region",
       region: region.code,
@@ -71,6 +72,8 @@ async function seedCrawlSeeds(db: NonNullable<Awaited<ReturnType<typeof getDb>>>
   // LinkedIn SERP for company discovery — fanned out by region.
   if (prospectEnableSerpSources()) {
     for (const region of REGION_SEEDS) {
+      const key = `linkedin_company_serp::${region.code}`;
+      if (existingKey.has(key)) continue;
       seeds.push({
         kind: "linkedin_company_serp",
         region: region.code,
@@ -90,35 +93,42 @@ async function seedCrawlSeeds(db: NonNullable<Awaited<ReturnType<typeof getDb>>>
   // by the company tick. We still register a global "tick" seed so the cron worker can
   // promote companies into the employee discovery queue if no other path enqueues them.
   if (prospectEnableSerpSources()) {
-    seeds.push({
-      kind: "linkedin_employee_serp_promote",
-      region: "global",
-      payload: {},
-      frequencyMinutes: 6 * 60, // every 6h
-      enabled: true,
-      nextRunAt: new Date(now.getTime() + 60_000),
-    });
+    const key = `linkedin_employee_serp_promote::global`;
+    if (!existingKey.has(key)) {
+      seeds.push({
+        kind: "linkedin_employee_serp_promote",
+        region: "global",
+        payload: {},
+        frequencyMinutes: 6 * 60, // every 6h
+        enabled: true,
+        nextRunAt: new Date(now.getTime() + 60_000),
+      });
+    }
   }
 
   // SEC EDGAR feed (US public companies). Country-scoped only.
-  seeds.push({
-    kind: "sec_edgar",
-    region: "US",
-    payload: {},
-    frequencyMinutes: 7 * 24 * 60,
-    enabled: true,
-    nextRunAt: stagger(now, "US", 7 * 24 * 60),
-  });
+  if (!existingKey.has("sec_edgar::US")) {
+    seeds.push({
+      kind: "sec_edgar",
+      region: "US",
+      payload: {},
+      frequencyMinutes: 7 * 24 * 60,
+      enabled: true,
+      nextRunAt: stagger(now, "US", 7 * 24 * 60),
+    });
+  }
 
   // UK Companies House.
-  seeds.push({
-    kind: "uk_ch",
-    region: "GB",
-    payload: {},
-    frequencyMinutes: 7 * 24 * 60,
-    enabled: true,
-    nextRunAt: stagger(now, "GB", 7 * 24 * 60),
-  });
+  if (!existingKey.has("uk_ch::GB")) {
+    seeds.push({
+      kind: "uk_ch",
+      region: "GB",
+      payload: {},
+      frequencyMinutes: 7 * 24 * 60,
+      enabled: true,
+      nextRunAt: stagger(now, "GB", 7 * 24 * 60),
+    });
+  }
 
   // Insert in chunks to keep MySQL happy.
   for (const chunk of chunkArray(seeds, 50)) {
@@ -129,7 +139,9 @@ async function seedCrawlSeeds(db: NonNullable<Awaited<ReturnType<typeof getDb>>>
     }
   }
 
-  console.log(`[ProspectSeed] Inserted ${seeds.length} crawl seeds.`);
+  if (seeds.length > 0) {
+    console.log(`[ProspectSeed] Inserted ${seeds.length} crawl seeds.`);
+  }
 }
 
 function chunkArray<T>(items: T[], size: number): T[][] {

@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Accordion,
   AccordionContent,
@@ -1469,6 +1470,13 @@ function ProspectDbPanel() {
     },
     onError: err => toast.error(err.message),
   });
+  const setSeedKindEnabled = trpc.prospectSearch.setSeedKindEnabled.useMutation({
+    onSuccess: async (res) => {
+      toast.success(`Crawler settings saved (${res.affected} rows updated).`);
+      await utils.prospectSearch.platformOverview.invalidate();
+    },
+    onError: err => toast.error(err.message),
+  });
   const [scope, setScope] = useState<"employees" | "companies">("employees");
   const [browserQ, setBrowserQ] = useState("");
   const [browserSource, setBrowserSource] = useState<string>("any");
@@ -1504,6 +1512,12 @@ function ProspectDbPanel() {
   const t = data.totals;
   const companiesGrowthTotal = data.growth.companies.reduce((s, r) => s + r.count, 0);
   const employeesGrowthTotal = data.growth.employees.reduce((s, r) => s + r.count, 0);
+
+  const seedHealth: Array<{ kind: string; enabled: boolean }> = (data.seedHealth ?? []).map((s: any) => ({
+    kind: String(s.kind ?? ""),
+    enabled: Boolean(s.enabled),
+  }));
+  const kindEnabled = (kind: string) => seedHealth.some(s => s.kind === kind && s.enabled);
 
   return (
     <div className="space-y-4">
@@ -1546,6 +1560,74 @@ function ProspectDbPanel() {
           >
             Run Ticks Only
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="text-base">Crawler sources</CardTitle>
+          <CardDescription>Enable/disable discovery sources used by the autonomous crawler.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Wikidata</p>
+              <p className="text-xs text-muted-foreground">Region-based discovery via SPARQL.</p>
+            </div>
+            <Switch
+              checked={kindEnabled("wikidata_region")}
+              disabled={setSeedKindEnabled.isPending}
+              onCheckedChange={(v: boolean) => setSeedKindEnabled.mutate({ kind: "wikidata_region" as any, enabled: Boolean(v) })}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">SEC EDGAR</p>
+              <p className="text-xs text-muted-foreground">US public companies feed.</p>
+            </div>
+            <Switch
+              checked={kindEnabled("sec_edgar")}
+              disabled={setSeedKindEnabled.isPending}
+              onCheckedChange={(v: boolean) => setSeedKindEnabled.mutate({ kind: "sec_edgar" as any, enabled: Boolean(v) })}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">UK Companies House</p>
+              <p className="text-xs text-muted-foreground">UK company registry feed.</p>
+            </div>
+            <Switch
+              checked={kindEnabled("uk_ch")}
+              disabled={setSeedKindEnabled.isPending}
+              onCheckedChange={(v: boolean) => setSeedKindEnabled.mutate({ kind: "uk_ch" as any, enabled: Boolean(v) })}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">LinkedIn (SERP) — companies</p>
+              <p className="text-xs text-muted-foreground">Discovers company pages via search providers.</p>
+            </div>
+            <Switch
+              checked={kindEnabled("linkedin_company_serp")}
+              disabled={setSeedKindEnabled.isPending}
+              onCheckedChange={(v: boolean) =>
+                setSeedKindEnabled.mutate({ kind: "linkedin_company_serp" as any, enabled: Boolean(v) })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">LinkedIn (SERP) — employees</p>
+              <p className="text-xs text-muted-foreground">Harvests employees for companies via SERP.</p>
+            </div>
+            <Switch
+              checked={kindEnabled("linkedin_employee_serp_promote")}
+              disabled={setSeedKindEnabled.isPending}
+              onCheckedChange={(v: boolean) =>
+                setSeedKindEnabled.mutate({ kind: "linkedin_employee_serp_promote" as any, enabled: Boolean(v) })
+              }
+            />
+          </div>
         </CardContent>
       </Card>
 

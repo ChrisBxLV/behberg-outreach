@@ -7,10 +7,7 @@ import net from "node:net";
 import { isBlockedCompanyWebsiteHost } from "../../enrichment/hostBlocklist";
 import { bumpHostThrottle, hostFromUrl, isHostAllowed } from "./throttle";
 
-const USER_AGENTS = [
-  "krot.io-prospect-crawler/1.0 (+https://krot.io)",
-  "Mozilla/5.0 (compatible; krot-prospect/1.0; +https://krot.io)",
-];
+const DEFAULT_USER_AGENT = "krot.io-prospect-crawler/1.0 (+https://crawler.krot.io)";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_BYTES = 1_500_000;
@@ -19,6 +16,11 @@ function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
   const n = raw ? Number(raw) : NaN;
   return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function crawlerUserAgent(): string {
+  const ua = process.env.PROSPECT_CRAWLER_USER_AGENT?.trim();
+  return ua && ua.length > 0 ? ua : DEFAULT_USER_AGENT;
 }
 
 function isBlockedHostname(hostname: string): boolean {
@@ -88,12 +90,13 @@ export type SafeFetchResult = {
 
 /**
  * Fetches an HTTP(S) URL with private-IP guards, redirect validation, byte
- * caps, timeouts, per-host throttle, and User-Agent rotation. Returns null
- * when the host is throttled or blocked rather than throwing.
+ * caps, timeouts, per-host throttle, and a transparent crawler User-Agent.
+ * Returns null when the host is throttled or blocked rather than throwing.
  */
 export async function safeFetch(rawUrl: string, opts: SafeFetchOptions = {}): Promise<SafeFetchResult | null> {
   const timeoutMs = opts.timeoutMs ?? envInt("PROSPECT_FETCH_TIMEOUT_MS", DEFAULT_TIMEOUT_MS);
   const maxBytes = opts.maxBytes ?? envInt("PROSPECT_FETCH_MAX_BYTES", DEFAULT_MAX_BYTES);
+  const userAgent = crawlerUserAgent();
 
   let current: URL;
   try {
@@ -121,7 +124,7 @@ export async function safeFetch(rawUrl: string, opts: SafeFetchOptions = {}): Pr
         redirect: "manual",
         signal: ac.signal,
         headers: {
-          "User-Agent": USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)] ?? USER_AGENTS[0]!,
+          "User-Agent": userAgent,
           Accept: opts.accept ?? "text/html,application/xhtml+xml,application/json",
           "Accept-Language": "en-US,en;q=0.9",
         },

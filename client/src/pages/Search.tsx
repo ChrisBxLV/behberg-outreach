@@ -207,8 +207,17 @@ function SearchContent() {
   const [activeTab, setActiveTab] = useState<"companies" | "employees">("companies");
   const [expandedCompanyId, setExpandedCompanyId] = useState<number | null>(null);
 
+  const configQuery = trpc.prospectSearch.config.useQuery();
   const industriesQuery = trpc.prospectSearch.industries.useQuery();
   const statsQuery = trpc.prospectSearch.stats.useQuery();
+
+  const serpEnabled = Boolean(configQuery.data?.serpSourcesEnabled);
+  const sourceOptions = useMemo(() => {
+    return SOURCE_OPTIONS.map(s => {
+      if (s.value !== "linkedin_serp") return { ...s, disabled: false };
+      return { ...s, disabled: !serpEnabled, label: serpEnabled ? s.label : `${s.label} (disabled)` };
+    });
+  }, [serpEnabled]);
 
   const industryOptions = useMemo(() => {
     const rows = industriesQuery.data ?? [];
@@ -242,6 +251,7 @@ function SearchContent() {
           industryOptions={industryOptions}
           activeTab={activeTab}
           activeFilterCount={activeFilterCount}
+          sourceOptions={sourceOptions}
         />
 
         <Card>
@@ -361,12 +371,14 @@ function FiltersPanel({
   industryOptions,
   activeTab,
   activeFilterCount,
+  sourceOptions,
 }: {
   filters: FilterState;
   setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
   industryOptions: Array<{ code: string; label: string; children: Array<{ code: string; label: string }> }>;
   activeTab: "companies" | "employees";
   activeFilterCount: number;
+  sourceOptions: ReadonlyArray<{ value: ProspectSource; label: string; disabled?: boolean }>;
 }) {
   return (
     <Card className="self-start lg:sticky lg:top-2">
@@ -567,10 +579,11 @@ function FiltersPanel({
               </span>
             </AccordionTrigger>
             <AccordionContent className="pb-3 space-y-1.5">
-              {SOURCE_OPTIONS.map(s => (
+              {sourceOptions.map(s => (
                 <CheckboxRow
                   key={s.value}
                   label={s.label}
+                  disabled={Boolean(s.disabled) && !filters.sources.includes(s.value)}
                   checked={filters.sources.includes(s.value)}
                   onCheckedChange={checked =>
                     setFilters(prev => ({
@@ -714,15 +727,31 @@ function SortControls({
 function CheckboxRow({
   label,
   checked,
+  disabled,
   onCheckedChange,
 }: {
   label: string;
   checked: boolean;
+  disabled?: boolean;
   onCheckedChange: (next: boolean) => void;
 }) {
+  // "disabled" means "prevent enabling", not "trap an already-selected filter".
+  const effectiveDisabled = Boolean(disabled) && !checked;
   return (
-    <label className="flex items-center gap-2 text-xs cursor-pointer">
-      <Checkbox checked={checked} onCheckedChange={value => onCheckedChange(value === true)} />
+    <label
+      className={[
+        "flex items-center gap-2 text-xs",
+        effectiveDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+      ].join(" ")}
+    >
+      <Checkbox
+        checked={checked}
+        disabled={effectiveDisabled}
+        onCheckedChange={value => {
+          if (effectiveDisabled) return;
+          onCheckedChange(value === true);
+        }}
+      />
       <span>{label}</span>
     </label>
   );

@@ -16,6 +16,7 @@ import { parse } from "csv-parse/sync";
 import { protectedProcedure, router } from "../_core/trpc";
 import { dataScopeOrganizationId } from "../_core/orgScope";
 import { createOrMergeContact, getDb } from "../db";
+import { prospectEnableSerpSources } from "../services/prospect/env";
 import {
   contacts,
   industries,
@@ -57,6 +58,14 @@ const PROSPECT_SOURCES = [
 const COMPANY_SORTS = ["recent", "name_asc", "name_desc", "headcount_desc", "headcount_asc"] as const;
 const EMPLOYEE_SORTS = ["recent", "name_asc", "seniority", "with_email_first"] as const;
 const EMAIL_FILTERS = ["any", "with_email", "without_email", "mx_absent"] as const;
+
+const PROSPECT_SEED_KINDS = [
+  "wikidata_region",
+  "sec_edgar",
+  "uk_ch",
+  "linkedin_company_serp",
+  "linkedin_employee_serp_promote",
+] as const;
 
 function emptyPlatformOverview() {
   return {
@@ -263,6 +272,14 @@ async function buildCompanyContactOverlap(
 }
 
 export const prospectSearchRouter = router({
+  config: protectedProcedure.query(async () => {
+    return {
+      serpSourcesEnabled: prospectEnableSerpSources(),
+      crawlerPublicUrl: process.env.PROSPECT_CRAWLER_PUBLIC_URL?.trim() || "https://crawler.krot.io",
+      crawlerContactEmail: process.env.PROSPECT_CRAWLER_CONTACT_EMAIL?.trim() || "abuse@krot.io",
+    };
+  }),
+
   industries: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) return [];
@@ -764,6 +781,34 @@ export const prospectSearchRouter = router({
         enqueuedJobs,
         ticks,
       };
+    }),
+
+  setSeedKindEnabled: protectedProcedure
+    .input(
+      z.object({
+        kind: z.enum(PROSPECT_SEED_KINDS),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "superadmin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+      }
+      if (!(await hasProspectSchema())) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Prospect DB tables are missing." });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable." });
+
+      // Ensure any newly-enabled source has seed rows (seed is incremental).
+      await seedProspectDb();
+
+      const result = await db
+        .update(prospectCrawlSeeds)
+        .set({ enabled: input.enabled })
+        .where(eq(prospectCrawlSeeds.kind, input.kind));
+      const affected = Number((result as any)?.affectedRows ?? 0);
+      return { ok: true, affected };
     }),
 
   /**

@@ -26,6 +26,23 @@ import { prospectEnableSerpSources } from "./env";
 export const PROSPECT_MAX_PER_TICK = clampInt(process.env.PROSPECT_MAX_PER_TICK, 25, 1, 200);
 const PROSPECT_LOCK_OWNER = `worker-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
+let seedKindEnabledCache: { key: string; enabled: boolean; expiresAt: number } | null = null;
+async function isSeedKindEnabled(kind: string): Promise<boolean> {
+  const now = Date.now();
+  if (seedKindEnabledCache && seedKindEnabledCache.key === kind && seedKindEnabledCache.expiresAt > now) {
+    return seedKindEnabledCache.enabled;
+  }
+  const db = await getDb();
+  if (!db) return false;
+  const [row] = await db
+    .select({ n: sql<number>`COUNT(*)` })
+    .from(prospectCrawlSeeds)
+    .where(and(eq(prospectCrawlSeeds.kind, kind), eq(prospectCrawlSeeds.enabled, true)));
+  const enabled = Number(row?.n ?? 0) > 0;
+  seedKindEnabledCache = { key: kind, enabled, expiresAt: now + 30_000 };
+  return enabled;
+}
+
 export function isProspectCrawlerDisabled(): boolean {
   const raw = (process.env.DISABLE_PROSPECT_CRAWLER ?? "").trim().toLowerCase();
   return raw === "1" || raw === "true" || raw === "yes";
@@ -390,6 +407,9 @@ async function processEmployeeJob(job: ProspectCrawlQueue): Promise<void> {
     // LinkedIn SERP harvesting is disabled by default for safety.
     // When disabled, we intentionally no-op (job is marked done by the tick loop).
     if (!prospectEnableSerpSources()) return;
+    // Also allow runtime disable via seed toggles in `prospect_crawl_seeds`.
+    // The promote seed controls whether employee harvest should run at all.
+    if (!(await isSeedKindEnabled("linkedin_employee_serp_promote"))) return;
     const companyId = Number(payload.companyId ?? 0);
     if (!companyId) return;
     const ok = await checkAndConsumeBudget("serp", 1);
