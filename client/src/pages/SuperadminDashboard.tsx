@@ -1455,6 +1455,238 @@ const PROSPECT_QUEUE_KIND_LABELS: Record<string, string> = {
   harvest_employee: "Harvest employees",
 };
 
+function ProspectCrawlerSettingsCard() {
+  const utils = trpc.useUtils();
+  const q = trpc.prospectSearch.getCrawlerSettings.useQuery();
+  const mut = trpc.prospectSearch.updateCrawlerSettings.useMutation({
+    onSuccess: async () => {
+      toast.success("Crawler settings saved.");
+      await Promise.all([
+        utils.prospectSearch.getCrawlerSettings.invalidate(),
+        utils.prospectSearch.platformOverview.invalidate(),
+      ]);
+    },
+    onError: err => toast.error(err.message),
+  });
+
+  const s = q.data?.settings;
+  const infra = q.data?.infra;
+  const caps = infra?.caps;
+
+  const [crawlerEnabled, setCrawlerEnabled] = useState(false);
+  const [dataMode, setDataMode] = useState<"company_safe" | "business_contacts">("company_safe");
+  const [dailyHttpBudget, setDailyHttpBudget] = useState(50);
+  const [maxPerTick, setMaxPerTick] = useState(5);
+  const [fetchTimeoutMs, setFetchTimeoutMs] = useState(8000);
+  const [fetchMaxBytes, setFetchMaxBytes] = useState(1_000_000);
+  const [respectRobotsTxt, setRespectRobotsTxt] = useState(true);
+  const [aiExtractionEnabled, setAiExtractionEnabled] = useState(false);
+
+  useEffect(() => {
+    if (!s) return;
+    setCrawlerEnabled(s.crawlerEnabled);
+    setDataMode(s.dataMode);
+    setDailyHttpBudget(s.dailyHttpBudget);
+    setMaxPerTick(s.maxPerTick);
+    setFetchTimeoutMs(s.fetchTimeoutMs);
+    setFetchMaxBytes(s.fetchMaxBytes);
+    setRespectRobotsTxt(s.respectRobotsTxt);
+    setAiExtractionEnabled(s.aiExtractionEnabled);
+  }, [s]);
+
+  if (q.isLoading) {
+    return (
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="text-base">Crawler settings</CardTitle>
+          <CardDescription>Loading…</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+  if (q.isError) {
+    return (
+      <Card className="border-destructive/40 bg-destructive/5">
+        <CardHeader>
+          <CardTitle className="text-base">Crawler settings</CardTitle>
+          <CardDescription>{q.error.message}</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  const meta = q.data?.meta;
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader>
+        <CardTitle className="text-base">Crawler settings</CardTitle>
+        <CardDescription>
+          Operational limits for the autonomous Prospect DB crawler. Values above server caps are clamped on save.
+          LinkedIn SERP, outbound bind IP, and crawler User-Agent stay in environment configuration only.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="rounded-lg border border-border/40 bg-muted/15 p-4 space-y-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Infrastructure (read-only)</p>
+          <div className="grid gap-2 text-sm">
+            <div>
+              <span className="text-muted-foreground">Crawler public URL</span>
+              <p className="font-mono text-xs break-all mt-0.5">{infra?.crawlerPublicUrl ?? "—"}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Crawler User-Agent</span>
+              <p className="font-mono text-xs break-all mt-0.5">{infra?.crawlerUserAgent ?? "—"}</p>
+            </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-1">
+              <span>
+                <span className="text-muted-foreground">SERP sources enabled</span>
+                <span className="ml-2 font-medium">{infra?.serpSourcesEnabled ? "Yes" : "No"}</span>
+              </span>
+              <span>
+                <span className="text-muted-foreground">Outbound IP configured</span>
+                <span className="ml-2 font-medium">{infra?.outboundIpConfigured ? "Yes" : "No"}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Enable autonomous crawler</p>
+            <p className="text-xs text-muted-foreground">
+              When off, crawler ticks no-op even if the scheduler is running (unless the process disables the crawler entirely via env).
+            </p>
+          </div>
+          <Switch
+            checked={crawlerEnabled}
+            disabled={mut.isPending}
+            onCheckedChange={(v: boolean) => setCrawlerEnabled(Boolean(v))}
+          />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label className="text-xs">Data mode</Label>
+            <Select value={dataMode} onValueChange={v => setDataMode(v as "company_safe" | "business_contacts")} disabled={mut.isPending}>
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="company_safe">Company safe (no employee harvest)</SelectItem>
+                <SelectItem value="business_contacts">Business contacts</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label className="text-xs">Daily HTTP budget</Label>
+            <Input
+              type="number"
+              className="h-9"
+              min={1}
+              max={caps?.maxHttpBudget ?? 500}
+              value={dailyHttpBudget}
+              disabled={mut.isPending}
+              onChange={e => setDailyHttpBudget(Math.max(1, Number(e.target.value) || 1))}
+            />
+            <p className="text-[11px] text-muted-foreground">Env cap: {caps?.maxHttpBudget?.toLocaleString() ?? "—"}</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Max jobs per tick</Label>
+            <Input
+              type="number"
+              className="h-9"
+              min={1}
+              max={caps?.maxPerTick ?? 25}
+              value={maxPerTick}
+              disabled={mut.isPending}
+              onChange={e => setMaxPerTick(Math.max(1, Number(e.target.value) || 1))}
+            />
+            <p className="text-[11px] text-muted-foreground">Env cap: {caps?.maxPerTick?.toLocaleString() ?? "—"}</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Fetch timeout (ms)</Label>
+            <Input
+              type="number"
+              className="h-9"
+              min={1000}
+              max={120_000}
+              value={fetchTimeoutMs}
+              disabled={mut.isPending}
+              onChange={e => setFetchTimeoutMs(Math.max(1000, Number(e.target.value) || 1000))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Max fetch bytes</Label>
+            <Input
+              type="number"
+              className="h-9"
+              min={16384}
+              max={caps?.maxFetchBytes ?? 2_000_000}
+              value={fetchMaxBytes}
+              disabled={mut.isPending}
+              onChange={e => setFetchMaxBytes(Math.max(16384, Number(e.target.value) || 16384))}
+            />
+            <p className="text-[11px] text-muted-foreground">Env cap: {caps?.maxFetchBytes?.toLocaleString() ?? "—"}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Respect robots.txt</p>
+            <p className="text-xs text-muted-foreground">When on, disallowed paths under User-agent: * are skipped.</p>
+          </div>
+          <Switch
+            checked={respectRobotsTxt}
+            disabled={mut.isPending}
+            onCheckedChange={(v: boolean) => setRespectRobotsTxt(Boolean(v))}
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">AI extraction (experimental)</p>
+            <p className="text-xs text-muted-foreground">Stored for future pipeline use; does not change crawl behavior yet.</p>
+          </div>
+          <Switch
+            checked={aiExtractionEnabled}
+            disabled={mut.isPending}
+            onCheckedChange={(v: boolean) => setAiExtractionEnabled(Boolean(v))}
+          />
+        </div>
+
+        {meta?.updatedAt ? (
+          <p className="text-[11px] text-muted-foreground">
+            Last updated {new Date(meta.updatedAt).toLocaleString()}
+            {meta.updatedByUserId != null ? ` (user #${meta.updatedByUserId})` : ""}
+          </p>
+        ) : null}
+
+        <Button
+          disabled={mut.isPending}
+          onClick={() =>
+            mut.mutate({
+              crawlerEnabled,
+              dataMode,
+              dailyHttpBudget,
+              maxPerTick,
+              fetchTimeoutMs,
+              fetchMaxBytes,
+              respectRobotsTxt,
+              aiExtractionEnabled,
+            })
+          }
+        >
+          {mut.isPending ? "Saving…" : "Save crawler settings"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ProspectDbPanel() {
   const utils = trpc.useUtils();
   const overview = trpc.prospectSearch.platformOverview.useQuery();
@@ -1630,6 +1862,8 @@ function ProspectDbPanel() {
           </div>
         </CardContent>
       </Card>
+
+      <ProspectCrawlerSettingsCard />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <ProspectStat label="Companies" value={t.companies} hint={`${t.companiesActive.toLocaleString()} active`} />

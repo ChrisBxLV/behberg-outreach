@@ -30,8 +30,8 @@ export async function resolveCompanyDomain(companyId: number): Promise<void> {
 }
 
 async function probeDomain(domain: string): Promise<boolean> {
-  const res = await safeFetch(`https://${domain}`, { timeoutMs: 6_000, maxBytes: 256_000 });
+  const res = await safeFetch(`https://${domain}`);
   if (res && res.status >= 200 && res.status < 400) return true;
-  const fallback = await safeFetch(`http://${domain}`, { timeoutMs: 6_000, maxBytes: 256_000 });
+  const fallback = await safeFetch(`http://${domain}`);
   return Boolean(fallback && fallback.status >= 200 && fallback.status < 400);
 }

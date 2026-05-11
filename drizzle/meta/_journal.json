@@ -141,6 +141,13 @@
       "when": 1774310000003,
       "tag": "0019_prospect_db",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1774310000004,
+      "tag": "0020_prospect_crawler_settings",
+      "breakpoints": true
     }
   ]
 }

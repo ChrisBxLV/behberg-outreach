@@ -60,7 +60,7 @@ export async function crawlCompanyWebsite(companyId: number): Promise<void> {
 
   for (const path of PATHS) {
     const url = `https://${company.domain}${path}`;
-    const res = await safeFetch(url, { timeoutMs: 8_000, maxBytes: 1_200_000 });
+    const res = await safeFetch(url);
     if (!res || !res.body) continue;
     if (!res.contentType.includes("text/html") && !res.contentType.includes("application/xhtml")) continue;
 

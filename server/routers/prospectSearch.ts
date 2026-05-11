@@ -18,12 +18,19 @@ import { dataScopeOrganizationId } from "../_core/orgScope";
 import { createOrMergeContact, getDb } from "../db";
 import { prospectEnableSerpSources } from "../services/prospect/env";
 import {
+  clampProspectCrawlerSettingsForPersist,
+  getCrawlerInfraSnapshot,
+  getProspectCrawlerRuntimeSettings,
+  invalidateProspectCrawlerSettingsCache,
+} from "../services/prospect/crawlerSettings";
+import {
   contacts,
   industries,
   prospectCompanies,
   prospectCrawlQueue,
   prospectCrawlRuns,
   prospectCrawlSeeds,
+  prospectCrawlerSettings,
   prospectDailyBudget,
   prospectEmployees,
 } from "../../drizzle/schema";
@@ -809,6 +816,103 @@ export const prospectSearchRouter = router({
         .where(eq(prospectCrawlSeeds.kind, input.kind));
       const affected = Number((result as any)?.affectedRows ?? 0);
       return { ok: true, affected };
+    }),
+
+  getCrawlerSettings: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "superadmin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+    }
+    const serp = prospectEnableSerpSources();
+    const infra = getCrawlerInfraSnapshot(serp);
+    const runtime = await getProspectCrawlerRuntimeSettings();
+    const db = await getDb();
+    let meta: { updatedAt: Date | null; updatedByUserId: number | null } = {
+      updatedAt: null,
+      updatedByUserId: null,
+    };
+    if (db) {
+      try {
+        const rows = await db
+          .select({
+            updatedAt: prospectCrawlerSettings.updatedAt,
+            updatedByUserId: prospectCrawlerSettings.updatedByUserId,
+          })
+          .from(prospectCrawlerSettings)
+          .where(eq(prospectCrawlerSettings.id, 1))
+          .limit(1);
+        const row = rows[0];
+        if (row) {
+          meta = {
+            updatedAt: row.updatedAt ?? null,
+            updatedByUserId: row.updatedByUserId ?? null,
+          };
+        }
+      } catch {
+        // Table may be missing until migrations are applied.
+      }
+    }
+    return { settings: runtime, infra, meta };
+  }),
+
+  updateCrawlerSettings: protectedProcedure
+    .input(
+      z.object({
+        crawlerEnabled: z.boolean(),
+        dataMode: z.enum(["company_safe", "business_contacts"]),
+        dailyHttpBudget: z.number().int(),
+        maxPerTick: z.number().int(),
+        fetchTimeoutMs: z.number().int(),
+        fetchMaxBytes: z.number().int(),
+        respectRobotsTxt: z.boolean(),
+        aiExtractionEnabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "superadmin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+      }
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable." });
+      }
+      const clamped = clampProspectCrawlerSettingsForPersist(input);
+      try {
+        await db
+          .insert(prospectCrawlerSettings)
+          .values({
+            id: 1,
+            crawlerEnabled: clamped.crawlerEnabled,
+            dataMode: clamped.dataMode,
+            dailyHttpBudget: clamped.dailyHttpBudget,
+            maxPerTick: clamped.maxPerTick,
+            fetchTimeoutMs: clamped.fetchTimeoutMs,
+            fetchMaxBytes: clamped.fetchMaxBytes,
+            respectRobotsTxt: clamped.respectRobotsTxt,
+            aiExtractionEnabled: clamped.aiExtractionEnabled,
+            updatedByUserId: ctx.user.id,
+          })
+          .onDuplicateKeyUpdate({
+            set: {
+              crawlerEnabled: clamped.crawlerEnabled,
+              dataMode: clamped.dataMode,
+              dailyHttpBudget: clamped.dailyHttpBudget,
+              maxPerTick: clamped.maxPerTick,
+              fetchTimeoutMs: clamped.fetchTimeoutMs,
+              fetchMaxBytes: clamped.fetchMaxBytes,
+              respectRobotsTxt: clamped.respectRobotsTxt,
+              aiExtractionEnabled: clamped.aiExtractionEnabled,
+              updatedByUserId: ctx.user.id,
+            },
+          });
+      } catch {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Could not save crawler settings. Ensure `prospect_crawler_settings` exists (run `pnpm db:migrate`) and try again.",
+        });
+      }
+      invalidateProspectCrawlerSettingsCache();
+      return { ok: true as const, settings: clamped };
     }),
 
   /**

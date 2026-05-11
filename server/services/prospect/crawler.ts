@@ -22,8 +22,12 @@ import { checkAndConsumeBudget } from "./throttle";
 import { enqueueJobs, getCompanyById } from "./repository";
 import type { QueueJobDraft, QueueJobKind, SeedAdapter, SeedRunResult } from "./types";
 import { prospectEnableSerpSources } from "./env";
+import {
+  getProspectCrawlerRuntimeSettings,
+  getProspectMaxPerTickEffective,
+  isProspectCrawlerEnabledBySettings,
+} from "./crawlerSettings";
 
-export const PROSPECT_MAX_PER_TICK = clampInt(process.env.PROSPECT_MAX_PER_TICK, 25, 1, 200);
 const PROSPECT_LOCK_OWNER = `worker-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 let seedKindEnabledCache: { key: string; enabled: boolean; expiresAt: number } | null = null;
@@ -94,18 +98,20 @@ const EMPLOYEE_QUEUE_KINDS: QueueJobKind[] = ["harvest_employee", "guess_emails"
 
 export async function tickSeeds(): Promise<{ processed: number; errors: number }> {
   if (isProspectCrawlerDisabled()) return { processed: 0, errors: 0 };
+  if (!(await isProspectCrawlerEnabledBySettings())) return { processed: 0, errors: 0 };
   await ensureAdaptersRegistered();
 
   const db = await getDb();
   if (!db) return { processed: 0, errors: 0 };
 
+  const maxPerTick = await getProspectMaxPerTickEffective();
   const now = new Date();
   const due = await db
     .select()
     .from(prospectCrawlSeeds)
     .where(and(eq(prospectCrawlSeeds.enabled, true), lte(prospectCrawlSeeds.nextRunAt, now)))
     .orderBy(asc(prospectCrawlSeeds.nextRunAt))
-    .limit(Math.min(10, PROSPECT_MAX_PER_TICK));
+    .limit(Math.min(10, maxPerTick));
 
   let processed = 0;
   let errors = 0;
@@ -292,14 +298,16 @@ async function runTick(
   process: (job: ProspectCrawlQueue) => Promise<void>,
 ): Promise<{ processed: number; errors: number }> {
   if (isProspectCrawlerDisabled()) return { processed: 0, errors: 0 };
+  if (!(await isProspectCrawlerEnabledBySettings())) return { processed: 0, errors: 0 };
   await ensureAdaptersRegistered();
 
   const db = await getDb();
   if (!db) return { processed: 0, errors: 0 };
 
+  const maxPerTick = await getProspectMaxPerTickEffective();
   let processed = 0;
   let errors = 0;
-  for (let i = 0; i < PROSPECT_MAX_PER_TICK; i++) {
+  for (let i = 0; i < maxPerTick; i++) {
     const job = await claimNextJob(kinds);
     if (!job) break;
     try {
@@ -410,6 +418,8 @@ async function processEmployeeJob(job: ProspectCrawlQueue): Promise<void> {
     // Also allow runtime disable via seed toggles in `prospect_crawl_seeds`.
     // The promote seed controls whether employee harvest should run at all.
     if (!(await isSeedKindEnabled("linkedin_employee_serp_promote"))) return;
+    const rt = await getProspectCrawlerRuntimeSettings();
+    if (rt.dataMode === "company_safe") return;
     const companyId = Number(payload.companyId ?? 0);
     if (!companyId) return;
     const ok = await checkAndConsumeBudget("serp", 1);
@@ -439,9 +449,3 @@ async function processEmployeeJob(job: ProspectCrawlQueue): Promise<void> {
 /* ------------------------------------------------------------------ */
 /* Helpers                                                            */
 /* ------------------------------------------------------------------ */
-
-function clampInt(raw: string | undefined, fallback: number, min: number, max: number): number {
-  const n = raw ? Number(raw) : NaN;
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, Math.floor(n)));
-}

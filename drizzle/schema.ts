@@ -751,3 +751,25 @@ export const prospectDailyBudget = mysqlTable("prospect_daily_budget", {
 export type ProspectDailyBudget = typeof prospectDailyBudget.$inferSelect;
 export type InsertProspectDailyBudget = typeof prospectDailyBudget.$inferInsert;
 
+/** Singleton row `id = 1`: superadmin-tunable crawler limits (env caps still apply). */
+export const prospectCrawlerSettings = mysqlTable("prospect_crawler_settings", {
+  id: int("id").primaryKey().default(1),
+  crawlerEnabled: boolean("crawlerEnabled").default(false).notNull(),
+  /** `company_safe` | `business_contacts` */
+  dataMode: varchar("dataMode", { length: 32 }).default("company_safe").notNull(),
+  dailyHttpBudget: int("dailyHttpBudget").default(50).notNull(),
+  maxPerTick: int("maxPerTick").default(5).notNull(),
+  fetchTimeoutMs: int("fetchTimeoutMs").default(8000).notNull(),
+  fetchMaxBytes: int("fetchMaxBytes").default(1_000_000).notNull(),
+  respectRobotsTxt: boolean("respectRobotsTxt").default(true).notNull(),
+  aiExtractionEnabled: boolean("aiExtractionEnabled").default(false).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  updatedByUserId: int("updatedByUserId").references(() => users.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+});
+
+export type ProspectCrawlerSettings = typeof prospectCrawlerSettings.$inferSelect;
+export type InsertProspectCrawlerSettings = typeof prospectCrawlerSettings.$inferInsert;
+

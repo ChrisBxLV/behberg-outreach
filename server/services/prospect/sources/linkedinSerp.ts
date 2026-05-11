@@ -53,6 +53,7 @@ async function fetchSerp(query: string): Promise<{ provider: SearchProvider; htm
       timeoutMs: 12_000,
       maxBytes: 1_500_000,
       skipThrottle: true,
+      skipRobotsTxt: true,
     });
     if (!res || !res.body) continue;
     return { provider, html: res.body };

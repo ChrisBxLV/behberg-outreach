@@ -24,6 +24,7 @@ export const secEdgarSeedAdapter: SeedAdapter = {
       accept: "application/json",
       timeoutMs: 20_000,
       maxBytes: 6_000_000,
+      skipRobotsTxt: true,
     });
     if (!res) return { companies: [], employees: [] };
 

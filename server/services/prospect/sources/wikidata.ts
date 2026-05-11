@@ -74,6 +74,7 @@ export const wikidataSeedAdapter: SeedAdapter = {
       timeoutMs: 15_000,
       maxBytes: 2_000_000,
       skipThrottle: false,
+      skipRobotsTxt: true,
     });
     if (!res) return { companies: [], employees: [], throttled: true };
 

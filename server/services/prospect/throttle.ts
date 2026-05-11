@@ -1,9 +1,10 @@
 // Per-host throttle + daily HTTP/SERP budgets. Persists to MySQL so a server
 // restart does not erase rate-limit state.
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { prospectDailyBudget, prospectHostThrottle } from "../../../drizzle/schema";
+import { getProspectCrawlerRuntimeSettings } from "./crawlerSettings";
 
 const DEFAULT_HOST_THROTTLE_MS = 5_000;
 const ERROR_HOST_BACKOFF_MS = 60_000;
@@ -22,34 +23,34 @@ function envInt(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-export function dailyBudget(kind: "http" | "serp"): number {
+export async function dailyBudget(kind: "http" | "serp"): Promise<number> {
   if (kind === "serp") return envInt("PROSPECT_DAILY_SERP_BUDGET", 300);
-  return envInt("PROSPECT_DAILY_HTTP_BUDGET", 2000);
+  const s = await getProspectCrawlerRuntimeSettings();
+  return s.dailyHttpBudget;
 }
 
 export async function checkAndConsumeBudget(kind: "http" | "serp", amount = 1): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
-  const budget = dailyBudget(kind);
+  const budget = await dailyBudget(kind);
   if (budget <= 0) return false;
   const day = todayKey();
 
-  // Ensure row exists.
+  // Ensure row exists for this day+kind.
   await db
     .insert(prospectDailyBudget)
     .values({ bucketDay: day, bucketKind: kind, consumed: 0 })
     .onDuplicateKeyUpdate({ set: { bucketDay: day } });
 
-  // Read current consumed.
   const existing = await db
     .select({ consumed: prospectDailyBudget.consumed, id: prospectDailyBudget.id })
     .from(prospectDailyBudget)
-    .where(eq(prospectDailyBudget.bucketDay, day));
-  const row = existing.find(r => r.id != null);
+    .where(and(eq(prospectDailyBudget.bucketDay, day), eq(prospectDailyBudget.bucketKind, kind)))
+    .limit(1);
+  const row = existing[0];
   const consumed = row?.consumed ?? 0;
   if (consumed + amount > budget) return false;
 
-  // Best-effort increment. Race tolerant since over-consumption is bounded by tick MAX.
   if (row?.id != null) {
     await db
       .update(prospectDailyBudget)
