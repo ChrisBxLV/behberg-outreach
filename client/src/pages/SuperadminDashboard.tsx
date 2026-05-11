@@ -1463,6 +1463,7 @@ function ProspectCrawlerSettingsCard() {
       toast.success("Crawler settings saved.");
       await Promise.all([
         utils.prospectSearch.getCrawlerSettings.invalidate(),
+        utils.prospectSearch.getCrawlerSources.invalidate(),
         utils.prospectSearch.platformOverview.invalidate(),
       ]);
     },
@@ -1698,14 +1699,21 @@ function ProspectDbPanel() {
       await Promise.all([
         utils.prospectSearch.platformOverview.invalidate(),
         utils.prospectSearch.platformContacts.invalidate(),
+        utils.prospectSearch.getCrawlerSources.invalidate(),
       ]);
     },
     onError: err => toast.error(err.message),
   });
-  const setSeedKindEnabled = trpc.prospectSearch.setSeedKindEnabled.useMutation({
-    onSuccess: async (res) => {
-      toast.success(`Crawler settings saved (${res.affected} rows updated).`);
-      await utils.prospectSearch.platformOverview.invalidate();
+  const crawlerSources = trpc.prospectSearch.getCrawlerSources.useQuery(undefined, {
+    enabled: !overview.isLoading && !overview.isError,
+  });
+  const setCrawlerSourceEnabled = trpc.prospectSearch.setCrawlerSourceEnabled.useMutation({
+    onSuccess: async res => {
+      toast.success(`Crawler sources updated (${res.affectedRows} row(s)).`);
+      await Promise.all([
+        utils.prospectSearch.getCrawlerSources.invalidate(),
+        utils.prospectSearch.platformOverview.invalidate(),
+      ]);
     },
     onError: err => toast.error(err.message),
   });
@@ -1745,20 +1753,14 @@ function ProspectDbPanel() {
   const companiesGrowthTotal = data.growth.companies.reduce((s, r) => s + r.count, 0);
   const employeesGrowthTotal = data.growth.employees.reduce((s, r) => s + r.count, 0);
 
-  const seedHealth: Array<{ kind: string; enabled: boolean }> = (data.seedHealth ?? []).map((s: any) => ({
-    kind: String(s.kind ?? ""),
-    enabled: Boolean(s.enabled),
-  }));
-  const kindEnabled = (kind: string) => seedHealth.some(s => s.kind === kind && s.enabled);
-
   return (
     <div className="space-y-4">
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle className="text-base">Initialization</CardTitle>
           <CardDescription>
-            If Prospect DB is empty, seed crawl sources and optionally import the 1,000-company bootstrap CSV,
-            then run one immediate crawler cycle.
+            Seeds crawl sources (and optional bootstrap CSV). Crawler ticks do not run unless you explicitly choose
+            &quot;Run ticks&quot; below.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-3">
@@ -1773,12 +1775,12 @@ function ProspectDbPanel() {
             onClick={() =>
               initialize.mutate({
                 importBootstrapCsv: importBootstrap,
-                runTicks: true,
+                runTicks: false,
               })
             }
             disabled={initialize.isPending}
           >
-            {initialize.isPending ? "Running…" : "Initialize & Run Crawler Now"}
+            {initialize.isPending ? "Running…" : "Initialize prospect data"}
           </Button>
           <Button
             variant="outline"
@@ -1790,7 +1792,7 @@ function ProspectDbPanel() {
             }
             disabled={initialize.isPending}
           >
-            Run Ticks Only
+            Run crawler ticks only
           </Button>
         </CardContent>
       </Card>
@@ -1798,68 +1800,50 @@ function ProspectDbPanel() {
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle className="text-base">Crawler sources</CardTitle>
-          <CardDescription>Enable/disable discovery sources used by the autonomous crawler.</CardDescription>
+          <CardDescription>
+            Persisted in <span className="font-mono text-xs">prospect_crawl_seeds</span>. LinkedIn SERP toggles follow{" "}
+            <span className="font-mono text-xs">PROSPECT_ENABLE_SERP_SOURCES</span>.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Wikidata</p>
-              <p className="text-xs text-muted-foreground">Region-based discovery via SPARQL.</p>
-            </div>
-            <Switch
-              checked={kindEnabled("wikidata_region")}
-              disabled={setSeedKindEnabled.isPending}
-              onCheckedChange={(v: boolean) => setSeedKindEnabled.mutate({ kind: "wikidata_region" as any, enabled: Boolean(v) })}
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">SEC EDGAR</p>
-              <p className="text-xs text-muted-foreground">US public companies feed.</p>
-            </div>
-            <Switch
-              checked={kindEnabled("sec_edgar")}
-              disabled={setSeedKindEnabled.isPending}
-              onCheckedChange={(v: boolean) => setSeedKindEnabled.mutate({ kind: "sec_edgar" as any, enabled: Boolean(v) })}
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">UK Companies House</p>
-              <p className="text-xs text-muted-foreground">UK company registry feed.</p>
-            </div>
-            <Switch
-              checked={kindEnabled("uk_ch")}
-              disabled={setSeedKindEnabled.isPending}
-              onCheckedChange={(v: boolean) => setSeedKindEnabled.mutate({ kind: "uk_ch" as any, enabled: Boolean(v) })}
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">LinkedIn (SERP) — companies</p>
-              <p className="text-xs text-muted-foreground">Discovers company pages via search providers.</p>
-            </div>
-            <Switch
-              checked={kindEnabled("linkedin_company_serp")}
-              disabled={setSeedKindEnabled.isPending}
-              onCheckedChange={(v: boolean) =>
-                setSeedKindEnabled.mutate({ kind: "linkedin_company_serp" as any, enabled: Boolean(v) })
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">LinkedIn (SERP) — employees</p>
-              <p className="text-xs text-muted-foreground">Harvests employees for companies via SERP.</p>
-            </div>
-            <Switch
-              checked={kindEnabled("linkedin_employee_serp_promote")}
-              disabled={setSeedKindEnabled.isPending}
-              onCheckedChange={(v: boolean) =>
-                setSeedKindEnabled.mutate({ kind: "linkedin_employee_serp_promote" as any, enabled: Boolean(v) })
-              }
-            />
-          </div>
+          {crawlerSources.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading crawler sources…</p>
+          ) : crawlerSources.isError ? (
+            <p className="text-sm text-destructive">{crawlerSources.error.message}</p>
+          ) : (
+            (crawlerSources.data ?? []).map(row => (
+              <div key={row.kind} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{row.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {row.kind === "wikidata" && "Region-based discovery via SPARQL."}
+                    {row.kind === "sec_edgar" && "US public companies feed."}
+                    {row.kind === "uk_ch" && "UK company registry feed."}
+                    {row.kind === "linkedin_company_serp" && "Discovers company pages via search providers."}
+                    {row.kind === "linkedin_employee_serp_promote" && "Promotes companies into employee harvest via SERP."}
+                    {!row.existsInDb && !row.locked ? (
+                      <span className="block text-amber-600/90 mt-0.5">
+                        No seed rows yet — run &quot;Initialize prospect data&quot; first, then enable here.
+                      </span>
+                    ) : null}
+                    {row.locked && row.lockReason ? (
+                      <span className="block text-amber-700 dark:text-amber-500/90 mt-0.5">{row.lockReason}</span>
+                    ) : null}
+                  </p>
+                </div>
+                <Switch
+                  checked={row.enabled}
+                  disabled={setCrawlerSourceEnabled.isPending || row.locked}
+                  onCheckedChange={(v: boolean) =>
+                    setCrawlerSourceEnabled.mutate({
+                      kind: row.kind,
+                      enabled: Boolean(v),
+                    })
+                  }
+                />
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 

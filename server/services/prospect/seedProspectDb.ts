@@ -2,7 +2,7 @@
 // `prospect_crawl_seeds` if those tables are empty. Safe to call multiple
 // times; existing rows are not duplicated.
 
-import { sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import {
   industries,
@@ -13,16 +13,18 @@ import { flattenIndustriesForDb } from "./industryTaxonomy";
 import { REGION_SEEDS } from "./regionSeed";
 import { prospectEnableSerpSources } from "./env";
 
-let seededOnce = false;
+let industriesSeeded = false;
 
 export async function seedProspectDb(): Promise<void> {
-  if (seededOnce) return;
   const db = await getDb();
   if (!db) return;
 
-  await seedIndustries(db);
+  if (!industriesSeeded) {
+    await seedIndustries(db);
+    industriesSeeded = true;
+  }
   await seedCrawlSeeds(db);
-  seededOnce = true;
+  await disableLinkedinSerpSeedsIfEnvOff(db);
 }
 
 async function seedIndustries(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
@@ -141,6 +143,23 @@ async function seedCrawlSeeds(db: NonNullable<Awaited<ReturnType<typeof getDb>>>
 
   if (seeds.length > 0) {
     console.log(`[ProspectSeed] Inserted ${seeds.length} crawl seeds.`);
+  }
+}
+
+/** Env-only kill switch: never treat SERP seeds as enabled when the server forbids SERP. */
+async function disableLinkedinSerpSeedsIfEnvOff(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+): Promise<void> {
+  if (prospectEnableSerpSources()) return;
+  try {
+    await db
+      .update(prospectCrawlSeeds)
+      .set({ enabled: false })
+      .where(inArray(prospectCrawlSeeds.kind, ["linkedin_company_serp", "linkedin_employee_serp_promote"]));
+    const { invalidateProspectSeedKindEnabledCache } = await import("./crawler");
+    invalidateProspectSeedKindEnabledCache();
+  } catch (err: any) {
+    console.warn(`[ProspectSeed] disable SERP seeds failed:`, err?.message ?? err);
   }
 }
 

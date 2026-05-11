@@ -31,8 +31,16 @@ import {
 const PROSPECT_LOCK_OWNER = `worker-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 let seedKindEnabledCache: { key: string; enabled: boolean; expiresAt: number } | null = null;
+
+export function invalidateProspectSeedKindEnabledCache(): void {
+  seedKindEnabledCache = null;
+}
+
 async function isSeedKindEnabled(kind: string): Promise<boolean> {
   const now = Date.now();
+  if (!prospectEnableSerpSources() && (kind === "linkedin_company_serp" || kind === "linkedin_employee_serp_promote")) {
+    return false;
+  }
   if (seedKindEnabledCache && seedKindEnabledCache.key === kind && seedKindEnabledCache.expiresAt > now) {
     return seedKindEnabledCache.enabled;
   }
@@ -117,6 +125,12 @@ export async function tickSeeds(): Promise<{ processed: number; errors: number }
   let errors = 0;
   for (const seed of due) {
     try {
+      if (
+        !prospectEnableSerpSources() &&
+        (seed.kind === "linkedin_company_serp" || seed.kind === "linkedin_employee_serp_promote")
+      ) {
+        continue;
+      }
       // Budget category per seed kind.
       //   - linkedin_company_serp: hits SERP providers (Google/DDG/Bing) -> SERP budget.
       //   - linkedin_employee_serp_promote: pure DB read, no outbound calls -> no budget.

@@ -34,6 +34,10 @@ import {
   prospectDailyBudget,
   prospectEmployees,
 } from "../../drizzle/schema";
+import {
+  applyCrawlerSourceEnabled,
+  getCrawlerSourcesSnapshot,
+} from "../services/prospect/crawlerSources";
 import { seedProspectDb } from "../services/prospect/seedProspectDb";
 import { enqueueJobs, normalizeDomain, upsertCompany } from "../services/prospect/repository";
 import { tickQueueCompany, tickQueueEmployee, tickSeeds } from "../services/prospect/crawler";
@@ -65,14 +69,6 @@ const PROSPECT_SOURCES = [
 const COMPANY_SORTS = ["recent", "name_asc", "name_desc", "headcount_desc", "headcount_asc"] as const;
 const EMPLOYEE_SORTS = ["recent", "name_asc", "seniority", "with_email_first"] as const;
 const EMAIL_FILTERS = ["any", "with_email", "without_email", "mx_absent"] as const;
-
-const PROSPECT_SEED_KINDS = [
-  "wikidata_region",
-  "sec_edgar",
-  "uk_ch",
-  "linkedin_company_serp",
-  "linkedin_employee_serp_promote",
-] as const;
 
 function emptyPlatformOverview() {
   return {
@@ -727,8 +723,8 @@ export const prospectSearchRouter = router({
       z.object({
         importBootstrapCsv: z.boolean().default(false),
         bootstrapCsvPath: z.string().trim().min(1).max(400).default("scripts/bootstrap_companies_1000_with_domains.csv"),
-        runTicks: z.boolean().default(true),
-      }).default({ importBootstrapCsv: false, bootstrapCsvPath: "scripts/bootstrap_companies_1000_with_domains.csv", runTicks: true }),
+        runTicks: z.boolean().default(false),
+      }).default({ importBootstrapCsv: false, bootstrapCsvPath: "scripts/bootstrap_companies_1000_with_domains.csv", runTicks: false }),
     )
     .mutation(async ({ ctx, input }) => {
       if (ctx.user.role !== "superadmin") {
@@ -790,10 +786,26 @@ export const prospectSearchRouter = router({
       };
     }),
 
-  setSeedKindEnabled: protectedProcedure
+  getCrawlerSources: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "superadmin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+    }
+    if (!(await hasProspectSchema())) {
+      return [];
+    }
+    return getCrawlerSourcesSnapshot();
+  }),
+
+  setCrawlerSourceEnabled: protectedProcedure
     .input(
       z.object({
-        kind: z.enum(PROSPECT_SEED_KINDS),
+        kind: z.enum([
+          "wikidata",
+          "sec_edgar",
+          "uk_ch",
+          "linkedin_company_serp",
+          "linkedin_employee_serp_promote",
+        ]),
         enabled: z.boolean(),
       }),
     )
@@ -804,18 +816,19 @@ export const prospectSearchRouter = router({
       if (!(await hasProspectSchema())) {
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Prospect DB tables are missing." });
       }
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable." });
-
-      // Ensure any newly-enabled source has seed rows (seed is incremental).
-      await seedProspectDb();
-
-      const result = await db
-        .update(prospectCrawlSeeds)
-        .set({ enabled: input.enabled })
-        .where(eq(prospectCrawlSeeds.kind, input.kind));
-      const affected = Number((result as any)?.affectedRows ?? 0);
-      return { ok: true, affected };
+      try {
+        return await applyCrawlerSourceEnabled(input.kind, input.enabled);
+      } catch (err: any) {
+        const code = err?.code as string | undefined;
+        const message = typeof err?.message === "string" ? err.message : "Update failed.";
+        if (code === "FORBIDDEN") {
+          throw new TRPCError({ code: "FORBIDDEN", message });
+        }
+        if (code === "PRECONDITION_FAILED") {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message });
+        }
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message });
+      }
     }),
 
   getCrawlerSettings: protectedProcedure.query(async ({ ctx }) => {
