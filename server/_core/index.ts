@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { registerExpressRoutes } from "../expressRoutes";
 import { agentDebugLog } from "./agentDebugLog";
+import { assertRequiredProductionEnv, ENV } from "./env";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -30,12 +31,14 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  assertRequiredProductionEnv();
+
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
+  // Keep global parsers tight; upload routes should opt into larger limits locally.
   app.use(
     express.json({
-      limit: "50mb",
+      limit: "2mb",
       verify: (req, res, buf) => {
         try {
           const pathHint = (req as { originalUrl?: string }).originalUrl ?? req.url ?? "";
@@ -65,7 +68,7 @@ async function startServer() {
       },
     })
   );
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.urlencoded({ limit: "2mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // Custom routes: CSV import, tracking pixel, Sheets OAuth callback, scheduler
@@ -98,9 +101,9 @@ async function startServer() {
   }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  const port = ENV.isProduction ? preferredPort : await findAvailablePort(preferredPort);
 
-  if (port !== preferredPort) {
+  if (!ENV.isProduction && port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 

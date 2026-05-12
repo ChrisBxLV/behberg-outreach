@@ -1806,6 +1806,23 @@ export async function getCampaignContacts(campaignId: number) {
     .orderBy(desc(campaignContacts.enrolledAt));
 }
 
+/**
+ * Fetch a single campaign contact joined with its parent campaign so callers can
+ * verify tenant scope before mutating. Returns `undefined` when the row does
+ * not exist (or the DB is unavailable in dev).
+ */
+export async function getCampaignContactById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select({ cc: campaignContacts, campaign: campaigns })
+    .from(campaignContacts)
+    .innerJoin(campaigns, eq(campaignContacts.campaignId, campaigns.id))
+    .where(eq(campaignContacts.id, id))
+    .limit(1);
+  return rows[0];
+}
+
 export async function getDueEmailJobs() {
   const db = await getDb();
   if (!db) return [];

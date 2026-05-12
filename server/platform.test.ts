@@ -34,6 +34,7 @@ vi.mock("./db", () => ({
   deleteSequenceStep: vi.fn().mockResolvedValue(undefined),
   deleteSequenceStepsByCampaign: vi.fn().mockResolvedValue(undefined),
   getCampaignContacts: vi.fn().mockResolvedValue([]),
+  getCampaignContactById: vi.fn().mockResolvedValue(null),
   enrollContactsInCampaign: vi.fn().mockResolvedValue(undefined),
   updateCampaignContact: vi.fn().mockResolvedValue(undefined),
   getEmailLogsByCampaign: vi.fn().mockResolvedValue([]),
@@ -554,6 +555,40 @@ describe("campaigns", () => {
     const caller = appRouter.createCaller(makeTenantCtx());
     const result = await caller.campaigns.markReplied({ emailLogId: 1 });
     expect(result.success).toBe(true);
+  });
+
+  it("updateContactStatus blocks cross-organization campaign contacts", async () => {
+    const db = await import("./db");
+    vi.mocked(db.getCampaignContactById).mockResolvedValueOnce({
+      cc: { id: 42, campaignId: 99, contactId: 7 } as any,
+      campaign: { id: 99, organizationId: 999 } as any,
+    });
+    vi.mocked(db.updateCampaignContact).mockClear();
+
+    const caller = appRouter.createCaller(makeTenantCtx());
+    await expect(
+      caller.campaigns.updateContactStatus({ campaignContactId: 42, status: "completed" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(vi.mocked(db.updateCampaignContact)).not.toHaveBeenCalled();
+  });
+
+  it("updateContactStatus updates a campaign contact in the user's organization", async () => {
+    const db = await import("./db");
+    vi.mocked(db.getCampaignContactById).mockResolvedValueOnce({
+      cc: { id: 42, campaignId: 1, contactId: 7 } as any,
+      campaign: { id: 1, organizationId: 1 } as any,
+    });
+    vi.mocked(db.updateCampaignContact).mockClear();
+
+    const caller = appRouter.createCaller(makeTenantCtx());
+    const result = await caller.campaigns.updateContactStatus({
+      campaignContactId: 42,
+      status: "completed",
+    });
+
+    expect(result.success).toBe(true);
+    expect(vi.mocked(db.updateCampaignContact)).toHaveBeenCalledWith(42, { status: "completed" });
   });
 });
 

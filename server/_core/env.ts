@@ -1,3 +1,21 @@
+const isProduction = process.env.NODE_ENV === "production";
+
+export function assertRequiredProductionEnv() {
+  if (!isProduction) return;
+
+  const missing = [
+    !process.env.JWT_SECRET?.trim() ? "JWT_SECRET" : null,
+    !process.env.DEFAULT_ADMIN_PASSWORD?.trim() ? "DEFAULT_ADMIN_PASSWORD" : null,
+    !process.env.MAILBOX_TOKEN_ENCRYPTION_KEY?.trim() ? "MAILBOX_TOKEN_ENCRYPTION_KEY" : null,
+  ].filter(Boolean);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `[Startup] Missing required production environment variable(s): ${missing.join(", ")}.`,
+    );
+  }
+}
+
 export const ENV = {
   appId: process.env.VITE_APP_ID ?? "",
   cookieSecret: process.env.JWT_SECRET ?? "",
@@ -11,12 +29,14 @@ export const ENV = {
   adminAllowlist: process.env.ADMIN_ALLOWLIST ?? process.env.ADMIN_ALLOWLIST_EMAILS ?? "",
   /** Empty / whitespace falls back so `.env` cannot accidentally disable the default operator id. */
   defaultAdminLogin: (process.env.DEFAULT_ADMIN_LOGIN ?? "behberg").trim().toLowerCase() || "behberg",
-  defaultAdminPassword: process.env.DEFAULT_ADMIN_PASSWORD ?? "grebheb",
+  defaultAdminPassword: isProduction
+    ? (process.env.DEFAULT_ADMIN_PASSWORD ?? "")
+    : (process.env.DEFAULT_ADMIN_PASSWORD ?? "grebheb"),
   /** When true, password sign-in sends a 6-digit email code before issuing a session. Default: off. */
   authRequireEmailOtp: process.env.AUTH_REQUIRE_EMAIL_OTP === "true",
   /** Where to send OTP when login id is not an email (e.g. username `behberg`). Defaults to SMTP_USER. */
   otpDeliveryEmail: process.env.OTP_DELIVERY_EMAIL ?? process.env.SMTP_USER ?? "",
-  isProduction: process.env.NODE_ENV === "production",
+  isProduction,
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   /** Public base URL for webhooks, tracking pixels, and signature image URLs. */

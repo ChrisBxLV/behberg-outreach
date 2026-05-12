@@ -1,19 +1,44 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Automated server deploy: pull latest from git, install, build, restart.
+# Automated server deploy: pull latest from git, install, check, test, build, restart.
 # Usage:
 #   ./deploy.sh
 #   ./deploy.sh --branch main
 #   APP_DIR=/var/www/behberg-outreach ./deploy.sh
-#   SERVICE_NAME=behberg-outreach ./deploy.sh
+#   WEB_SERVICE_NAME=behberg-web WORKER_SERVICE_NAME=behberg-worker ./deploy.sh
+#   SERVICE_NAME=behberg-outreach ./deploy.sh   # legacy single systemd unit
 
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 BRANCH="main"
 REMOTE="${REMOTE:-origin}"
+
+# systemd (split web/worker preferred; SERVICE_NAME is legacy single unit)
+WEB_SERVICE_NAME="${WEB_SERVICE_NAME:-}"
+WORKER_SERVICE_NAME="${WORKER_SERVICE_NAME:-}"
 SERVICE_NAME="${SERVICE_NAME:-}"
+
+# pm2 (split preferred; PM2_APP_NAME is legacy)
+PM2_WEB_APP_NAME="${PM2_WEB_APP_NAME:-}"
+PM2_WORKER_APP_NAME="${PM2_WORKER_APP_NAME:-}"
 PM2_APP_NAME="${PM2_APP_NAME:-}"
+
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
+RUN_CHECKS="${RUN_CHECKS:-true}"
+RUN_TESTS="${RUN_TESTS:-true}"
+
+HEALTHCHECK_URL="${HEALTHCHECK_URL:-}"
+
+# Returns 0 if the value means "run" (default-on helpers use default "true").
+# Uses tr for lowercase so this works on Bash 3.x (e.g. macOS) as well as Linux.
+env_run_enabled() {
+  local v="${1:-true}"
+  v=$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')
+  case "$v" in
+    false|0|no|off) return 1 ;;
+    *) return 0 ;;
+  esac
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -29,10 +54,26 @@ while [[ $# -gt 0 ]]; do
       SERVICE_NAME="${2:-}"; shift 2;;
     --service=*)
       SERVICE_NAME="${1#*=}"; shift 1;;
+    --web-service)
+      WEB_SERVICE_NAME="${2:-}"; shift 2;;
+    --web-service=*)
+      WEB_SERVICE_NAME="${1#*=}"; shift 1;;
+    --worker-service)
+      WORKER_SERVICE_NAME="${2:-}"; shift 2;;
+    --worker-service=*)
+      WORKER_SERVICE_NAME="${1#*=}"; shift 1;;
     --pm2)
       PM2_APP_NAME="${2:-}"; shift 2;;
     --pm2=*)
       PM2_APP_NAME="${1#*=}"; shift 1;;
+    --pm2-web)
+      PM2_WEB_APP_NAME="${2:-}"; shift 2;;
+    --pm2-web=*)
+      PM2_WEB_APP_NAME="${1#*=}"; shift 1;;
+    --pm2-worker)
+      PM2_WORKER_APP_NAME="${2:-}"; shift 2;;
+    --pm2-worker=*)
+      PM2_WORKER_APP_NAME="${1#*=}"; shift 1;;
     --migrate)
       RUN_MIGRATIONS="true"; shift 1;;
     -h|--help)
@@ -40,18 +81,35 @@ while [[ $# -gt 0 ]]; do
 deploy.sh - automated deploy script
 
 Environment variables:
-  APP_DIR          Repo directory on server (default: script directory)
-  REMOTE           Git remote name (default: origin)
-  SERVICE_NAME     systemd service to restart (recommended)
-  PM2_APP_NAME     pm2 app name to restart (alternative)
-  RUN_MIGRATIONS   true/false (default: false)
+  APP_DIR               Repo directory on server (default: script directory)
+  REMOTE                Git remote name (default: origin)
+
+  systemd (recommended for production):
+    WEB_SERVICE_NAME      systemd unit for the web process
+    WORKER_SERVICE_NAME   systemd unit for the worker (cron/scheduler) process
+    SERVICE_NAME          legacy: single unit when web/worker names are not set
+
+  pm2 (alternative):
+    PM2_WEB_APP_NAME      pm2 app name for the web process
+    PM2_WORKER_APP_NAME   pm2 app name for the worker process
+    PM2_APP_NAME          legacy: single app when split names are not set
+
+  RUN_MIGRATIONS        true/false (default: false)
+  RUN_CHECKS            true/false — run `pnpm run check` before build (default: true)
+  RUN_TESTS             true/false — run `pnpm test` before build (default: true)
+
+  HEALTHCHECK_URL       optional; if set, `curl -fsS` is run after restart (do not embed secrets in URLs)
 
 Examples:
   ./deploy.sh
   ./deploy.sh --branch main
+  WEB_SERVICE_NAME=behberg-web WORKER_SERVICE_NAME=behberg-worker ./deploy.sh
   SERVICE_NAME=behberg-outreach ./deploy.sh
+  PM2_WEB_APP_NAME=app-web PM2_WORKER_APP_NAME=app-worker ./deploy.sh
   PM2_APP_NAME=behberg-outreach ./deploy.sh
   RUN_MIGRATIONS=true ./deploy.sh
+  RUN_CHECKS=false RUN_TESTS=false ./deploy.sh
+  HEALTHCHECK_URL=http://127.0.0.1:3000/api/version ./deploy.sh
 EOF
       exit 0
       ;;
@@ -110,6 +168,20 @@ else
   log "pnpm-lock.yaml not found; skipping dependency install"
 fi
 
+if env_run_enabled "${RUN_CHECKS}"; then
+  log "Running typecheck (pnpm run check)"
+  pnpm run check
+else
+  log "Skipping pnpm run check (RUN_CHECKS disabled)"
+fi
+
+if env_run_enabled "${RUN_TESTS}"; then
+  log "Running tests (pnpm test)"
+  pnpm test
+else
+  log "Skipping pnpm test (RUN_TESTS disabled)"
+fi
+
 log "Building"
 pnpm run build
 
@@ -120,24 +192,55 @@ fi
 
 restart_done="false"
 
-if [[ -n "$SERVICE_NAME" ]] && command -v systemctl >/dev/null; then
-  log "Restarting systemd service: $SERVICE_NAME"
-  sudo systemctl restart "$SERVICE_NAME"
-  sudo systemctl --no-pager --full status "$SERVICE_NAME" || true
-  restart_done="true"
+restart_systemd_if_set() {
+  local name="$1"
+  [[ -n "$name" ]] || return 0
+  log "Restarting systemd service: $name"
+  sudo systemctl restart "$name"
+  sudo systemctl --no-pager --full status "$name" || true
+}
+
+if command -v systemctl >/dev/null; then
+  if [[ -n "$WEB_SERVICE_NAME" ]] || [[ -n "$WORKER_SERVICE_NAME" ]]; then
+    restart_systemd_if_set "$WEB_SERVICE_NAME"
+    restart_systemd_if_set "$WORKER_SERVICE_NAME"
+    restart_done="true"
+  elif [[ -n "$SERVICE_NAME" ]]; then
+    restart_systemd_if_set "$SERVICE_NAME"
+    restart_done="true"
+  fi
 fi
 
-if [[ "$restart_done" != "true" ]] && [[ -n "$PM2_APP_NAME" ]] && command -v pm2 >/dev/null; then
-  log "Restarting pm2 app: $PM2_APP_NAME"
-  pm2 reload "$PM2_APP_NAME" || pm2 restart "$PM2_APP_NAME"
-  pm2 status "$PM2_APP_NAME" || true
-  restart_done="true"
+reload_pm2_if_set() {
+  local name="$1"
+  [[ -n "$name" ]] || return 0
+  log "Reloading/restarting pm2 app: $name"
+  pm2 reload "$name" || pm2 restart "$name"
+  pm2 status "$name" || true
+}
+
+if [[ "$restart_done" != "true" ]] && command -v pm2 >/dev/null; then
+  if [[ -n "$PM2_WEB_APP_NAME" ]] || [[ -n "$PM2_WORKER_APP_NAME" ]]; then
+    reload_pm2_if_set "$PM2_WEB_APP_NAME"
+    reload_pm2_if_set "$PM2_WORKER_APP_NAME"
+    restart_done="true"
+  elif [[ -n "$PM2_APP_NAME" ]]; then
+    reload_pm2_if_set "$PM2_APP_NAME"
+    restart_done="true"
+  fi
 fi
 
 if [[ "$restart_done" != "true" ]]; then
   log "No restart method configured."
-  echo "Set SERVICE_NAME=... (systemd) or PM2_APP_NAME=... (pm2) to auto-restart."
-  echo "If you restart manually, run: pnpm run start"
+  echo "Set WEB_SERVICE_NAME / WORKER_SERVICE_NAME (systemd), SERVICE_NAME (legacy),"
+  echo "or PM2_WEB_APP_NAME / PM2_WORKER_APP_NAME (pm2), PM2_APP_NAME (legacy), to auto-restart."
+  echo "If you restart manually, run: pnpm run start (and start the worker if applicable)."
+fi
+
+if [[ -n "${HEALTHCHECK_URL}" ]]; then
+  command -v curl >/dev/null || die "curl not found (required for HEALTHCHECK_URL)"
+  log "Running post-restart health check (curl -fsS; URL not logged)"
+  curl -fsS "${HEALTHCHECK_URL}" >/dev/null
 fi
 
 log "Deploy complete"

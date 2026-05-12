@@ -504,17 +504,20 @@ export function registerExpressRoutes(app: Express) {
     }
   });
 
-  // ── Start background scheduler ─────────────────────────────────────────────
-  const disableSchedulerRaw = process.env.DISABLE_SCHEDULER ?? "";
-  const disableScheduler = disableSchedulerRaw.trim().toLowerCase();
-
-  // Treat common "truthy" values as disable.
-  const schedulerDisabled =
-    disableScheduler === "1" || disableScheduler === "true" || disableScheduler === "yes";
-
-  if (!schedulerDisabled) {
-    startScheduler();
+  // ── Background scheduler (cron) ────────────────────────────────────────────
+  // In production, cron jobs MUST run in a dedicated worker process so that
+  // multiple horizontally-scaled web instances cannot duplicate email sends
+  // or crawler work. Start the worker separately with `node ./dist/worker.js`
+  // (or `pnpm dev:worker` locally).
+  //
+  // In development, keep the existing convenience of auto-starting the
+  // scheduler from the web process. `startScheduler()` still respects
+  // `DISABLE_SCHEDULER` for explicit opt-out.
+  if (ENV.isProduction) {
+    console.info(
+      "[Scheduler] Skipped in web process (production). Run the worker process separately.",
+    );
   } else {
-    console.log(`[Scheduler] Disabled via DISABLE_SCHEDULER=${JSON.stringify(disableSchedulerRaw)}`);
+    startScheduler();
   }
 }

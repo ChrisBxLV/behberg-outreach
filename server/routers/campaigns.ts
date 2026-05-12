@@ -15,6 +15,7 @@ import {
   upsertSequenceStep,
   deleteSequenceStepsByCampaign,
   getCampaignContacts,
+  getCampaignContactById,
   enrollContactsInCampaign,
   updateCampaignContact,
   getEmailLogsByCampaign,
@@ -372,7 +373,12 @@ export const campaignsRouter = router({
         ]),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // Enforce tenant isolation before mutating: load the campaign-contact
+      // joined with its parent campaign and reuse the campaign scope assertion.
+      // Non-superadmin/non-platform users can only update rows in their own org.
+      const row = await getCampaignContactById(input.campaignContactId);
+      assertCampaignScope(row?.campaign, ctx.user);
       await updateCampaignContact(input.campaignContactId, { status: input.status });
       return { success: true };
     }),
