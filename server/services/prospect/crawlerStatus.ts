@@ -13,9 +13,11 @@ import {
 } from "./crawlerSettings";
 import { dailyBudget, prospectBudgetBucketDayUtc } from "./throttle";
 import { isProspectCrawlerDisabled } from "./crawler";
+import { getProspectSchedulerActivity } from "./crawlerScheduler";
 
 export type ProspectCrawlerDerivedStatus =
-  | "disabled"
+  | "stopped"
+  | "paused"
   | "idle"
   | "running"
   | "has_errors"
@@ -25,6 +27,36 @@ export type ProspectCrawlerDerivedStatus =
 export type ProspectCrawlerStatusPayload = {
   schemaReady: boolean;
   derivedStatus: ProspectCrawlerDerivedStatus;
+  /** In-process scheduler lane (not DB queue). */
+  currentlyRunningStage: "seed" | "company" | "employee" | null;
+  scheduler: {
+    schedulerEnabled: boolean;
+    queuePaused: boolean;
+    seedTickIntervalMinutes: number;
+    companyQueueTickIntervalMinutes: number;
+    employeeQueueTickIntervalMinutes: number;
+    lastSeedTickAt: string | null;
+    lastCompanyQueueTickAt: string | null;
+    lastEmployeeQueueTickAt: string | null;
+    nextSeedTickAt: string | null;
+    nextCompanyQueueTickAt: string | null;
+    nextEmployeeQueueTickAt: string | null;
+    lastManualRunAt: string | null;
+    lastManualRunByUserId: number | null;
+    lastStopAt: string | null;
+    lastStopByUserId: number | null;
+  };
+  effectiveSettings: {
+    dailyHttpBudget: number;
+    maxPerTick: number;
+    fetchTimeoutMs: number;
+    fetchMaxBytes: number;
+    respectRobotsTxt: boolean;
+    aiExtractionEnabled: boolean;
+    dataMode: string;
+    caps: { maxHttpBudget: number; maxPerTick: number; maxFetchBytes: number };
+  };
+  recentErrors: Array<{ source: string; message: string; at: string | null }>;
   runtime: {
     crawlerEnabledBySettings: boolean;
     disabledByEnv: boolean;
@@ -93,6 +125,12 @@ function iso(d: Date | null | undefined): string | null {
   }
 }
 
+function stageFromQueueKind(kind: string): "company" | "employee" | null {
+  if (kind === "resolve_domain" || kind === "crawl_website") return "company";
+  if (kind === "harvest_employee" || kind === "guess_emails" || kind === "verify_mx") return "employee";
+  return null;
+}
+
 async function probeProspectSchema(db: NonNullable<Awaited<ReturnType<typeof getDb>>>): Promise<boolean> {
   try {
     await Promise.all([
@@ -106,6 +144,41 @@ async function probeProspectSchema(db: NonNullable<Awaited<ReturnType<typeof get
 }
 
 const SEED_ROW_CAP = 300;
+
+type RuntimeSnap = Awaited<ReturnType<typeof getProspectCrawlerRuntimeSettings>>;
+
+function schedulerFromRuntime(rs: RuntimeSnap) {
+  return {
+    schedulerEnabled: rs.schedulerEnabled,
+    queuePaused: rs.queuePaused,
+    seedTickIntervalMinutes: rs.seedTickIntervalMinutes,
+    companyQueueTickIntervalMinutes: rs.companyQueueTickIntervalMinutes,
+    employeeQueueTickIntervalMinutes: rs.employeeQueueTickIntervalMinutes,
+    lastSeedTickAt: iso(rs.lastSeedTickAt),
+    lastCompanyQueueTickAt: iso(rs.lastCompanyQueueTickAt),
+    lastEmployeeQueueTickAt: iso(rs.lastEmployeeQueueTickAt),
+    nextSeedTickAt: iso(rs.nextSeedTickAt),
+    nextCompanyQueueTickAt: iso(rs.nextCompanyQueueTickAt),
+    nextEmployeeQueueTickAt: iso(rs.nextEmployeeQueueTickAt),
+    lastManualRunAt: iso(rs.lastManualRunAt),
+    lastManualRunByUserId: rs.lastManualRunByUserId,
+    lastStopAt: iso(rs.lastStopAt),
+    lastStopByUserId: rs.lastStopByUserId,
+  };
+}
+
+function effectiveFromRuntime(rs: RuntimeSnap, infra: ReturnType<typeof getCrawlerInfraSnapshot>) {
+  return {
+    dailyHttpBudget: rs.dailyHttpBudget,
+    maxPerTick: rs.maxPerTick,
+    fetchTimeoutMs: rs.fetchTimeoutMs,
+    fetchMaxBytes: rs.fetchMaxBytes,
+    respectRobotsTxt: rs.respectRobotsTxt,
+    aiExtractionEnabled: rs.aiExtractionEnabled,
+    dataMode: rs.dataMode,
+    caps: infra.caps,
+  };
+}
 
 export async function getProspectCrawlerStatus(): Promise<ProspectCrawlerStatusPayload> {
   const serp = prospectEnableSerpSources();
@@ -131,9 +204,14 @@ export async function getProspectCrawlerStatus(): Promise<ProspectCrawlerStatusP
   };
 
   if (!db) {
+    const derivedStatus: ProspectCrawlerDerivedStatus = disabledByEnv || !runtimeSettings.crawlerEnabled ? "stopped" : "idle";
     return {
       schemaReady: false,
-      derivedStatus: "disabled",
+      derivedStatus,
+      currentlyRunningStage: null,
+      scheduler: schedulerFromRuntime(runtimeSettings),
+      effectiveSettings: effectiveFromRuntime(runtimeSettings, infra),
+      recentErrors: [],
       runtime: baseRuntime,
       queue: {
         byStatus: [],
@@ -156,9 +234,14 @@ export async function getProspectCrawlerStatus(): Promise<ProspectCrawlerStatusP
 
   const schemaReady = await probeProspectSchema(db);
   if (!schemaReady) {
+    const derivedStatus: ProspectCrawlerDerivedStatus = disabledByEnv || !runtimeSettings.crawlerEnabled ? "stopped" : "waiting_for_seed";
     return {
       schemaReady: false,
-      derivedStatus: "waiting_for_seed",
+      derivedStatus,
+      currentlyRunningStage: null,
+      scheduler: schedulerFromRuntime(runtimeSettings),
+      effectiveSettings: effectiveFromRuntime(runtimeSettings, infra),
+      recentErrors: [],
       runtime: baseRuntime,
       queue: {
         byStatus: [],
@@ -328,22 +411,47 @@ export async function getProspectCrawlerStatus(): Promise<ProspectCrawlerStatusP
   const serpExhausted = serpBudgetCap > 0 && serpConsumed >= serpBudgetCap;
   const budgetExhausted = httpExhausted || serpExhausted;
 
+  const lastDeadMsg = lastDeadRow[0]?.errorMessage ? String(lastDeadRow[0].errorMessage).slice(0, 2000) : null;
+  const recentErrors: ProspectCrawlerStatusPayload["recentErrors"] = [];
+  if (lastDeadMsg) {
+    recentErrors.push({ source: "queue:dead", message: lastDeadMsg.slice(0, 500), at: null });
+  }
+  for (const r of recentRuns) {
+    if (r.status === "error" && r.errorMessage) {
+      recentErrors.push({
+        source: `run:${r.kind}`,
+        message: String(r.errorMessage).slice(0, 500),
+        at: r.finishedAt ?? r.startedAt,
+      });
+    }
+  }
+
+  const schedAct = getProspectSchedulerActivity().stage;
+  const queueStage = inFlightRows[0] ? stageFromQueueKind(String(inFlightRows[0].kind ?? "")) : null;
+  const currentlyRunningStage: ProspectCrawlerStatusPayload["currentlyRunningStage"] = schedAct ?? queueStage;
+
   let derivedStatus: ProspectCrawlerDerivedStatus = "idle";
-  if (!runtimeSettings.crawlerEnabled || disabledByEnv) {
-    derivedStatus = "disabled";
-  } else if (inFlightCount > 0) {
+  if (disabledByEnv || !runtimeSettings.crawlerEnabled) {
+    derivedStatus = "stopped";
+  } else if (schedAct != null || inFlightCount > 0) {
     derivedStatus = "running";
   } else if (deadCount > 0 || recentHasError) {
     derivedStatus = "has_errors";
-  } else if (totalSeeds === 0) {
-    derivedStatus = "waiting_for_seed";
   } else if (budgetExhausted) {
     derivedStatus = "budget_exhausted";
+  } else if (runtimeSettings.schedulerEnabled && runtimeSettings.queuePaused) {
+    derivedStatus = "paused";
+  } else if (totalSeeds === 0) {
+    derivedStatus = "waiting_for_seed";
   }
 
   return {
     schemaReady: true,
     derivedStatus,
+    currentlyRunningStage,
+    scheduler: schedulerFromRuntime(runtimeSettings),
+    effectiveSettings: effectiveFromRuntime(runtimeSettings, infra),
+    recentErrors: recentErrors.slice(0, 25),
     runtime: baseRuntime,
     queue: {
       byStatus,
@@ -358,9 +466,7 @@ export async function getProspectCrawlerStatus(): Promise<ProspectCrawlerStatusP
       })),
       deadCount,
       inFlightCount,
-      lastDeadErrorMessage: lastDeadRow[0]?.errorMessage
-        ? String(lastDeadRow[0].errorMessage).slice(0, 2000)
-        : null,
+      lastDeadErrorMessage: lastDeadMsg,
     },
     seeds: {
       total: totalSeeds,

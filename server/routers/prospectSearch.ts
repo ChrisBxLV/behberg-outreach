@@ -22,6 +22,10 @@ import {
   getCrawlerInfraSnapshot,
   getProspectCrawlerRuntimeSettings,
   invalidateProspectCrawlerSettingsCache,
+  PROSPECT_SCHEDULER_MAX_INTERVAL_MINUTES,
+  PROSPECT_SCHEDULER_MIN_COMPANY_QUEUE_MINUTES,
+  PROSPECT_SCHEDULER_MIN_EMPLOYEE_QUEUE_MINUTES,
+  PROSPECT_SCHEDULER_MIN_SEED_MINUTES,
 } from "../services/prospect/crawlerSettings";
 import {
   contacts,
@@ -41,6 +45,15 @@ import {
 import { getProspectCrawlerStatus } from "../services/prospect/crawlerStatus";
 import { seedProspectDb } from "../services/prospect/seedProspectDb";
 import { enqueueJobs, normalizeDomain, upsertCompany } from "../services/prospect/repository";
+import {
+  pauseProspectCrawlerQueue,
+  recordProspectCrawlerManualRun,
+  resumeProspectCrawlerQueue,
+  startProspectCrawler,
+  stopProspectCrawler,
+  updateProspectCrawlerScheduleDb,
+} from "../services/prospect/crawlerControl";
+import { withProspectManualCrawlerLock } from "../services/prospect/crawlerManualLock";
 import { tickQueueCompany, tickQueueEmployee, tickSeeds } from "../services/prospect/crawler";
 
 const COMPANY_LIMIT = 50;
@@ -773,9 +786,9 @@ export const prospectSearchRouter = router({
       let ticks = { seeds: { processed: 0, errors: 0 }, queueCompany: { processed: 0, errors: 0 }, queueEmployee: { processed: 0, errors: 0 } };
       if (input.runTicks) {
         ticks = {
-          seeds: await tickSeeds(),
-          queueCompany: await tickQueueCompany(),
-          queueEmployee: await tickQueueEmployee(),
+          seeds: await tickSeeds("manual"),
+          queueCompany: await tickQueueCompany("manual"),
+          queueEmployee: await tickQueueEmployee("manual"),
         };
       }
 
@@ -904,6 +917,11 @@ export const prospectSearchRouter = router({
           .values({
             id: 1,
             crawlerEnabled: clamped.crawlerEnabled,
+            schedulerEnabled: false,
+            queuePaused: false,
+            seedTickIntervalMinutes: 60,
+            companyQueueTickIntervalMinutes: 10,
+            employeeQueueTickIntervalMinutes: 30,
             dataMode: clamped.dataMode,
             dailyHttpBudget: clamped.dailyHttpBudget,
             maxPerTick: clamped.maxPerTick,
@@ -935,6 +953,178 @@ export const prospectSearchRouter = router({
       }
       invalidateProspectCrawlerSettingsCache();
       return { ok: true as const, settings: clamped };
+    }),
+
+  startCrawler: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user.role !== "superadmin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+    }
+    if (!(await hasProspectSchema())) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Prospect DB tables are missing." });
+    }
+    await startProspectCrawler(ctx.user.id);
+    return { ok: true as const };
+  }),
+
+  stopCrawler: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user.role !== "superadmin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+    }
+    if (!(await hasProspectSchema())) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Prospect DB tables are missing." });
+    }
+    await stopProspectCrawler(ctx.user.id);
+    return { ok: true as const };
+  }),
+
+  pauseCrawlerQueue: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user.role !== "superadmin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+    }
+    if (!(await hasProspectSchema())) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Prospect DB tables are missing." });
+    }
+    await pauseProspectCrawlerQueue(ctx.user.id);
+    return { ok: true as const };
+  }),
+
+  resumeCrawlerQueue: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user.role !== "superadmin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+    }
+    if (!(await hasProspectSchema())) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Prospect DB tables are missing." });
+    }
+    await resumeProspectCrawlerQueue(ctx.user.id);
+    return { ok: true as const };
+  }),
+
+  runCrawlerSeedTickNow: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user.role !== "superadmin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+    }
+    if (!(await hasProspectSchema())) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Prospect DB tables are missing." });
+    }
+    const rs = await getProspectCrawlerRuntimeSettings();
+    return withProspectManualCrawlerLock(async () => {
+      const result = await tickSeeds("manual");
+      await recordProspectCrawlerManualRun(ctx.user.id);
+      return {
+        ...result,
+        manualNotice:
+          !rs.crawlerEnabled
+            ? ("Manual run ignores the scheduler but still respects daily budgets, max per tick, and source safety." as const)
+            : null,
+      };
+    });
+  }),
+
+  runCrawlerCompanyTickNow: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user.role !== "superadmin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+    }
+    if (!(await hasProspectSchema())) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Prospect DB tables are missing." });
+    }
+    const rs = await getProspectCrawlerRuntimeSettings();
+    return withProspectManualCrawlerLock(async () => {
+      const result = await tickQueueCompany("manual");
+      await recordProspectCrawlerManualRun(ctx.user.id);
+      return {
+        ...result,
+        manualNotice:
+          !rs.crawlerEnabled
+            ? ("Manual run ignores the scheduler but still respects daily budgets, max per tick, and source safety." as const)
+            : null,
+      };
+    });
+  }),
+
+  runCrawlerEmployeeTickNow: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user.role !== "superadmin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+    }
+    if (!(await hasProspectSchema())) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Prospect DB tables are missing." });
+    }
+    const rs = await getProspectCrawlerRuntimeSettings();
+    return withProspectManualCrawlerLock(async () => {
+      const result = await tickQueueEmployee("manual");
+      await recordProspectCrawlerManualRun(ctx.user.id);
+      return {
+        ...result,
+        manualNotice:
+          !rs.crawlerEnabled
+            ? ("Manual run ignores the scheduler but still respects daily budgets, max per tick, and source safety." as const)
+            : null,
+      };
+    });
+  }),
+
+  runCrawlerFullCycleNow: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user.role !== "superadmin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+    }
+    if (!(await hasProspectSchema())) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Prospect DB tables are missing." });
+    }
+    const rs = await getProspectCrawlerRuntimeSettings();
+    return withProspectManualCrawlerLock(async () => {
+      const seeds = await tickSeeds("manual");
+      const queueCompany = await tickQueueCompany("manual");
+      const queueEmployee = await tickQueueEmployee("manual");
+      await recordProspectCrawlerManualRun(ctx.user.id);
+      return {
+        seeds,
+        queueCompany,
+        queueEmployee,
+        manualNotice:
+          !rs.crawlerEnabled
+            ? ("Manual run ignores the scheduler but still respects daily budgets, max per tick, and source safety." as const)
+            : null,
+      };
+    });
+  }),
+
+  updateCrawlerSchedule: protectedProcedure
+    .input(
+      z.object({
+        schedulerEnabled: z.boolean(),
+        seedTickIntervalMinutes: z.number().int().min(PROSPECT_SCHEDULER_MIN_SEED_MINUTES).max(PROSPECT_SCHEDULER_MAX_INTERVAL_MINUTES),
+        companyQueueTickIntervalMinutes: z
+          .number()
+          .int()
+          .min(PROSPECT_SCHEDULER_MIN_COMPANY_QUEUE_MINUTES)
+          .max(PROSPECT_SCHEDULER_MAX_INTERVAL_MINUTES),
+        employeeQueueTickIntervalMinutes: z
+          .number()
+          .int()
+          .min(PROSPECT_SCHEDULER_MIN_EMPLOYEE_QUEUE_MINUTES)
+          .max(PROSPECT_SCHEDULER_MAX_INTERVAL_MINUTES),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "superadmin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+      }
+      if (!(await hasProspectSchema())) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Prospect DB tables are missing." });
+      }
+      await updateProspectCrawlerScheduleDb(ctx.user.id, input);
+      const schedule = await getProspectCrawlerRuntimeSettings();
+      return {
+        ok: true as const,
+        schedule: {
+          schedulerEnabled: schedule.schedulerEnabled,
+          seedTickIntervalMinutes: schedule.seedTickIntervalMinutes,
+          companyQueueTickIntervalMinutes: schedule.companyQueueTickIntervalMinutes,
+          employeeQueueTickIntervalMinutes: schedule.employeeQueueTickIntervalMinutes,
+          nextSeedTickAt: schedule.nextSeedTickAt,
+          nextCompanyQueueTickAt: schedule.nextCompanyQueueTickAt,
+          nextEmployeeQueueTickAt: schedule.nextEmployeeQueueTickAt,
+        },
+      };
     }),
 
   /**

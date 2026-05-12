@@ -10,6 +10,7 @@ import { serveStatic, setupVite } from "./vite";
 import { registerExpressRoutes } from "../expressRoutes";
 import { agentDebugLog } from "./agentDebugLog";
 import { assertRequiredProductionEnv, ENV } from "./env";
+import { startProspectCrawlerScheduler } from "../services/prospect/crawlerScheduler";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -137,6 +138,7 @@ async function startServer() {
       data: { port, nodeEnv: process.env.NODE_ENV ?? "unknown" },
     });
     // #endregion
+    startProspectCrawlerScheduler();
   });
 }
 

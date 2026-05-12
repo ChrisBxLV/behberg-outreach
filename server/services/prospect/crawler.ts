@@ -25,7 +25,8 @@ import { prospectEnableSerpSources } from "./env";
 import {
   getProspectCrawlerRuntimeSettings,
   getProspectMaxPerTickEffective,
-  isProspectCrawlerEnabledBySettings,
+  isProspectScheduledQueueTickAllowed,
+  isProspectScheduledSeedTickAllowed,
 } from "./crawlerSettings";
 
 const PROSPECT_LOCK_OWNER = `worker-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
@@ -106,9 +107,13 @@ async function ensureAdaptersRegistered(): Promise<void> {
 const COMPANY_QUEUE_KINDS: QueueJobKind[] = ["resolve_domain", "crawl_website"];
 const EMPLOYEE_QUEUE_KINDS: QueueJobKind[] = ["harvest_employee", "guess_emails", "verify_mx"];
 
-export async function tickSeeds(): Promise<{ processed: number; errors: number }> {
+export type ProspectCrawlerTickRun = "scheduled" | "manual";
+
+export async function tickSeeds(run: ProspectCrawlerTickRun = "scheduled"): Promise<{ processed: number; errors: number }> {
   if (isProspectCrawlerDisabled()) return { processed: 0, errors: 0 };
-  if (!(await isProspectCrawlerEnabledBySettings())) return { processed: 0, errors: 0 };
+  if (run === "scheduled") {
+    if (!(await isProspectScheduledSeedTickAllowed())) return { processed: 0, errors: 0 };
+  }
   await ensureAdaptersRegistered();
 
   const db = await getDb();
@@ -306,20 +311,23 @@ async function advanceSeedAfterError(seed: ProspectCrawlSeed): Promise<void> {
 /* Queue ticks                                                        */
 /* ------------------------------------------------------------------ */
 
-export async function tickQueueCompany(): Promise<{ processed: number; errors: number }> {
-  return runTick(COMPANY_QUEUE_KINDS, processCompanyJob);
+export async function tickQueueCompany(run: ProspectCrawlerTickRun = "scheduled"): Promise<{ processed: number; errors: number }> {
+  return runTick(COMPANY_QUEUE_KINDS, processCompanyJob, run);
 }
 
-export async function tickQueueEmployee(): Promise<{ processed: number; errors: number }> {
-  return runTick(EMPLOYEE_QUEUE_KINDS, processEmployeeJob);
+export async function tickQueueEmployee(run: ProspectCrawlerTickRun = "scheduled"): Promise<{ processed: number; errors: number }> {
+  return runTick(EMPLOYEE_QUEUE_KINDS, processEmployeeJob, run);
 }
 
 async function runTick(
   kinds: QueueJobKind[],
   process: (job: ProspectCrawlQueue) => Promise<void>,
+  run: ProspectCrawlerTickRun,
 ): Promise<{ processed: number; errors: number }> {
   if (isProspectCrawlerDisabled()) return { processed: 0, errors: 0 };
-  if (!(await isProspectCrawlerEnabledBySettings())) return { processed: 0, errors: 0 };
+  if (run === "scheduled") {
+    if (!(await isProspectScheduledQueueTickAllowed())) return { processed: 0, errors: 0 };
+  }
   await ensureAdaptersRegistered();
 
   const db = await getDb();

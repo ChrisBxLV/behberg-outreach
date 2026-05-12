@@ -758,6 +758,27 @@ export type InsertProspectDailyBudget = typeof prospectDailyBudget.$inferInsert;
 export const prospectCrawlerSettings = mysqlTable("prospect_crawler_settings", {
   id: int("id").primaryKey().default(1),
   crawlerEnabled: boolean("crawlerEnabled").default(false).notNull(),
+  schedulerEnabled: boolean("schedulerEnabled").default(false).notNull(),
+  queuePaused: boolean("queuePaused").default(false).notNull(),
+  seedTickIntervalMinutes: int("seedTickIntervalMinutes").default(60).notNull(),
+  companyQueueTickIntervalMinutes: int("companyQueueTickIntervalMinutes").default(10).notNull(),
+  employeeQueueTickIntervalMinutes: int("employeeQueueTickIntervalMinutes").default(30).notNull(),
+  lastSeedTickAt: timestamp("lastSeedTickAt"),
+  lastCompanyQueueTickAt: timestamp("lastCompanyQueueTickAt"),
+  lastEmployeeQueueTickAt: timestamp("lastEmployeeQueueTickAt"),
+  nextSeedTickAt: timestamp("nextSeedTickAt"),
+  nextCompanyQueueTickAt: timestamp("nextCompanyQueueTickAt"),
+  nextEmployeeQueueTickAt: timestamp("nextEmployeeQueueTickAt"),
+  lastManualRunAt: timestamp("lastManualRunAt"),
+  lastManualRunByUserId: int("lastManualRunByUserId").references(() => users.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+  lastStopAt: timestamp("lastStopAt"),
+  lastStopByUserId: int("lastStopByUserId").references(() => users.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
   /** `company_safe` | `business_contacts` */
   dataMode: varchar("dataMode", { length: 32 }).default("company_safe").notNull(),
   dailyHttpBudget: int("dailyHttpBudget").default(50).notNull(),
