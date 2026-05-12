@@ -19,6 +19,12 @@ import { completeMailboxOAuthConnect } from "./services/mailboxConnectFlow";
 import { validateMicrosoftClientState } from "./services/microsoftGraphSubscription";
 import { tryIngestSesOrSnsBounceNotification } from "./services/sesBounceIngest";
 import { ENV } from "./_core/env";
+import {
+  csvImportLimiter,
+  oauthCallbackLimiter,
+  optOutLimiter,
+  signatureUploadLimiter,
+} from "./_core/rateLimit";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -105,7 +111,7 @@ export function registerExpressRoutes(app: Express) {
   });
 
   // ── Mailbox OAuth callbacks ────────────────────────────────────────────────
-  app.get("/api/mailboxes/oauth/:provider/callback", async (req, res) => {
+  app.get("/api/mailboxes/oauth/:provider/callback", oauthCallbackLimiter, async (req, res) => {
     const appBaseUrl =
       process.env.APP_BASE_URL?.trim() ||
       inferRequestOrigin({
@@ -276,6 +282,7 @@ export function registerExpressRoutes(app: Express) {
 
   app.post(
     "/api/mailboxes/signature-asset",
+    signatureUploadLimiter,
     signatureImageUpload.single("file"),
     async (req, res) => {
       try {
@@ -325,7 +332,7 @@ export function registerExpressRoutes(app: Express) {
   );
 
   // ── CSV Import ─────────────────────────────────────────────────────────────
-  app.post("/api/import/csv", upload.single("file"), async (req, res) => {
+  app.post("/api/import/csv", csvImportLimiter, upload.single("file"), async (req, res) => {
     try {
       // Protect CSV import: it writes PII to your database.
       const user = await sdk.authenticateRequest(req);
@@ -385,7 +392,7 @@ export function registerExpressRoutes(app: Express) {
   });
 
   // ── Public opt-out request (email + verification code) ────────────────────
-  app.post("/api/public/optout/start", express.json(), async (req, res) => {
+  app.post("/api/public/optout/start", optOutLimiter, express.json(), async (req, res) => {
     const emailRaw = String(req.body?.email ?? "");
     const email = emailRaw.trim().toLowerCase();
     const mailboxId = parseInt(String(process.env.OPT_OUT_MAILBOX_ID ?? ""), 10);
@@ -427,7 +434,7 @@ export function registerExpressRoutes(app: Express) {
     }
   });
 
-  app.post("/api/public/optout/verify", express.json(), async (req, res) => {
+  app.post("/api/public/optout/verify", optOutLimiter, express.json(), async (req, res) => {
     const emailRaw = String(req.body?.email ?? "");
     const codeRaw = String(req.body?.code ?? "");
     const email = emailRaw.trim().toLowerCase();

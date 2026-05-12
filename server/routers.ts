@@ -11,7 +11,13 @@ import {
   resolvedElevatedRoleAfterPasswordLogin,
 } from "./_core/orgScope";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import {
+  authCodeRateLimit,
+  passwordResetRateLimit,
+  protectedProcedure,
+  publicProcedure,
+  router,
+} from "./_core/trpc";
 import { ENV } from "./_core/env";
 import {
   firebaseLoginMethodFromDecoded,
@@ -243,6 +249,7 @@ export const appRouter = router({
         return { success: true as const, organizationId: orgId };
       }),
     requestLoginCode: publicProcedure
+      .use(authCodeRateLimit)
       .input(
         z
           .union([
@@ -532,6 +539,7 @@ export const appRouter = router({
         return { success: true as const, requireOtp: true as const };
       }),
     verifyLoginCode: publicProcedure
+      .use(authCodeRateLimit)
       .input(
         z
           .union([
@@ -672,6 +680,7 @@ export const appRouter = router({
       }),
 
     requestPasswordReset: publicProcedure
+      .use(passwordResetRateLimit)
       .input(z.object({ loginId: z.string().trim().min(1).max(320) }))
       .mutation(async ({ ctx, input }) => {
         const loginId = input.loginId.trim().toLowerCase();
@@ -733,6 +742,7 @@ export const appRouter = router({
       }),
 
     completePasswordReset: publicProcedure
+      .use(passwordResetRateLimit)
       .input(
         z.object({
           loginId: z.string().trim().min(1).max(320),

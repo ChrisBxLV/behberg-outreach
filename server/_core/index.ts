@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import helmet from "helmet";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -35,6 +36,31 @@ async function startServer() {
   assertRequiredProductionEnv();
 
   const app = express();
+  // Trust the first proxy hop (Nginx / Cloudflare / load balancer) so that
+  // `req.ip`, `req.protocol`, and secure-cookie detection reflect the real
+  // client rather than the proxy. Must be set before any middleware that reads
+  // those values (rate limiters, cookie options, request-origin inference).
+  app.set("trust proxy", 1);
+
+  // Security headers. We intentionally disable Content-Security-Policy for now:
+  //  - Vite dev injects inline scripts / HMR clients that helmet's default CSP
+  //    blocks.
+  //  - The production bundle hasn't been audited for a strict CSP and tracking
+  //    pixels / signature-asset images are loaded by third-party email clients.
+  // We set `crossOriginResourcePolicy: cross-origin` so the open-tracking pixel
+  // (`/api/track/:trackingId.gif`) and public signature assets
+  // (`/api/public/signature-assets/...`) remain embeddable from external email
+  // clients, and disable COEP for the same reason. The remaining Helmet
+  // defaults (HSTS, X-Content-Type-Options, X-Frame-Options: SAMEORIGIN,
+  // Referrer-Policy, etc.) are safe for both web and OAuth redirect flows.
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+    }),
+  );
+
   const server = createServer(app);
   // Keep global parsers tight; upload routes should opt into larger limits locally.
   app.use(
