@@ -239,8 +239,26 @@ fi
 
 if [[ -n "${HEALTHCHECK_URL}" ]]; then
   command -v curl >/dev/null || die "curl not found (required for HEALTHCHECK_URL)"
-  log "Running post-restart health check (curl -fsS; URL not logged)"
-  curl -fsS "${HEALTHCHECK_URL}" >/dev/null
+  HEALTHCHECK_MAX_ATTEMPTS="${HEALTHCHECK_MAX_ATTEMPTS:-10}"
+  HEALTHCHECK_SLEEP_SECONDS="${HEALTHCHECK_SLEEP_SECONDS:-2}"
+  log "Running post-restart health check (curl -fsS; URL not logged; up to ${HEALTHCHECK_MAX_ATTEMPTS} attempts, ${HEALTHCHECK_SLEEP_SECONDS}s apart)"
+  attempt=1
+  healthcheck_ok="false"
+  while (( attempt <= HEALTHCHECK_MAX_ATTEMPTS )); do
+    log "Health check attempt ${attempt}/${HEALTHCHECK_MAX_ATTEMPTS}"
+    if curl -fsS "${HEALTHCHECK_URL}" >/dev/null; then
+      healthcheck_ok="true"
+      break
+    fi
+    if (( attempt < HEALTHCHECK_MAX_ATTEMPTS )); then
+      sleep "${HEALTHCHECK_SLEEP_SECONDS}"
+    fi
+    attempt=$(( attempt + 1 ))
+  done
+  if [[ "$healthcheck_ok" != "true" ]]; then
+    die "Health check failed after ${HEALTHCHECK_MAX_ATTEMPTS} attempts"
+  fi
+  log "Health check passed on attempt ${attempt}/${HEALTHCHECK_MAX_ATTEMPTS}"
 fi
 
 log "Deploy complete"
