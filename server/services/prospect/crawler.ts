@@ -81,6 +81,8 @@ async function ensureAdaptersRegistered(): Promise<void> {
       import("./sources/ukCompaniesHouse"),
     ]);
     registerSeedAdapter(wikidataSeedAdapter);
+    // Legacy rows: `kind = "wikidata"` (canonical name). Prefer `wikidata_region` for new seeds.
+    registerSeedAdapter({ kind: "wikidata", run: wikidataSeedAdapter.run });
     registerSeedAdapter(secEdgarSeedAdapter);
     registerSeedAdapter(ukCompaniesHouseSeedAdapter);
 
@@ -132,8 +134,8 @@ export async function tickSeeds(): Promise<{ processed: number; errors: number }
         continue;
       }
       // Budget category per seed kind.
-      //   - linkedin_company_serp: hits SERP providers (Google/DDG/Bing) -> SERP budget.
-      //   - linkedin_employee_serp_promote: pure DB read, no outbound calls -> no budget.
+      //   - linkedin_company_serp: reserved for future API-backed discovery (no HTML SERP) -> SERP budget.
+      //   - linkedin_employee_serp_promote: no-op until API-backed discovery (no budget).
       //   - everything else (wikidata, sec_edgar, uk_ch): HTTP API calls -> HTTP budget.
       if (seed.kind === "linkedin_company_serp") {
         const ok = await checkAndConsumeBudget("serp", 1);
@@ -196,11 +198,16 @@ export async function tickSeeds(): Promise<{ processed: number; errors: number }
           });
         }
       }
+      const rtForSeed = await getProspectCrawlerRuntimeSettings();
       for (const draft of result.employees) {
         const emp = await upsertEmployee(draft);
         if (emp) {
           itemsNew++;
-          if (!emp.email && emp.emailStatus === "unknown") {
+          if (
+            rtForSeed.dataMode !== "company_safe" &&
+            !emp.email &&
+            emp.emailStatus === "unknown"
+          ) {
             followups.push({
               kind: "guess_emails",
               payload: { employeeId: emp.id },
@@ -445,6 +452,8 @@ async function processEmployeeJob(job: ProspectCrawlQueue): Promise<void> {
     return;
   }
   if (job.kind === "guess_emails") {
+    const rt = await getProspectCrawlerRuntimeSettings();
+    if (rt.dataMode === "company_safe") return;
     const employeeId = Number(payload.employeeId ?? 0);
     if (!employeeId) return;
     const { runEmailWaterfall } = await import("./emailWaterfall");
@@ -452,6 +461,8 @@ async function processEmployeeJob(job: ProspectCrawlQueue): Promise<void> {
     return;
   }
   if (job.kind === "verify_mx") {
+    const rt = await getProspectCrawlerRuntimeSettings();
+    if (rt.dataMode === "company_safe") return;
     const employeeId = Number(payload.employeeId ?? 0);
     if (!employeeId) return;
     const { runEmailWaterfall } = await import("./emailWaterfall");

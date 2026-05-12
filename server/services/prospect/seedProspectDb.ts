@@ -2,7 +2,7 @@
 // `prospect_crawl_seeds` if those tables are empty. Safe to call multiple
 // times; existing rows are not duplicated.
 
-import { inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import {
   industries,
@@ -143,6 +143,15 @@ async function seedCrawlSeeds(db: NonNullable<Awaited<ReturnType<typeof getDb>>>
 
   if (seeds.length > 0) {
     console.log(`[ProspectSeed] Inserted ${seeds.length} crawl seeds.`);
+  }
+
+  try {
+    await db
+      .update(prospectCrawlSeeds)
+      .set({ kind: "wikidata_region" })
+      .where(eq(prospectCrawlSeeds.kind, "wikidata"));
+  } catch (err: any) {
+    console.warn(`[ProspectSeed] wikidata kind normalize failed:`, err?.message ?? err);
   }
 }
 

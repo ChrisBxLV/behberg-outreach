@@ -9,12 +9,17 @@ import { getProspectCrawlerRuntimeSettings } from "./crawlerSettings";
 const DEFAULT_HOST_THROTTLE_MS = 5_000;
 const ERROR_HOST_BACKOFF_MS = 60_000;
 
-function todayKey(): string {
+/** YYYY-MM-DD UTC — matches `prospect_daily_budget.bucketDay`. */
+export function prospectBudgetBucketDayUtc(): string {
   const d = new Date();
   const yyyy = d.getUTCFullYear().toString().padStart(4, "0");
   const mm = (d.getUTCMonth() + 1).toString().padStart(2, "0");
   const dd = d.getUTCDate().toString().padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function todayKey(): string {
+  return prospectBudgetBucketDayUtc();
 }
 
 function envInt(name: string, fallback: number): number {

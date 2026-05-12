@@ -48,10 +48,25 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { clientMatchesDefaultOperatorLogin } from "@/lib/defaultOperatorClientHint";
 import { trpc } from "@/lib/trpc";
-import { BarChart3, Building2, Check, CheckCircle2, ChevronsUpDown, Mail, Pencil, Settings2, Trash2, UserPlus, Users, XCircle } from "lucide-react";
+import {
+  BarChart3,
+  Building2,
+  Check,
+  CheckCircle2,
+  ChevronsUpDown,
+  Mail,
+  Pencil,
+  RefreshCw,
+  Settings2,
+  Trash2,
+  UserPlus,
+  Users,
+  XCircle,
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import type { ProspectCrawlerStatusPayload } from "../../../server/services/prospect/crawlerStatus";
 
 const PLATFORM_PLAN_OPTIONS = [
   { id: "free" as const, label: "Free" },
@@ -1464,6 +1479,7 @@ function ProspectCrawlerSettingsCard() {
       await Promise.all([
         utils.prospectSearch.getCrawlerSettings.invalidate(),
         utils.prospectSearch.getCrawlerSources.invalidate(),
+        utils.prospectSearch.getCrawlerStatus.invalidate(),
         utils.prospectSearch.platformOverview.invalidate(),
       ]);
     },
@@ -1688,9 +1704,320 @@ function ProspectCrawlerSettingsCard() {
   );
 }
 
+function prospectCrawlerStatusBadgeClass(status: string): string {
+  switch (status) {
+    case "running":
+      return "bg-emerald-600 hover:bg-emerald-600 text-white border-transparent";
+    case "disabled":
+      return "bg-muted text-muted-foreground border-border";
+    case "has_errors":
+      return "bg-destructive hover:bg-destructive text-destructive-foreground border-transparent";
+    case "waiting_for_seed":
+      return "bg-amber-600 hover:bg-amber-600 text-white border-transparent";
+    case "budget_exhausted":
+      return "bg-orange-600 hover:bg-orange-600 text-white border-transparent";
+    case "idle":
+    default:
+      return "bg-sky-600 hover:bg-sky-600 text-white border-transparent";
+  }
+}
+
+function ProspectCrawlerStatusCard({
+  query,
+}: {
+  query: ReturnType<typeof trpc.prospectSearch.getCrawlerStatus.useQuery>;
+}) {
+  const utils = trpc.useUtils();
+  const q = query.data as ProspectCrawlerStatusPayload | undefined;
+  const pending =
+    q?.queue.byStatus.find(s => s.status === "pending")?.count ??
+    0;
+  const done =
+    q?.queue.byStatus.find(s => s.status === "done")?.count ?? 0;
+  const lastRun = q?.recentRuns[0];
+  const errorRuns = (q?.recentRuns ?? []).filter(r => r.status === "error").slice(0, 5);
+  const showWarnings =
+    !!q &&
+    (!q.schemaReady ||
+      (q.schemaReady && q.seeds.total === 0) ||
+      !q.runtime.crawlerEnabledBySettings ||
+      q.runtime.disabledByEnv ||
+      !q.runtime.serpSourcesEnabled ||
+      q.queue.deadCount > 0);
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <CardTitle className="text-base">Crawler status</CardTitle>
+          <CardDescription>
+            Autonomous ticks: seeds → queue (companies / employees). This panel does not run the crawler; it only
+            reads live database state.
+          </CardDescription>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {q ? (
+            <Badge className={prospectCrawlerStatusBadgeClass(q.derivedStatus)} variant="outline">
+              {q.derivedStatus.replace(/_/g, " ")}
+            </Badge>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={query.isFetching}
+            onClick={() => void utils.prospectSearch.getCrawlerStatus.invalidate()}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${query.isFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {query.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading crawler status…</p>
+        ) : query.isError ? (
+          <p className="text-sm text-destructive">{query.error.message}</p>
+        ) : !q ? (
+          <p className="text-sm text-muted-foreground">No status data.</p>
+        ) : (
+          <>
+            {showWarnings ? (
+              <div className="rounded-md border border-amber-600/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200/90 space-y-1">
+                {!q.schemaReady ? (
+                  <p>Prospect crawler tables are missing or unreachable. Run migrations before using the crawler.</p>
+                ) : null}
+                {q.schemaReady && q.seeds.total === 0 ? (
+                  <p>
+                    <span className="font-medium">Initialize prospect data first.</span> There are no rows in{" "}
+                    <span className="font-mono">prospect_crawl_seeds</span> yet.
+                  </p>
+                ) : null}
+                {!q.runtime.crawlerEnabledBySettings || q.runtime.disabledByEnv ? (
+                  <p>
+                    <span className="font-medium">Crawler ticks will no-op until enabled in settings.</span>{" "}
+                    {q.runtime.disabledByEnv
+                      ? "DISABLE_PROSPECT_CRAWLER is set on this server."
+                      : "The autonomous crawler toggle is off in prospect crawler settings."}
+                  </p>
+                ) : null}
+                {!q.runtime.serpSourcesEnabled ? (
+                  <p>
+                    <span className="font-medium">LinkedIn/SERP sources are disabled by server configuration.</span>{" "}
+                    Set <span className="font-mono">PROSPECT_ENABLE_SERP_SOURCES</span> to enable SERP-backed discovery.
+                  </p>
+                ) : null}
+                {q.queue.deadCount > 0 ? (
+                  <p>
+                    <span className="font-medium">{q.queue.deadCount} dead queue job(s).</span>{" "}
+                    {q.queue.lastDeadErrorMessage ? `Last error: ${q.queue.lastDeadErrorMessage}` : "See queue / logs for details."}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Runtime</p>
+                <ul className="space-y-0.5 text-xs">
+                  <li>Crawler enabled (settings): {q.runtime.crawlerEnabledBySettings ? "yes" : "no"}</li>
+                  <li>DISABLE_PROSPECT_CRAWLER: {q.runtime.disabledByEnv ? "yes" : "no"}</li>
+                  <li>Database configured: {q.runtime.databaseConfigured ? "yes" : "no"}</li>
+                  <li>SERP env enabled: {q.runtime.serpSourcesEnabled ? "yes" : "no"}</li>
+                  <li>Data mode: {q.runtime.dataMode}</li>
+                  <li>Respect robots.txt: {q.runtime.respectRobotsTxt ? "yes" : "no"}</li>
+                  <li>AI extraction: {q.runtime.aiExtractionEnabled ? "yes" : "no"}</li>
+                  <li>Outbound IPv4 bind: {q.runtime.outboundIpConfigured ? "yes" : "no"}</li>
+                </ul>
+              </div>
+              <div className="space-y-1 min-w-0">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Identity</p>
+                <p className="text-xs break-all">
+                  <span className="text-muted-foreground">Public URL:</span> {q.runtime.crawlerPublicUrl}
+                </p>
+                <p className="text-xs break-all">
+                  <span className="text-muted-foreground">User-Agent:</span> {q.runtime.crawlerUserAgent}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Queue</p>
+                <ul className="text-xs space-y-0.5">
+                  <li>Pending: {pending.toLocaleString()}</li>
+                  <li>In flight: {q.queue.inFlightCount.toLocaleString()}</li>
+                  <li>Done: {done.toLocaleString()}</li>
+                  <li>Dead: {q.queue.deadCount.toLocaleString()}</li>
+                  <li>Oldest pending (availableAt): {q.queue.oldestPendingAt ? new Date(q.queue.oldestPendingAt).toLocaleString() : "—"}</li>
+                  <li className="text-muted-foreground pt-1">
+                    By status:{" "}
+                    {q.queue.byStatus.length > 0
+                      ? q.queue.byStatus.map(s => `${s.status}: ${s.count.toLocaleString()}`).join(" · ")
+                      : "—"}
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 text-sm">
+              <div className="rounded-md border border-border/60 p-3 space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Seeds</p>
+                <p className="text-sm">
+                  Total {q.seeds.total.toLocaleString()} · enabled {q.seeds.enabled.toLocaleString()} · due now{" "}
+                  {q.seeds.dueNow.toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Next due (enabled):{" "}
+                  {q.seeds.nextDueAt ? new Date(q.seeds.nextDueAt).toLocaleString() : "—"}
+                </p>
+              </div>
+              <div className="rounded-md border border-border/60 p-3 space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Budget ({q.budget.bucketDay} UTC)
+                </p>
+                <p className="text-sm">
+                  HTTP {q.budget.http.consumed.toLocaleString()} / {q.budget.http.cap.toLocaleString()} · SERP{" "}
+                  {q.budget.serp.consumed.toLocaleString()} / {q.budget.serp.cap.toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            {lastRun ? (
+              <div className="text-sm">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Last run (most recent)</p>
+                <p>
+                  <span className="font-mono text-xs">{lastRun.kind}</span> · {lastRun.status} · found{" "}
+                  {lastRun.itemsFound}, new {lastRun.itemsNew} · started{" "}
+                  {lastRun.startedAt ? new Date(lastRun.startedAt).toLocaleString() : "—"}
+                  {lastRun.finishedAt ? ` · finished ${new Date(lastRun.finishedAt).toLocaleString()}` : ""}
+                </p>
+              </div>
+            ) : null}
+
+            {errorRuns.length > 0 ? (
+              <div className="text-sm space-y-1">
+                <p className="text-xs font-medium text-destructive uppercase tracking-wide">Recent errors (last 20 runs)</p>
+                <ul className="list-disc pl-4 space-y-1 text-xs">
+                  {errorRuns.map(r => (
+                    <li key={r.id}>
+                      <span className="font-mono">{r.kind}</span>: {r.errorMessage || r.status}{" "}
+                      <span className="text-muted-foreground">
+                        ({r.startedAt ? new Date(r.startedAt).toLocaleString() : "—"})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {q.queue.inFlightJobs.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">In-flight queue jobs</p>
+                <div className="overflow-x-auto rounded-md border border-border/60">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">ID</TableHead>
+                        <TableHead>Kind</TableHead>
+                        <TableHead>Locked by</TableHead>
+                        <TableHead>Locked at</TableHead>
+                        <TableHead className="w-20">Attempts</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {q.queue.inFlightJobs.map(j => (
+                        <TableRow key={j.id}>
+                          <TableCell className="font-mono text-xs">{j.id}</TableCell>
+                          <TableCell className="font-mono text-xs">{j.kind}</TableCell>
+                          <TableCell className="text-xs break-all">{j.lockedBy ?? "—"}</TableCell>
+                          <TableCell className="text-xs whitespace-nowrap">
+                            {j.lockedAt ? new Date(j.lockedAt).toLocaleString() : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs">{j.attempts}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            ) : null}
+
+            <Accordion type="single" collapsible className="border border-border/60 rounded-md px-2">
+              <AccordionItem value="kind-status" className="border-0">
+                <AccordionTrigger className="text-sm py-2">Queue by kind × status</AccordionTrigger>
+                <AccordionContent>
+                  <div className="overflow-x-auto pb-2">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Kind</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Count</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {q.queue.byKindStatus.map((r, i) => (
+                          <TableRow key={`${r.kind}-${r.status}-${i}`}>
+                            <TableCell className="font-mono text-xs">{r.kind}</TableCell>
+                            <TableCell className="text-xs">{r.status}</TableCell>
+                            <TableCell className="text-right text-xs">{r.count.toLocaleString()}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="seeds" className="border-0">
+                <AccordionTrigger className="text-sm py-2">Seed rows (up to {q.seeds.rows.length})</AccordionTrigger>
+                <AccordionContent>
+                  <div className="overflow-x-auto max-h-72 overflow-y-auto pb-2">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12">ID</TableHead>
+                          <TableHead>Kind</TableHead>
+                          <TableHead>Region</TableHead>
+                          <TableHead>On</TableHead>
+                          <TableHead>Errors</TableHead>
+                          <TableHead>Last run</TableHead>
+                          <TableHead>Next run</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {q.seeds.rows.map(s => (
+                          <TableRow key={s.id}>
+                            <TableCell className="font-mono text-xs">{s.id}</TableCell>
+                            <TableCell className="font-mono text-xs">{s.kind}</TableCell>
+                            <TableCell className="text-xs">{s.region}</TableCell>
+                            <TableCell className="text-xs">{s.enabled ? "yes" : "no"}</TableCell>
+                            <TableCell className="text-xs">{s.consecutiveErrors}</TableCell>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              {s.lastRunAt ? new Date(s.lastRunAt).toLocaleString() : "—"}
+                            </TableCell>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              {s.nextRunAt ? new Date(s.nextRunAt).toLocaleString() : "—"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ProspectDbPanel() {
   const utils = trpc.useUtils();
   const overview = trpc.prospectSearch.platformOverview.useQuery();
+  const crawlerStatus = trpc.prospectSearch.getCrawlerStatus.useQuery(undefined, {
+    refetchInterval: 10_000,
+  });
   const initialize = trpc.prospectSearch.initializePlatform.useMutation({
     onSuccess: async (res) => {
       toast.success(
@@ -1700,6 +2027,7 @@ function ProspectDbPanel() {
         utils.prospectSearch.platformOverview.invalidate(),
         utils.prospectSearch.platformContacts.invalidate(),
         utils.prospectSearch.getCrawlerSources.invalidate(),
+        utils.prospectSearch.getCrawlerStatus.invalidate(),
       ]);
     },
     onError: err => toast.error(err.message),
@@ -1712,6 +2040,7 @@ function ProspectDbPanel() {
       toast.success(`Crawler sources updated (${res.affectedRows} row(s)).`);
       await Promise.all([
         utils.prospectSearch.getCrawlerSources.invalidate(),
+        utils.prospectSearch.getCrawlerStatus.invalidate(),
         utils.prospectSearch.platformOverview.invalidate(),
       ]);
     },
@@ -1755,6 +2084,8 @@ function ProspectDbPanel() {
 
   return (
     <div className="space-y-4">
+      <ProspectCrawlerStatusCard query={crawlerStatus} />
+
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle className="text-base">Initialization</CardTitle>
@@ -2026,7 +2357,7 @@ function ProspectDbPanel() {
                   {data.recentRuns.map((r: any) => (
                     <TableRow key={r.id}>
                       <TableCell className="text-xs text-muted-foreground">
-                        {new Date(r.startedAt).toLocaleString()}
+                        {r.startedAt ? new Date(r.startedAt).toLocaleString() : "—"}
                       </TableCell>
                       <TableCell className="text-xs">{r.kind}</TableCell>
                       <TableCell>

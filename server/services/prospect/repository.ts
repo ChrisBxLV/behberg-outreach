@@ -225,6 +225,13 @@ export async function upsertEmployee(draft: EmployeeDraft): Promise<ProspectEmpl
   const fullName = draft.fullName.trim().replace(/\s+/g, " ");
   if (!fullName) return null;
 
+  if (draft.source === "website") {
+    const ev = (draft.sourceEvidenceUrl ?? "").trim();
+    if (!ev) return null;
+    const c = draft.sourceConfidence;
+    if (c == null || !Number.isFinite(c) || c <= 0 || c > 1) return null;
+  }
+
   let companyId = draft.companyId ?? null;
   if (companyId == null) {
     const lookup = await resolveCompanyForDraft(draft);
@@ -280,6 +287,16 @@ export async function upsertEmployee(draft: EmployeeDraft): Promise<ProspectEmpl
     bump("locationCity", draft.locationCity ?? null);
     bump("linkedinUrl", linkedinUrl ?? null);
     bump("sourceEvidenceUrl", draft.sourceEvidenceUrl ?? null);
+    if (draft.sourceConfidence != null && Number.isFinite(draft.sourceConfidence)) {
+      const next = draft.sourceConfidence;
+      if (next > 0 && next <= 1) {
+        const prev = existing.sourceConfidence;
+        if (prev == null || next > prev) {
+          (updates as any).sourceConfidence = next;
+          changed = true;
+        }
+      }
+    }
     if (emailHint && !existing.email) {
       updates.email = emailHint;
       // CSV imports come with a real email even though we haven't proven MX yet.
@@ -321,6 +338,7 @@ export async function upsertEmployee(draft: EmployeeDraft): Promise<ProspectEmpl
     emailStatus: emailHint && draft.emailHintVerified === true ? "mx_present" : "unknown",
     source: draft.source,
     sourceEvidenceUrl: draft.sourceEvidenceUrl ?? null,
+    sourceConfidence: draft.sourceConfidence ?? null,
   };
   try {
     const inserted = await db.insert(prospectEmployees).values(insert);

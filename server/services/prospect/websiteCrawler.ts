@@ -1,14 +1,11 @@
 // Per-company website crawler.
 //
-// Fetches /, /about, /team, /people, /leadership, /our-team, /contact via the
-// shared safeFetch helper. Extracts:
-//   - <title>, <meta name="description">, <meta property="og:site_name">
-//     -> classifier input.
-//   - mailto: addresses -> learned email patterns persisted to
-//     `prospect_email_patterns`.
-//   - heading + role keyword candidates -> employee drafts (no LinkedIn URL,
-//     so they only land in `prospect_employees` when LinkedIn SERP later
-//     confirms them).
+// Fetches /, /about, /team, … via `safeFetch`. Extracts:
+//   - <title>, meta description, og:site_name -> industry classifier.
+//   - mailto: on the company domain -> `prospect_email_patterns` (skipped in
+//     `company_safe` to avoid feeding personal-email guessing).
+//   - Named people on leadership-style blocks -> `prospect_employees` only in
+//     `business_contacts` mode, with `sourceEvidenceUrl` and `sourceConfidence`.
 
 import { safeFetch } from "./safeFetch";
 import { classifyIndustry } from "./industryClassifier";
@@ -21,6 +18,7 @@ import {
 import { eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { prospectCompanies } from "../../../drizzle/schema";
+import { getProspectCrawlerRuntimeSettings } from "./crawlerSettings";
 
 const PATHS = ["/", "/about", "/about-us", "/team", "/people", "/leadership", "/our-team", "/contact", "/company"];
 
@@ -49,11 +47,22 @@ const ROLE_HINTS = [
   "director of",
 ];
 
+/** Heuristic 0–1 score for a website-extracted person line. */
+function websitePersonExtractionConfidence(title: string | null): number {
+  const t = (title ?? "").toLowerCase();
+  const strong =
+    /\b(ceo|cto|cfo|coo|cmo|cpo|chief|founder|co-founder|president|managing director)\b/.test(t);
+  return strong ? 0.82 : 0.68;
+}
+
 export async function crawlCompanyWebsite(companyId: number): Promise<void> {
   const company = await getCompanyById(companyId);
   if (!company || !company.domain || company.status !== "active") return;
   const db = await getDb();
   if (!db) return;
+
+  const rt = await getProspectCrawlerRuntimeSettings();
+  const dataMode = rt.dataMode;
 
   const aggregateMeta: string[] = [];
   let aggregateTitle: string | null = null;
@@ -69,28 +78,33 @@ export async function crawlCompanyWebsite(companyId: number): Promise<void> {
     const meta = extractMetaDescription(res.body);
     if (meta) aggregateMeta.push(meta);
 
-    const mailtos = extractMailtoAddresses(res.body, company.domain);
-    for (const addr of mailtos) {
-      const pattern = inferEmailPattern(addr.local);
-      if (pattern) await bumpEmailPattern(companyId, pattern);
+    if (dataMode !== "company_safe") {
+      const mailtos = extractMailtoAddresses(res.body, company.domain);
+      for (const addr of mailtos) {
+        const pattern = inferEmailPattern(addr.local);
+        if (pattern) await bumpEmailPattern(companyId, pattern);
+      }
     }
 
-    const candidates = extractEmployeeCandidates(res.body);
-    for (const cand of candidates) {
-      await upsertEmployee({
-        companyId,
-        companyDomainHint: company.domain,
-        companyNameHint: company.name,
-        fullName: cand.name,
-        title: cand.title,
-        seniorityLevel: inferSeniority(cand.title),
-        source: "website",
-        sourceEvidenceUrl: url,
-      });
+    if (dataMode === "business_contacts") {
+      const candidates = extractEmployeeCandidates(res.body);
+      for (const cand of candidates) {
+        const confidence = websitePersonExtractionConfidence(cand.title);
+        await upsertEmployee({
+          companyId,
+          companyDomainHint: company.domain,
+          companyNameHint: company.name,
+          fullName: cand.name,
+          title: cand.title,
+          seniorityLevel: inferSeniority(cand.title),
+          source: "website",
+          sourceEvidenceUrl: url,
+          sourceConfidence: confidence,
+        });
+      }
     }
   }
 
-  // Re-classify with the extra context.
   const classification = classifyIndustry({
     name: company.name,
     websiteTitle: aggregateTitle ?? undefined,
@@ -166,8 +180,6 @@ export function inferEmailPattern(local: string): string | null {
   if (/^[a-z]\.[a-z]+$/.test(l)) return "f.last";
   if (/^[a-z]+\.[a-z]$/.test(l)) return "first.l";
   if (/^[a-z][a-z]+$/.test(l) && l.length <= 12) {
-    // Could be "flast" (cstevens) or just "first". We can't tell without name,
-    // so treat as flast which is the most common short pattern.
     return "flast";
   }
   return null;

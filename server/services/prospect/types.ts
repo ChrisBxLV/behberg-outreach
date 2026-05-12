@@ -38,6 +38,8 @@ export type EmployeeDraft = {
   emailHintVerified?: boolean;
   source: ProspectSource;
   sourceEvidenceUrl?: string | null;
+  /** 0–1 when created from website extraction in `business_contacts` mode. */
+  sourceConfidence?: number | null;
 };
 
 export type ProspectSource =

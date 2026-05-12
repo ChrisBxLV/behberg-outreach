@@ -38,6 +38,7 @@ import {
   applyCrawlerSourceEnabled,
   getCrawlerSourcesSnapshot,
 } from "../services/prospect/crawlerSources";
+import { getProspectCrawlerStatus } from "../services/prospect/crawlerStatus";
 import { seedProspectDb } from "../services/prospect/seedProspectDb";
 import { enqueueJobs, normalizeDomain, upsertCompany } from "../services/prospect/repository";
 import { tickQueueCompany, tickQueueEmployee, tickSeeds } from "../services/prospect/crawler";
@@ -794,6 +795,14 @@ export const prospectSearchRouter = router({
       return [];
     }
     return getCrawlerSourcesSnapshot();
+  }),
+
+  /** Live snapshot for Superadmin Prospect DB “Crawler status” panel (queue, seeds, budget, recent runs). */
+  getCrawlerStatus: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "superadmin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
+    }
+    return getProspectCrawlerStatus();
   }),
 
   setCrawlerSourceEnabled: protectedProcedure

@@ -1,6 +1,6 @@
 /**
- * Superadmin "crawler sources" use canonical kinds (wikidata, …) while the DB
- * stores `wikidata_region` per region row. This module maps between them.
+ * Superadmin "crawler sources" use canonical kind `wikidata` while the DB stores
+ * per-region rows as `wikidata_region` (legacy `wikidata` is normalized on boot).
  */
 
 import { inArray, sql, type SQL } from "drizzle-orm";
@@ -41,7 +41,7 @@ export type CrawlerSourceRow = {
 };
 
 function dbKindsForCanonical(kind: ProspectCrawlerCanonicalKind): string[] {
-  return kind === "wikidata" ? ["wikidata_region"] : [kind];
+  return kind === "wikidata" ? ["wikidata_region", "wikidata"] : [kind];
 }
 
 function throwNoCrawlSeedRows(canonical: ProspectCrawlerCanonicalKind): never {
@@ -118,6 +118,7 @@ export async function loadCrawlSeedRowsForSources(): Promise<ProspectCrawlSeed[]
     .where(
       inArray(prospectCrawlSeeds.kind, [
         "wikidata_region",
+        "wikidata",
         "sec_edgar",
         "uk_ch",
         "linkedin_company_serp",

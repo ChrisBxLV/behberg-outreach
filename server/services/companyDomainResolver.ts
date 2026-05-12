@@ -31,14 +31,12 @@ function normalizeHrefDomain(raw: string): string | null {
     host = host.replace(/^www\./i, "");
     return host || null;
   } catch {
-    // Ignore invalid URLs.
     return null;
   }
 }
 
 function extractHrefDomainsFromArticleHtml(article_html: string): string[] {
   const domains: string[] = [];
-  // Extract href="..." domains only. We don't attempt to resolve relative URLs.
   const re = /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/gi;
   let m: RegExpExecArray | null = null;
   // eslint-disable-next-line no-cond-assign
@@ -50,52 +48,13 @@ function extractHrefDomainsFromArticleHtml(article_html: string): string[] {
   return domains;
 }
 
-function extractFirstOrganicResultUrlFromGoogleSearch(html: string): string | null {
-  // Parse links of the form: /url?q=<URL>&...
-  const re = /href\s*=\s*["']\/url\?q=([^&"']+)&/gi;
-  let m: RegExpExecArray | null = null;
-  // eslint-disable-next-line no-cond-assign
-  while ((m = re.exec(html)) !== null) {
-    const enc = m[1] ?? "";
-    try {
-      const decoded = decodeURIComponent(enc);
-      // Ignore non-http(s) URLs.
-      if (!/^https?:\/\//i.test(decoded)) continue;
-      return decoded;
-    } catch {
-      continue;
-    }
-  }
-  return null;
-}
-
-function extractFirstHttpUrlByHostHint(html: string, hostHint: string): string | null {
-  const blockedHosts = new Set(["google.com", "duckduckgo.com", "bing.com", "yahoo.com"]);
-  const attrRe = /href\s*=\s*["']([^"']+)["']/gi;
-  let m: RegExpExecArray | null = null;
-  // eslint-disable-next-line no-cond-assign
-  while ((m = attrRe.exec(html)) !== null) {
-    const href = m[1] ?? "";
-    if (!href || href.startsWith("/")) continue;
-    if (!/^https?:\/\//i.test(href)) continue;
-    if (!href.toLowerCase().includes(hostHint.toLowerCase())) continue;
-    const host = normalizeHrefDomain(href);
-    if (!host) continue;
-    const root = normalizeDomainForOutput(host);
-    if (blockedHosts.has(root)) continue;
-    return href;
-  }
-  return null;
-}
-
-function normalizeDomainForOutput(domain: string): string {
+export function normalizeDomainForOutput(domain: string): string {
   const root = rootDomainOnly(domain);
   return root.replace(/^www\./i, "").toLowerCase();
 }
 
 function extractExplicitDomainsFromText(article_text: string): string[] {
   const text = article_text ?? "";
-  // Heuristic: capture domain-like tokens only (no paths).
   const re = /\b((?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})(?:\b|\/)/g;
   const found: string[] = [];
   let m: RegExpExecArray | null = null;
@@ -103,7 +62,6 @@ function extractExplicitDomainsFromText(article_text: string): string[] {
   while ((m = re.exec(text)) !== null) {
     const raw = m[1] ?? "";
     if (!raw) continue;
-    // Skip obvious social/profile patterns by blacklist later.
     const host = raw.replace(/^www\./i, "").toLowerCase();
     found.push(host);
   }
@@ -111,19 +69,17 @@ function extractExplicitDomainsFromText(article_text: string): string[] {
 }
 
 function confidenceFromEvidence(containsCompany: boolean): number {
-  // Per rules:
-  // - 0.9+ = strong match (contains company name)
-  // - 0.6-0.8 = inferred from search
-  // - <0.5 = weak -> null
   if (containsCompany) return 0.92;
   return 0.55;
 }
 
-export async function resolveCompanyDomainDeterministic(
-  input: ResolveInput,
-): Promise<ResolveOutput> {
+/**
+ * Domains inferred only from article hrefs and explicit domain-like tokens in
+ * text — no search engines, no live HTTP probes.
+ */
+export function tryResolveCompanyDomainFromEvidence(input: ResolveInput): ResolveOutput | null {
   const company = input.company?.trim() ?? "";
-  if (!company) return { domain: null, domain_confidence: null };
+  if (!company) return null;
 
   const hrefDomains = extractHrefDomainsFromArticleHtml(input.article_html || "");
 
@@ -134,7 +90,6 @@ export async function resolveCompanyDomainDeterministic(
   });
 
   const publisherDomainCandidate = (() => {
-    // "article publisher domain": approximated as the most frequently occurring href domain.
     let bestDomain: string | null = null;
     let bestCount = -1;
     freq.forEach((count, domain) => {
@@ -159,119 +114,76 @@ export async function resolveCompanyDomainDeterministic(
 
   ranked.sort((a, b) => b.score - a.score);
 
-  const best = ranked[0];
-  if (best && best.score >= 0.5 && best.score > 0) {
-    const normalized = normalizeDomainForOutput(best.domain);
-    const contains = domainContainsCompany(best.domain, company);
+  const hrefBest = ranked[0];
+  if (hrefBest && hrefBest.score >= 0.5 && hrefBest.score > 0) {
+    const normalized = normalizeDomainForOutput(hrefBest.domain);
+    const contains = domainContainsCompany(hrefBest.domain, company);
     const conf = confidenceFromEvidence(contains);
-    if (conf < 0.5) return { domain: null, domain_confidence: null };
+    if (conf < 0.5) return null;
     return { domain: normalized, domain_confidence: conf };
   }
 
-  const searchHeader = {
-    "user-agent": "BehbergSignalsBot/1.0 (+https://behberg.com)",
-    accept: "text/html,application/xhtml+xml",
-  };
-  const firstUrlFromSearch = await (async () => {
-    const query = `${company} official website`;
-    const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=en&gl=us&num=1`;
-    try {
-      const googleRes = await fetch(googleUrl, { headers: searchHeader });
-      if (googleRes.ok) {
-        const html = await googleRes.text();
-        const parsed =
-          extractFirstOrganicResultUrlFromGoogleSearch(html) ??
-          extractFirstHttpUrlByHostHint(html, company.split(/\s+/g)[0] ?? company);
-        if (parsed) return parsed;
-      }
-    } catch {
-      // try next provider
-    }
-
-    const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-    try {
-      const ddgRes = await fetch(ddgUrl, { headers: searchHeader });
-      if (ddgRes.ok) {
-        const html = await ddgRes.text();
-        const parsed = extractFirstHttpUrlByHostHint(html, company.split(/\s+/g)[0] ?? company);
-        if (parsed) return parsed;
-      }
-    } catch {
-      // try next provider
-    }
-
-    const bingUrl = `https://www.bing.com/search?q=${encodeURIComponent(query)}&count=5`;
-    try {
-      const bingRes = await fetch(bingUrl, { headers: searchHeader });
-      if (bingRes.ok) {
-        const html = await bingRes.text();
-        const parsed = extractFirstHttpUrlByHostHint(html, company.split(/\s+/g)[0] ?? company);
-        if (parsed) return parsed;
-      }
-    } catch {
-      // no-op
-    }
-    return null;
-  })();
-
-  if (!firstUrlFromSearch) {
-    const explicit = await (async () => {
-      const domains = extractExplicitDomainsFromText(input.article_text ?? "");
-      const freq = new Map<string, number>();
-      domains.forEach(d => freq.set(d, (freq.get(d) ?? 0) + 1));
-      const ranked: Array<{ domain: string; score: number }> = [];
-      freq.forEach((count, d) => {
-        const root = normalizeDomainForOutput(d);
-        if (DOMAIN_BLACKLIST.some(b => root === b || root.endsWith(`.${b}`))) return;
-        const contains = domainContainsCompany(root, company);
-        let score = 0;
-        if (contains) score += 0.5;
-        if (count > 1) score += 0.3;
-        if (!contains) score -= 0.6;
-        ranked.push({ domain: root, score });
-      });
-      ranked.sort((a, b) => b.score - a.score);
-      const best = ranked[0];
-      if (best && best.score >= 0.5) return { domain: best.domain, domain_confidence: 0.86 };
-
-      // Last free fallback: deterministic direct-domain probes.
-      const candidates = generateDomainCandidates(company);
-      for (const candidate of candidates) {
-        if (DOMAIN_BLACKLIST.some(b => candidate === b || candidate.endsWith(`.${b}`))) continue;
-        // eslint-disable-next-line no-await-in-loop
-        const ok = await probeDomain(candidate);
-        if (!ok) continue;
-        return {
-          domain: normalizeDomainForOutput(candidate),
-          domain_confidence: domainContainsCompany(candidate, company) ? 0.74 : 0.62,
-        };
-      }
-      return null;
-    })();
-    return explicit ?? { domain: null, domain_confidence: null };
+  const domains = extractExplicitDomainsFromText(input.article_text ?? "");
+  const textFreq = new Map<string, number>();
+  domains.forEach(d => textFreq.set(d, (textFreq.get(d) ?? 0) + 1));
+  const textRanked: Array<{ domain: string; score: number }> = [];
+  textFreq.forEach((count, d) => {
+    const root = normalizeDomainForOutput(d);
+    if (DOMAIN_BLACKLIST.some(b => root === b || root.endsWith(`.${b}`))) return;
+    const contains = domainContainsCompany(root, company);
+    let score = 0;
+    if (contains) score += 0.5;
+    if (count > 1) score += 0.3;
+    if (!contains) score -= 0.6;
+    textRanked.push({ domain: root, score });
+  });
+  textRanked.sort((a, b) => b.score - a.score);
+  const textBest = textRanked[0];
+  if (textBest && textBest.score >= 0.5) {
+    return { domain: textBest.domain, domain_confidence: 0.86 };
   }
 
-  const host = normalizeHrefDomain(firstUrlFromSearch);
-  if (!host) return { domain: null, domain_confidence: null };
-  const root = normalizeDomainForOutput(host);
+  return null;
+}
 
-  if (DOMAIN_BLACKLIST.some(b => root === b || root.endsWith(`.${b}`))) {
-    return { domain: null, domain_confidence: null };
+/** Deterministic hostname guesses from the company name (no network). */
+export function listDeterministicCompanyDomainCandidates(company: string): string[] {
+  const trimmed = company?.trim() ?? "";
+  if (!trimmed) return [];
+  const out: string[] = [];
+  for (const candidate of generateDomainCandidates(trimmed)) {
+    if (DOMAIN_BLACKLIST.some(b => candidate === b || candidate.endsWith(`.${b}`))) continue;
+    out.push(candidate);
   }
-  if (publisherDomainCandidate) {
-    const publisherRoot = normalizeDomainForOutput(publisherDomainCandidate);
-    if (publisherRoot === root) {
-      return { domain: null, domain_confidence: null };
-    }
+  return out;
+}
+
+/**
+ * Resolve a company website domain without search-engine HTML scraping: article
+ * evidence, explicit domains in text, then deterministic name-based candidates
+ * with a lightweight HTTPS GET probe (non–Prospect callers; Prospect DB uses
+ * `safeFetch` in `prospect/domainResolver.ts` instead of this probe).
+ */
+export async function resolveCompanyDomainDeterministic(
+  input: ResolveInput,
+): Promise<ResolveOutput> {
+  const company = input.company?.trim() ?? "";
+  if (!company) return { domain: null, domain_confidence: null };
+
+  const fromEvidence = tryResolveCompanyDomainFromEvidence(input);
+  if (fromEvidence?.domain) return fromEvidence;
+
+  for (const candidate of listDeterministicCompanyDomainCandidates(company)) {
+    // eslint-disable-next-line no-await-in-loop
+    const ok = await probeDomain(candidate);
+    if (!ok) continue;
+    return {
+      domain: normalizeDomainForOutput(candidate),
+      domain_confidence: domainContainsCompany(candidate, company) ? 0.74 : 0.62,
+    };
   }
 
-  // Search-derived confidence:
-  // 0.6–0.8 inferred from search; reduce if we can't match company.
-  const contains = domainContainsCompany(root, company);
-  const conf = contains ? 0.78 : 0.66;
-  if (conf < 0.5) return { domain: null, domain_confidence: null };
-
-  return { domain: root, domain_confidence: conf };
+  return { domain: null, domain_confidence: null };
 }
 
 async function probeDomain(domain: string): Promise<boolean> {
@@ -294,4 +206,3 @@ async function probeDomain(domain: string): Promise<boolean> {
     clearTimeout(t);
   }
 }
-

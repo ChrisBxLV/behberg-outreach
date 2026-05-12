@@ -6,6 +6,7 @@ import {
   timestamp,
   varchar,
   boolean,
+  double,
   float,
   json,
   bigint,
@@ -624,6 +625,8 @@ export const prospectEmployees = mysqlTable(
     emailGuesses: json("emailGuesses").$type<string[]>(),
     source: varchar("source", { length: 32 }).default("unknown").notNull(),
     sourceEvidenceUrl: varchar("sourceEvidenceUrl", { length: 1024 }),
+    /** 0–1 confidence for website-derived rows (`business_contacts`). Matches migration `DOUBLE`. */
+    sourceConfidence: double("sourceConfidence"),
     firstSeenAt: timestamp("firstSeenAt").defaultNow().notNull(),
     lastVerifiedAt: timestamp("lastVerifiedAt"),
   },

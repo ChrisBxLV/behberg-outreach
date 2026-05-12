@@ -1,31 +1,49 @@
 // Domain resolver entry-point used by the queue worker.
 //
-// Reuses the existing deterministic resolver in
-// `server/services/companyDomainResolver.ts` (which already implements the
-// Google -> DDG -> Bing fallback). After resolution, we HEAD-probe the candidate,
-// and on success update the company row with the verified domain and queue a
-// follow-up website crawl.
+// Uses article/href evidence and deterministic domain candidates only (no
+// search-engine HTML). Candidate hosts are verified with `safeFetch` (crawler
+// User-Agent, SSRF guards, robots when enabled, throttle).
 
 import { getCompanyById, markCompanyDomainVerified, normalizeDomain } from "./repository";
-import { resolveCompanyDomainDeterministic } from "../companyDomainResolver";
+import {
+  listDeterministicCompanyDomainCandidates,
+  tryResolveCompanyDomainFromEvidence,
+} from "../companyDomainResolver";
 import { safeFetch } from "./safeFetch";
 
 export async function resolveCompanyDomain(companyId: number): Promise<void> {
   const company = await getCompanyById(companyId);
   if (!company) return;
-  if (company.domain) return; // already resolved
+  if (company.domain) return;
 
-  const resolved = await resolveCompanyDomainDeterministic({
+  const evidence = tryResolveCompanyDomainFromEvidence({
     company: company.name,
     article_html: "",
     article_text: "",
   });
-  const candidate = normalizeDomain(resolved.domain ?? null);
-  if (!candidate) return;
 
-  // HEAD probe: ensure the domain actually serves a page.
-  const ok = await probeDomain(candidate);
-  if (!ok) return;
+  let candidate: string | null = evidence?.domain ? normalizeDomain(evidence.domain) : null;
+  let alreadyProbed = false;
+
+  if (!candidate) {
+    for (const raw of listDeterministicCompanyDomainCandidates(company.name)) {
+      const norm = normalizeDomain(raw);
+      if (!norm) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const ok = await probeDomain(norm);
+      if (ok) {
+        candidate = norm;
+        alreadyProbed = true;
+        break;
+      }
+    }
+  }
+
+  if (!candidate) return;
+  if (!alreadyProbed) {
+    const ok = await probeDomain(candidate);
+    if (!ok) return;
+  }
   await markCompanyDomainVerified(companyId, candidate);
 }
 
