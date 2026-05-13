@@ -216,7 +216,11 @@ export default function Login() {
                 variant="login"
                 disabled={busy}
                 pending={signInWithFirebase.isPending}
-                onIdToken={idToken => signInWithFirebase.mutate({ idToken })}
+                onIdToken={idToken => {
+                  // Diagnostic only — never log the idToken itself.
+                  console.info("[FirebaseAuth] backend mutation started (auth.signInWithFirebase)");
+                  signInWithFirebase.mutate({ idToken });
+                }}
               />
               <div className="relative py-1">
                 <Separator />

@@ -50,13 +50,25 @@ async function startServer() {
   // We set `crossOriginResourcePolicy: cross-origin` so the open-tracking pixel
   // (`/api/track/:trackingId.gif`) and public signature assets
   // (`/api/public/signature-assets/...`) remain embeddable from external email
-  // clients, and disable COEP for the same reason. The remaining Helmet
-  // defaults (HSTS, X-Content-Type-Options, X-Frame-Options: SAMEORIGIN,
-  // Referrer-Policy, etc.) are safe for both web and OAuth redirect flows.
+  // clients, and disable COEP for the same reason.
+  //
+  // Cross-Origin-Opener-Policy is relaxed to `same-origin-allow-popups`:
+  // Firebase `signInWithPopup` opens the IdP/`/__/auth/handler` popup on
+  // `*.firebaseapp.com` and then needs `window.opener.postMessage` back to our
+  // app to deliver the credential. Helmet's default `same-origin` severs that
+  // opener relationship, leaving the popup stuck on `/__/auth/handler` or
+  // closing silently. `same-origin-allow-popups` keeps cross-origin isolation
+  // for normal navigations while preserving the popup → opener channel that
+  // Firebase Auth depends on.
+  //
+  // The remaining Helmet defaults (HSTS, X-Content-Type-Options, X-Frame-
+  // Options: SAMEORIGIN, Referrer-Policy, etc.) are safe for both web and
+  // OAuth redirect flows.
   app.use(
     helmet({
       contentSecurityPolicy: false,
       crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
       crossOriginResourcePolicy: { policy: "cross-origin" },
     }),
   );

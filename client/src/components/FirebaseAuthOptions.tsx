@@ -24,6 +24,9 @@ function describeFirebaseError(err: unknown): { code?: string; message?: string 
   return { code, message };
 }
 
+const AUTH_DOMAIN_HINT =
+  "If this persists, verify VITE_FIREBASE_AUTH_DOMAIN points at a host listed under Firebase Console → Authentication → Settings → Authorized domains.";
+
 async function runProvider(
   label: string,
   getToken: () => Promise<string | null>,
@@ -37,7 +40,8 @@ async function runProvider(
     const token = await getToken();
     if (!token) {
       toast.error(
-        `${label} did not complete (no token). Try again, use another provider, or sign in with your workspace username and password.`,
+        `${label} did not complete (no token). Try again, use another provider, or sign in with your workspace username and password. ${AUTH_DOMAIN_HINT}`,
+        { duration: 12000 },
       );
       return;
     }
@@ -45,11 +49,16 @@ async function runProvider(
   } catch (err: unknown) {
     if (isFirebasePopupCancelled(err)) return;
     const { code, message } = describeFirebaseError(err);
-    // eslint-disable-next-line no-console
-    console.error(`[FirebaseAuth] ${label} failed`, err);
-    toast.error(
-      `${label} failed${code ? ` (${code})` : ""}. ${message ? message : "Check Firebase Console + Azure app registration."}`,
-    );
+    console.error(`[FirebaseAuth] ${label} failed`, { code, message, err });
+    const codeStr = code ?? "unknown";
+    const messageStr = message ?? "Unknown error.";
+    // The synthetic popup-timeout error already embeds the authorized-domains
+    // guidance in its message; appending AUTH_DOMAIN_HINT again would duplicate
+    // it. For real Firebase error codes the hint is still useful.
+    const trailingHint = code === "popup-timeout" ? "" : ` ${AUTH_DOMAIN_HINT}`;
+    toast.error(`${label} failed (${codeStr}): ${messageStr}${trailingHint}`, {
+      duration: 12000,
+    });
   }
 }
 
@@ -79,6 +88,7 @@ export function FirebaseAuthOptions({
           className="w-full"
           disabled={busy}
           onClick={() => {
+            console.info("[FirebaseAuth] provider clicked (google)");
             if (!guardSignupOrgName()) return;
             void runProvider("Google sign-in", signInWithGoogleIdToken, onIdToken);
           }}
@@ -91,6 +101,7 @@ export function FirebaseAuthOptions({
           className="w-full"
           disabled={busy}
           onClick={() => {
+            console.info("[FirebaseAuth] provider clicked (microsoft)");
             if (!guardSignupOrgName()) return;
             void runProvider("Microsoft sign-in", signInWithMicrosoftIdToken, onIdToken);
           }}
