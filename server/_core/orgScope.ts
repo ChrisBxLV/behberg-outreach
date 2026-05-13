@@ -88,3 +88,15 @@ export function isPlatformOperatorUser(user: User | null | undefined): boolean {
   if (user.role === "superadmin") return true;
   return matchesConfiguredDefaultOperatorLogin(user.openId, user.email, user.name);
 }
+
+/**
+ * Strict platform `superadmin` (active). Narrower than `isPlatformOperatorUser`:
+ * does not match the configured default-operator login when the persisted role
+ * is still `admin`. Use for checks that must require the actual `superadmin`
+ * role (e.g. cross-tenant data overrides, destructive platform mutations).
+ */
+export function isActivePlatformSuperadmin(user: User | null | undefined): boolean {
+  if (!user) return false;
+  if (user.accountDisabled) return false;
+  return user.role === "superadmin";
+}

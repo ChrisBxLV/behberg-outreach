@@ -161,3 +161,57 @@ describe("isPlatformOperatorUser (Firebase display name)", () => {
     ).toBe(true);
   });
 });
+
+describe("isActivePlatformSuperadmin", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("is true only for active superadmin role", async () => {
+    const { isActivePlatformSuperadmin } = await import("./_core/orgScope");
+    expect(
+      isActivePlatformSuperadmin({ ...baseUser, role: "superadmin" } as User),
+    ).toBe(true);
+  });
+
+  it("is false for disabled superadmin", async () => {
+    const { isActivePlatformSuperadmin } = await import("./_core/orgScope");
+    expect(
+      isActivePlatformSuperadmin({
+        ...baseUser,
+        role: "superadmin",
+        accountDisabled: true,
+      } as User),
+    ).toBe(false);
+  });
+
+  it("is false for default-operator-by-login admin (no superadmin role yet)", async () => {
+    vi.stubEnv("DEFAULT_ADMIN_LOGIN", "behberg");
+    const { isActivePlatformSuperadmin, isPlatformOperatorUser } = await import(
+      "./_core/orgScope"
+    );
+    const operatorByLogin = baseUser as User;
+    expect(isPlatformOperatorUser(operatorByLogin)).toBe(true);
+    expect(isActivePlatformSuperadmin(operatorByLogin)).toBe(false);
+  });
+
+  it("is false for org admin without superadmin role", async () => {
+    const { isActivePlatformSuperadmin } = await import("./_core/orgScope");
+    expect(
+      isActivePlatformSuperadmin({
+        ...baseUser,
+        openId: "login:other",
+        email: "other@example.com",
+        name: "Other",
+        role: "admin",
+        organizationId: 4,
+        orgMemberRole: "owner",
+      } as User),
+    ).toBe(false);
+  });
+});

@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import type { User } from "../../../drizzle/schema";
-import { isPlatformOperatorUser } from "../orgScope";
+import { isActivePlatformSuperadmin, isPlatformOperatorUser } from "../orgScope";
 
 /**
  * Resolved scope for tenant-scoped database queries.
@@ -47,6 +47,25 @@ export function requireTenantQueryScope(user: User | null | undefined): TenantQu
     });
   }
   return scope;
+}
+
+/**
+ * Variant of `requireTenantQueryScope` that grants cross-tenant (`platform`)
+ * scope to active platform `superadmin` accounts even when they have a
+ * workspace org assigned.
+ *
+ * Intended for read/write routes that intentionally let strict superadmins
+ * see/edit rows across tenants (e.g. contacts list/get used in the platform
+ * console). Routes that should always scope superadmins to their own
+ * workspace org (e.g. campaigns) should keep using `requireTenantQueryScope`.
+ */
+export function requireSuperadminOrTenantQueryScope(
+  user: User | null | undefined,
+): TenantQueryScope {
+  if (isActivePlatformSuperadmin(user)) {
+    return { type: "platform" };
+  }
+  return requireTenantQueryScope(user);
 }
 
 /** Scope for reading a contact row by its `organizationId` column (internal db helpers). */

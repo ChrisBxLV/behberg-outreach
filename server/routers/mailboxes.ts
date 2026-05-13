@@ -1,6 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { resolveTxt } from "node:dns/promises";
 import { z } from "zod";
+import type { User } from "../../drizzle/schema";
+import { hasPermission } from "../_core/authz";
 import { dataScopeOrganizationId } from "../_core/orgScope";
 import { encryptSecret } from "../_core/secrets";
 import { inferRequestOrigin } from "../_core/requestOrigin";
@@ -30,35 +32,29 @@ import {
 import { buildProviderForMailbox } from "../services/providers";
 import { logMailboxEvent } from "../services/observability";
 
-function assertOrganizationMember(user: {
-  role: string | null;
-  orgMemberRole: string | null;
-  organizationId: number | null;
-}) {
+function assertOrganizationMember(user: User) {
   if (!user.organizationId) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
   }
 }
 
-function assertMailboxManager(user: {
-  role: string | null;
-  orgMemberRole: string | null;
-  organizationId: number | null;
-}) {
+function assertMailboxManager(user: User) {
   assertOrganizationMember(user);
-  const isPlatformAdmin = user.role === "admin" || user.role === "superadmin";
+  // `system.notifyOwner` ≡ active `admin`/`superadmin` role (workspace or
+  // platform). Org owners (per workspace membership) can also manage their
+  // own mailboxes.
+  const isPlatformAdmin = hasPermission(user, "system.notifyOwner");
   const isOrgOwner = user.orgMemberRole === "owner";
   if (!(isPlatformAdmin || isOrgOwner)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Only org owners/admins can manage mailboxes." });
   }
 }
 
-function canManageMailbox(user: {
-  id: number;
-  role: string | null;
-  orgMemberRole: string | null;
-}, mailbox: { connectedByUserId: number | null }) {
-  const isPlatformAdmin = user.role === "admin" || user.role === "superadmin";
+function canManageMailbox(
+  user: User,
+  mailbox: { connectedByUserId: number | null },
+) {
+  const isPlatformAdmin = hasPermission(user, "system.notifyOwner");
   const isOrgOwner = user.orgMemberRole === "owner";
   if (isPlatformAdmin || isOrgOwner) return true;
   return mailbox.connectedByUserId != null && mailbox.connectedByUserId === user.id;

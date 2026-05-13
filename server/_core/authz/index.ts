@@ -2,6 +2,7 @@ export {
   type TenantQueryScope,
   resolveTenantQueryScope,
   requireTenantQueryScope,
+  requireSuperadminOrTenantQueryScope,
   scopeForContactOrganizationId,
   workspaceOrganizationId,
 } from "./tenantScope";

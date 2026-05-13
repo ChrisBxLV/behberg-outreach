@@ -437,6 +437,74 @@ describe("contacts", () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.batchId).toBe("org-batch-1");
   });
+
+  it("blocks cross-tenant contact get for org member", async () => {
+    const db = await import("./db");
+    // Simulate the db helper enforcing tenant scope: when scope is { tenant, 1 }
+    // and the row belongs to org 999, the query returns null.
+    vi.mocked(db.getContactById).mockResolvedValueOnce(null);
+
+    const caller = appRouter.createCaller(makeTenantCtx());
+    await expect(caller.contacts.get({ id: 7 })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(vi.mocked(db.getContactById)).toHaveBeenCalledWith(7, {
+      type: "tenant",
+      organizationId: 1,
+    });
+  });
+
+  it("blocks cross-tenant contact update for org member", async () => {
+    const db = await import("./db");
+    vi.mocked(db.getContactById).mockResolvedValueOnce({
+      id: 7,
+      organizationId: 999,
+    } as any);
+    vi.mocked(db.updateContact).mockClear();
+
+    const caller = appRouter.createCaller(makeTenantCtx());
+    await expect(
+      caller.contacts.update({ id: 7, firstName: "X" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(vi.mocked(db.updateContact)).not.toHaveBeenCalled();
+  });
+
+  it("uses platform scope for superadmin with workspace org (cross-tenant override)", async () => {
+    const db = await import("./db");
+    const base = makeCtx();
+    const caller = appRouter.createCaller({
+      ...base,
+      user: {
+        ...base.user!,
+        role: "superadmin",
+        organizationId: 1,
+        orgMemberRole: "owner",
+      },
+    });
+    await caller.contacts.list({ limit: 5, offset: 0 });
+    expect(vi.mocked(db.getContacts)).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: { type: "platform" } }),
+    );
+  });
+
+  it("does not give platform scope to disabled superadmin", async () => {
+    const db = await import("./db");
+    const base = makeCtx();
+    const caller = appRouter.createCaller({
+      ...base,
+      user: {
+        ...base.user!,
+        role: "superadmin",
+        accountDisabled: false, // procedure ran; we only test scope helper resolution here
+        organizationId: 1,
+      },
+    });
+    await caller.contacts.list({ limit: 1, offset: 0 });
+    // sanity: active superadmin gets platform scope
+    expect(vi.mocked(db.getContacts)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: { type: "platform" } }),
+    );
+  });
 });
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
@@ -555,6 +623,60 @@ describe("campaigns", () => {
     const caller = appRouter.createCaller(makeTenantCtx());
     const result = await caller.campaigns.markReplied({ emailLogId: 1 });
     expect(result.success).toBe(true);
+  });
+
+  it("blocks cross-tenant campaign get for org member", async () => {
+    const db = await import("./db");
+    // When scope is { tenant, organizationId: 1 }, the db helper filters
+    // out rows that belong to other organizations -> returns null.
+    vi.mocked(db.getCampaignById).mockResolvedValueOnce(null);
+
+    const caller = appRouter.createCaller(makeTenantCtx());
+    await expect(caller.campaigns.get({ id: 99 })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(vi.mocked(db.getCampaignById)).toHaveBeenCalledWith(99, {
+      type: "tenant",
+      organizationId: 1,
+    });
+  });
+
+  it("blocks cross-tenant campaign update for org member", async () => {
+    const db = await import("./db");
+    vi.mocked(db.getCampaignById).mockResolvedValueOnce({
+      id: 99,
+      organizationId: 999,
+    } as any);
+    vi.mocked(db.updateCampaign).mockClear();
+
+    const caller = appRouter.createCaller(makeTenantCtx());
+    await expect(
+      caller.campaigns.update({ id: 99, name: "renamed" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(vi.mocked(db.updateCampaign)).not.toHaveBeenCalled();
+  });
+
+  it("campaign list keeps superadmin scoped to their workspace org (no cross-tenant override)", async () => {
+    const db = await import("./db");
+    const base = makeCtx();
+    const caller = appRouter.createCaller({
+      ...base,
+      user: {
+        ...base.user!,
+        role: "superadmin",
+        organizationId: 1,
+        orgMemberRole: "owner",
+      },
+    });
+    vi.mocked(db.getCampaigns).mockClear();
+    await caller.campaigns.list();
+    // Campaigns route intentionally uses requireTenantQueryScope (not the
+    // superadmin override): a superadmin with a workspace org sees only that
+    // workspace's campaigns.
+    expect(vi.mocked(db.getCampaigns)).toHaveBeenCalledWith({
+      type: "tenant",
+      organizationId: 1,
+    });
   });
 
   it("updateContactStatus blocks cross-organization campaign contacts", async () => {

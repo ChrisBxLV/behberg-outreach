@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { dataScopeOrganizationId } from "../_core/orgScope";
 import { assertContactScope } from "../_core/orgAccess";
-import { requireTenantQueryScope } from "../_core/authz";
+import { requireSuperadminOrTenantQueryScope } from "../_core/authz";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
   getContacts,
@@ -37,28 +37,19 @@ export const contactsRouter = router({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const scope =
-        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
-          ? ({ type: "platform" } as const)
-          : requireTenantQueryScope(ctx.user);
+      const scope = requireSuperadminOrTenantQueryScope(ctx.user);
       return getContacts({ ...input, scope });
     }),
 
   filterOptions: protectedProcedure.query(async ({ ctx }) => {
-    const scope =
-      ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
-        ? ({ type: "platform" } as const)
-        : requireTenantQueryScope(ctx.user);
+    const scope = requireSuperadminOrTenantQueryScope(ctx.user);
     return getContactFilterOptions(scope);
   }),
 
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const scope =
-        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
-          ? ({ type: "platform" } as const)
-          : requireTenantQueryScope(ctx.user);
+      const scope = requireSuperadminOrTenantQueryScope(ctx.user);
       const contact = await getContactById(input.id, scope);
       assertContactScope(contact, ctx.user);
       return contact!;
@@ -67,10 +58,7 @@ export const contactsRouter = router({
   enrichContact: protectedProcedure
     .input(z.object({ contactId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const scope =
-        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
-          ? ({ type: "platform" } as const)
-          : requireTenantQueryScope(ctx.user);
+      const scope = requireSuperadminOrTenantQueryScope(ctx.user);
 
       const contact = await getContactById(input.contactId, scope);
       assertContactScope(contact, ctx.user);
@@ -144,10 +132,7 @@ export const contactsRouter = router({
   getContactEnrichmentResults: protectedProcedure
     .input(z.object({ contactId: z.number() }))
     .query(async ({ input, ctx }) => {
-      const scope =
-        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
-          ? ({ type: "platform" } as const)
-          : requireTenantQueryScope(ctx.user);
+      const scope = requireSuperadminOrTenantQueryScope(ctx.user);
 
       const contact = await getContactById(input.contactId, scope);
       assertContactScope(contact, ctx.user);
@@ -158,10 +143,7 @@ export const contactsRouter = router({
   updateContactLinkedInUrl: protectedProcedure
     .input(z.object({ contactId: z.number(), linkedinUrl: z.string().nullable() }))
     .mutation(async ({ input, ctx }) => {
-      const scope =
-        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
-          ? ({ type: "platform" } as const)
-          : requireTenantQueryScope(ctx.user);
+      const scope = requireSuperadminOrTenantQueryScope(ctx.user);
 
       const contact = await getContactById(input.contactId, scope);
       assertContactScope(contact, ctx.user);
@@ -240,10 +222,7 @@ export const contactsRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
-      const scope =
-        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
-          ? ({ type: "platform" } as const)
-          : requireTenantQueryScope(ctx.user);
+      const scope = requireSuperadminOrTenantQueryScope(ctx.user);
       const contact = await getContactById(id, scope);
       assertContactScope(contact, ctx.user);
       await updateContact(id, data, scope);
@@ -253,10 +232,7 @@ export const contactsRouter = router({
   delete: protectedProcedure
     .input(z.object({ ids: z.array(z.number()) }))
     .mutation(async ({ input, ctx }) => {
-      const scope =
-        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
-          ? ({ type: "platform" } as const)
-          : requireTenantQueryScope(ctx.user);
+      const scope = requireSuperadminOrTenantQueryScope(ctx.user);
       await deleteContacts(input.ids, scope);
       return { success: true, deleted: input.ids.length };
     }),
@@ -269,29 +245,20 @@ export const contactsRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const scope =
-        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
-          ? ({ type: "platform" } as const)
-          : requireTenantQueryScope(ctx.user);
+      const scope = requireSuperadminOrTenantQueryScope(ctx.user);
       await bulkUpdateContactStage(input.ids, input.stage, scope);
       return { success: true };
     }),
 
   importBatches: protectedProcedure.query(async ({ ctx }) => {
-    const scope =
-      ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
-        ? ({ type: "platform" } as const)
-        : requireTenantQueryScope(ctx.user);
+    const scope = requireSuperadminOrTenantQueryScope(ctx.user);
     return getImportBatches(scope);
   }),
 
   emailHistory: protectedProcedure
     .input(z.object({ contactId: z.number() }))
     .query(async ({ input, ctx }) => {
-      const scope =
-        ctx.user?.role === "superadmin" && !ctx.user.accountDisabled
-          ? ({ type: "platform" } as const)
-          : requireTenantQueryScope(ctx.user);
+      const scope = requireSuperadminOrTenantQueryScope(ctx.user);
       const contact = await getContactById(input.contactId, scope);
       assertContactScope(contact, ctx.user);
       return getEmailLogsByContact(input.contactId);

@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import type { Campaign, Contact, User } from "../../drizzle/schema";
 import { resolveTenantQueryScope } from "./authz";
+import { isActivePlatformSuperadmin } from "./orgScope";
 
 export function assertContactScope(
   contact: Contact | null | undefined,
@@ -9,7 +10,8 @@ export function assertContactScope(
   if (!contact) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Contact not found" });
   }
-  if (user?.role === "superadmin" && !user.accountDisabled) return;
+  // Strict superadmin bypass mirrors the cross-tenant scope used in contacts routes.
+  if (isActivePlatformSuperadmin(user)) return;
   const scope = resolveTenantQueryScope(user);
   if (scope == null) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });

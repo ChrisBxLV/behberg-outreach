@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { superadminProcedure, router } from "../_core/trpc";
 import { ENV } from "../_core/env";
 import { isFirebaseServerAuthConfigured } from "../_core/firebaseAdmin";
-import { isDefaultEnvOperatorAccount } from "../_core/orgScope";
+import { isActivePlatformSuperadmin, isDefaultEnvOperatorAccount } from "../_core/orgScope";
 import {
   countActiveSuperadminUsersExcluding,
   createOrganizationRecord,
@@ -290,7 +290,11 @@ export const platformRouter = router({
   deleteUser: superadminProcedure
     .input(z.object({ userId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.role !== "superadmin") {
+      // `superadminProcedure` allows the default-operator-by-login (role still
+      // "admin") into the platform console; deleting users is gated to the
+      // strict `superadmin` role to avoid privilege creep before the role
+      // migration has run for every operator account.
+      if (!isActivePlatformSuperadmin(ctx.user)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin role required." });
       }
       if (ctx.user.id === input.userId) {

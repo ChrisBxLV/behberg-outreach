@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { User } from "../../../drizzle/schema";
-import { resolveTenantQueryScope, requireTenantQueryScope } from "./tenantScope";
+import {
+  requireSuperadminOrTenantQueryScope,
+  requireTenantQueryScope,
+  resolveTenantQueryScope,
+} from "./tenantScope";
 
 function baseUser(overrides: Partial<User> = {}): User {
   return {
@@ -56,5 +60,45 @@ describe("requireTenantQueryScope", () => {
     expect(() => requireTenantQueryScope(baseUser({ organizationId: null }))).toThrow(
       /Organization context required/,
     );
+  });
+});
+
+describe("requireSuperadminOrTenantQueryScope", () => {
+  it("returns platform scope for active superadmin even with workspace org", () => {
+    expect(
+      requireSuperadminOrTenantQueryScope(
+        baseUser({ role: "superadmin", organizationId: 5 }),
+      ),
+    ).toEqual({ type: "platform" });
+  });
+
+  it("returns platform scope for active superadmin without workspace org", () => {
+    expect(
+      requireSuperadminOrTenantQueryScope(
+        baseUser({ role: "superadmin", organizationId: null }),
+      ),
+    ).toEqual({ type: "platform" });
+  });
+
+  it("does not bypass workspace scope for disabled superadmin", () => {
+    expect(
+      requireSuperadminOrTenantQueryScope(
+        baseUser({ role: "superadmin", organizationId: 9, accountDisabled: true }),
+      ),
+    ).toEqual({ type: "tenant", organizationId: 9 });
+  });
+
+  it("returns tenant scope for a regular org member", () => {
+    expect(
+      requireSuperadminOrTenantQueryScope(
+        baseUser({ role: "admin", organizationId: 11, orgMemberRole: "owner" }),
+      ),
+    ).toEqual({ type: "tenant", organizationId: 11 });
+  });
+
+  it("throws for a non-operator user without organization", () => {
+    expect(() =>
+      requireSuperadminOrTenantQueryScope(baseUser({ role: "user", organizationId: null })),
+    ).toThrow(/Organization context required/);
   });
 });
