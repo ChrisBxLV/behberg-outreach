@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -203,6 +204,7 @@ export default function SearchPage() {
 }
 
 function SearchContent() {
+  const { user } = useAuth();
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [activeTab, setActiveTab] = useState<"companies" | "employees">("companies");
   const [expandedCompanyId, setExpandedCompanyId] = useState<number | null>(null);
@@ -230,6 +232,7 @@ function SearchContent() {
   }, [industriesQuery.data]);
 
   const activeFilterCount = countActiveFilters(filters, activeTab);
+  const isSuperadmin = user?.role === "superadmin";
 
   return (
     <div className="space-y-4 p-2 md:p-4">
@@ -237,8 +240,14 @@ function SearchContent() {
         <h1 className="text-2xl font-semibold">Search</h1>
         <p className="text-sm text-muted-foreground">
           Browse the autonomous prospect database — companies discovered by the background crawler,
-          their employees, and best-guess work emails verified by MX records. LinkedIn/SERP sources are
-          disabled by default unless the server sets <span className="font-mono">PROSPECT_ENABLE_SERP_SOURCES=true</span>.
+          their employees, and best-guess work emails verified by MX records.
+          {isSuperadmin ? (
+            <>
+              {" "}
+              LinkedIn/SERP sources are disabled by default unless the server sets{" "}
+              <span className="font-mono">PROSPECT_ENABLE_SERP_SOURCES=true</span>.
+            </>
+          ) : null}
         </p>
       </div>
 
@@ -277,6 +286,7 @@ function SearchContent() {
               <CompanyResults
                 filters={filters}
                 expandedCompanyId={expandedCompanyId}
+                isSuperadmin={isSuperadmin}
                 onToggleCompany={id => setExpandedCompanyId(prev => (prev === id ? null : id))}
               />
             ) : (
@@ -877,10 +887,12 @@ function IndustryMultiSelect({
 function CompanyResults({
   filters,
   expandedCompanyId,
+  isSuperadmin,
   onToggleCompany,
 }: {
   filters: FilterState;
   expandedCompanyId: number | null;
+  isSuperadmin: boolean;
   onToggleCompany: (id: number) => void;
 }) {
   const query = trpc.prospectSearch.companies.useInfiniteQuery(
@@ -979,7 +991,7 @@ function CompanyResults({
             )}
           </button>
           {expandedCompanyId === company.id ? (
-            <CompanyEmployees companyId={company.id} />
+            <CompanyEmployees companyId={company.id} isSuperadmin={isSuperadmin} />
           ) : null}
         </div>
       ))}
@@ -1000,15 +1012,21 @@ function CompanyResults({
   );
 }
 
-function CompanyEmployees({ companyId }: { companyId: number }) {
+function CompanyEmployees({ companyId, isSuperadmin }: { companyId: number; isSuperadmin: boolean }) {
   const query = trpc.prospectSearch.employeesByCompany.useQuery({ companyId });
   const items = query.data ?? [];
   if (query.isLoading) return <div className="px-4 py-3 text-sm text-muted-foreground">Loading people…</div>;
   if (!items.length) {
     return (
       <div className="px-4 py-3 text-sm text-muted-foreground">
-        No employees harvested yet. LinkedIn/SERP harvesting is disabled by default; an admin can enable it with{" "}
-        <span className="font-mono">PROSPECT_ENABLE_SERP_SOURCES=true</span>.
+        {isSuperadmin ? (
+          <>
+            No employees harvested yet. LinkedIn/SERP harvesting is disabled by default; an admin can enable it with{" "}
+            <span className="font-mono">PROSPECT_ENABLE_SERP_SOURCES=true</span>.
+          </>
+        ) : (
+          "No employees harvested yet."
+        )}
       </div>
     );
   }

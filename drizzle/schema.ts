@@ -8,6 +8,7 @@ import {
   boolean,
   double,
   float,
+  index,
   json,
   bigint,
   uniqueIndex,
@@ -26,52 +27,72 @@ export type Organization = typeof organizations.$inferSelect;
 export type InsertOrganization = typeof organizations.$inferInsert;
 
 // ─── Users ────────────────────────────────────────────────────────────────────
-export const users = mysqlTable("users", {
-  id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
-  name: text("name"),
-  email: varchar("email", { length: 320 }),
-  phone: varchar("phone", { length: 64 }),
-  country: varchar("country", { length: 2 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
-  // Password login (PBKDF2 derived hash). Nullable to support existing OAuth-only users.
-  passwordSalt: varchar("passwordSalt", { length: 128 }),
-  passwordHash: varchar("passwordHash", { length: 128 }),
-  /** `superadmin` = Behberg platform operator (all tenants). `admin` = workspace admin. */
-  role: mysqlEnum("role", ["user", "admin", "superadmin"]).default("user").notNull(),
-  /** When true, sign-in and platform access are denied (set from Superadmin console). */
-  accountDisabled: boolean("accountDisabled").default(false).notNull(),
-  /**
-   * Workspace this user belongs to (null = platform / legacy users).
-   * Nullable by design; non-null values are enforced by FK `users_organization_id_fk` (migration 0006).
-   */
-  organizationId: int("organizationId").references(() => organizations.id, {
-    onDelete: "set null",
-    onUpdate: "cascade",
+export const users = mysqlTable(
+  "users",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    openId: varchar("openId", { length: 64 }).notNull().unique(),
+    name: text("name"),
+    email: varchar("email", { length: 320 }),
+    phone: varchar("phone", { length: 64 }),
+    country: varchar("country", { length: 2 }),
+    loginMethod: varchar("loginMethod", { length: 64 }),
+    // Password login (PBKDF2 derived hash). Nullable to support existing OAuth-only users.
+    passwordSalt: varchar("passwordSalt", { length: 128 }),
+    passwordHash: varchar("passwordHash", { length: 128 }),
+    /** `superadmin` = Behberg platform operator (all tenants). `admin` = workspace admin. */
+    role: mysqlEnum("role", ["user", "admin", "superadmin"]).default("user").notNull(),
+    /** When true, sign-in and platform access are denied (set from Superadmin console). */
+    accountDisabled: boolean("accountDisabled").default(false).notNull(),
+    /**
+     * Workspace this user belongs to (null = platform / legacy users).
+     * Nullable by design; non-null values are enforced by FK `users_organization_id_fk` (migration 0006).
+     */
+    organizationId: int("organizationId").references(() => organizations.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    /** owner = org admin who signed up; member = invited by owner. */
+    orgMemberRole: mysqlEnum("orgMemberRole", ["owner", "member"]),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+    /** Dismissal cursor for "new positive replies" on dashboard. */
+    positiveRepliesLastSeenAt: timestamp("positiveRepliesLastSeenAt"),
+  },
+  table => ({
+    organizationIdIdx: index("users_organization_id_idx").on(table.organizationId),
+    emailIdx: index("users_email_idx").on(table.email),
   }),
-  /** owner = org admin who signed up; member = invited by owner. */
-  orgMemberRole: mysqlEnum("orgMemberRole", ["owner", "member"]),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
-  /** Dismissal cursor for "new positive replies" on dashboard. */
-  positiveRepliesLastSeenAt: timestamp("positiveRepliesLastSeenAt"),
-});
+);
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-export const loginChallenges = mysqlTable("login_challenges", {
-  id: int("id").autoincrement().primaryKey(),
-  email: varchar("email", { length: 320 }).notNull(),
-  codeHash: varchar("codeHash", { length: 128 }).notNull(),
-  requestIp: varchar("requestIp", { length: 64 }),
-  expiresAt: timestamp("expiresAt").notNull(),
-  attemptCount: int("attemptCount").default(0).notNull(),
-  maxAttempts: int("maxAttempts").default(5).notNull(),
-  usedAt: timestamp("usedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+export const loginChallenges = mysqlTable(
+  "login_challenges",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    email: varchar("email", { length: 320 }).notNull(),
+    codeHash: varchar("codeHash", { length: 128 }).notNull(),
+    requestIp: varchar("requestIp", { length: 64 }),
+    expiresAt: timestamp("expiresAt").notNull(),
+    attemptCount: int("attemptCount").default(0).notNull(),
+    maxAttempts: int("maxAttempts").default(5).notNull(),
+    usedAt: timestamp("usedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    emailIdx: index("login_challenges_email_idx").on(table.email),
+    expiresAtIdx: index("login_challenges_expires_at_idx").on(table.expiresAt),
+    usedAtIdx: index("login_challenges_used_at_idx").on(table.usedAt),
+    emailUsedExpiresIdx: index("login_challenges_email_used_expires_idx").on(
+      table.email,
+      table.usedAt,
+      table.expiresAt,
+    ),
+  }),
+);
 
 export type LoginChallenge = typeof loginChallenges.$inferSelect;
 export type InsertLoginChallenge = typeof loginChallenges.$inferInsert;
@@ -92,47 +113,58 @@ export type UserDashboardPreferences = typeof userDashboardPreferences.$inferSel
 export type InsertUserDashboardPreferences = typeof userDashboardPreferences.$inferInsert;
 
 // ─── Contacts ─────────────────────────────────────────────────────────────────
-export const contacts = mysqlTable("contacts", {
-  id: int("id").autoincrement().primaryKey(),
-  // Identity
-  firstName: varchar("firstName", { length: 128 }),
-  lastName: varchar("lastName", { length: 128 }),
-  fullName: varchar("fullName", { length: 256 }),
-  email: varchar("email", { length: 320 }),
-  phone: varchar("phone", { length: 64 }),
-  emailConfidence: float("emailConfidence"), // 0-1 from Apollo
-  emailStatus: mysqlEnum("emailStatus", ["unknown", "valid", "invalid", "catch_all", "risky"]).default("unknown"),
-  // Professional
-  title: varchar("title", { length: 256 }),
-  company: varchar("company", { length: 256 }),
-  industry: varchar("industry", { length: 256 }),
-  companySize: varchar("companySize", { length: 64 }),
-  companyWebsite: varchar("companyWebsite", { length: 512 }),
-  linkedinUrl: varchar("linkedinUrl", { length: 512 }),
-  /** Normalized domain derived from email or companyWebsite (non-personal domains only). */
-  normalizedDomain: varchar("normalizedDomain", { length: 255 }),
-  enrichmentStatus: varchar("enrichmentStatus", { length: 32 }).default("not_enriched").notNull(),
-  enrichmentUpdatedAt: timestamp("enrichmentUpdatedAt"),
-  location: varchar("location", { length: 256 }),
-  // Pipeline
-  stage: mysqlEnum("stage", ["new", "enriched", "in_sequence", "replied", "closed", "unsubscribed"]).default("new").notNull(),
-  notes: text("notes"),
-  tags: json("tags").$type<string[]>(),
-  // Source
-  source: varchar("source", { length: 64 }).default("csv_import"),
-  importBatchId: varchar("importBatchId", { length: 64 }),
-  // Timestamps
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  /**
-   * Row-level scope: same id as organizations.id; null = legacy unscoped rows.
-   * Nullable by design; non-null values are enforced by FK `contacts_organization_id_fk` (migration 0006).
-   */
-  organizationId: int("organizationId").references(() => organizations.id, {
-    onDelete: "cascade",
-    onUpdate: "cascade",
+export const contacts = mysqlTable(
+  "contacts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    // Identity
+    firstName: varchar("firstName", { length: 128 }),
+    lastName: varchar("lastName", { length: 128 }),
+    fullName: varchar("fullName", { length: 256 }),
+    email: varchar("email", { length: 320 }),
+    phone: varchar("phone", { length: 64 }),
+    emailConfidence: float("emailConfidence"), // 0-1 from Apollo
+    emailStatus: mysqlEnum("emailStatus", ["unknown", "valid", "invalid", "catch_all", "risky"]).default("unknown"),
+    // Professional
+    title: varchar("title", { length: 256 }),
+    company: varchar("company", { length: 256 }),
+    industry: varchar("industry", { length: 256 }),
+    companySize: varchar("companySize", { length: 64 }),
+    companyWebsite: varchar("companyWebsite", { length: 512 }),
+    linkedinUrl: varchar("linkedinUrl", { length: 512 }),
+    /** Normalized domain derived from email or companyWebsite (non-personal domains only). */
+    normalizedDomain: varchar("normalizedDomain", { length: 255 }),
+    enrichmentStatus: varchar("enrichmentStatus", { length: 32 }).default("not_enriched").notNull(),
+    enrichmentUpdatedAt: timestamp("enrichmentUpdatedAt"),
+    location: varchar("location", { length: 256 }),
+    // Pipeline
+    stage: mysqlEnum("stage", ["new", "enriched", "in_sequence", "replied", "closed", "unsubscribed"]).default("new").notNull(),
+    notes: text("notes"),
+    tags: json("tags").$type<string[]>(),
+    // Source
+    source: varchar("source", { length: 64 }).default("csv_import"),
+    importBatchId: varchar("importBatchId", { length: 64 }),
+    // Timestamps
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    /**
+     * Row-level scope: same id as organizations.id; null = legacy unscoped rows.
+     * Nullable by design; non-null values are enforced by FK `contacts_organization_id_fk` (migration 0006).
+     */
+    organizationId: int("organizationId").references(() => organizations.id, {
+      onDelete: "cascade",
+      onUpdate: "cascade",
+    }),
+  },
+  table => ({
+    organizationIdIdx: index("contacts_organization_id_idx").on(table.organizationId),
+    emailIdx: index("contacts_email_idx").on(table.email),
+    updatedAtIdx: index("contacts_updated_at_idx").on(table.updatedAt),
+    stageIdx: index("contacts_stage_idx").on(table.stage),
+    emailStatusIdx: index("contacts_email_status_idx").on(table.emailStatus),
+    normalizedDomainIdx: index("contacts_normalized_domain_idx").on(table.normalizedDomain),
   }),
-});
+);
 
 export type Contact = typeof contacts.$inferSelect;
 export type InsertContact = typeof contacts.$inferInsert;
@@ -176,35 +208,43 @@ export const importBatches = mysqlTable("import_batches", {
 export type ImportBatch = typeof importBatches.$inferSelect;
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
-export const campaigns = mysqlTable("campaigns", {
-  id: int("id").autoincrement().primaryKey(),
-  name: varchar("name", { length: 256 }).notNull(),
-  description: text("description"),
-  status: mysqlEnum("status", ["draft", "active", "paused", "completed"]).default("draft").notNull(),
-  fromName: varchar("fromName", { length: 128 }).default("Behberg"),
-  fromEmail: varchar("fromEmail", { length: 320 }).default("outreach@behberg.com"),
-  replyTo: varchar("replyTo", { length: 320 }),
-  mailboxId: int("mailboxId"),
-  // Tracking
-  totalContacts: int("totalContacts").default(0),
-  sentCount: int("sentCount").default(0),
-  openCount: int("openCount").default(0),
-  replyCount: int("replyCount").default(0),
-  bounceCount: int("bounceCount").default(0),
-  // Milestone notifications
-  notifiedAt100Sent: boolean("notifiedAt100Sent").default(false),
-  notifiedHighReply: boolean("notifiedHighReply").default(false),
-  notifiedBounce: boolean("notifiedBounce").default(false),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  /**
-   * Nullable for legacy rows; non-null values are enforced by FK `campaigns_organization_id_fk` (migration 0006).
-   */
-  organizationId: int("organizationId").references(() => organizations.id, {
-    onDelete: "cascade",
-    onUpdate: "cascade",
+export const campaigns = mysqlTable(
+  "campaigns",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    name: varchar("name", { length: 256 }).notNull(),
+    description: text("description"),
+    status: mysqlEnum("status", ["draft", "active", "paused", "completed"]).default("draft").notNull(),
+    fromName: varchar("fromName", { length: 128 }).default("Behberg"),
+    fromEmail: varchar("fromEmail", { length: 320 }).default("outreach@behberg.com"),
+    replyTo: varchar("replyTo", { length: 320 }),
+    mailboxId: int("mailboxId"),
+    // Tracking
+    totalContacts: int("totalContacts").default(0),
+    sentCount: int("sentCount").default(0),
+    openCount: int("openCount").default(0),
+    replyCount: int("replyCount").default(0),
+    bounceCount: int("bounceCount").default(0),
+    // Milestone notifications
+    notifiedAt100Sent: boolean("notifiedAt100Sent").default(false),
+    notifiedHighReply: boolean("notifiedHighReply").default(false),
+    notifiedBounce: boolean("notifiedBounce").default(false),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    /**
+     * Nullable for legacy rows; non-null values are enforced by FK `campaigns_organization_id_fk` (migration 0006).
+     */
+    organizationId: int("organizationId").references(() => organizations.id, {
+      onDelete: "cascade",
+      onUpdate: "cascade",
+    }),
+  },
+  table => ({
+    organizationIdIdx: index("campaigns_organization_id_idx").on(table.organizationId),
+    statusIdx: index("campaigns_status_idx").on(table.status),
+    mailboxIdIdx: index("campaigns_mailbox_id_idx").on(table.mailboxId),
   }),
-});
+);
 
 export type Campaign = typeof campaigns.$inferSelect;
 export type InsertCampaign = typeof campaigns.$inferInsert;
@@ -240,6 +280,10 @@ export const mailboxes = mysqlTable(
       table.provider,
       table.email,
     ),
+    // organizationId on its own is already covered by the leftmost prefix of
+    // the unique index above; only email needs a standalone index for lookups
+    // like "find any mailbox by recipient email across the platform".
+    emailIdx: index("mailboxes_email_idx").on(table.email),
   }),
 );
 
@@ -353,17 +397,27 @@ export const mailboxSendLimits = mysqlTable("mailbox_send_limits", {
 export type MailboxSendLimit = typeof mailboxSendLimits.$inferSelect;
 export type InsertMailboxSendLimit = typeof mailboxSendLimits.$inferInsert;
 
-export const mailboxWebhookSubscriptions = mysqlTable("mailbox_webhook_subscriptions", {
-  id: int("id").autoincrement().primaryKey(),
-  mailboxId: int("mailboxId")
-    .notNull()
-    .references(() => mailboxes.id, { onDelete: "cascade", onUpdate: "cascade" }),
-  providerSubscriptionId: varchar("providerSubscriptionId", { length: 256 }).notNull(),
-  status: mysqlEnum("status", ["active", "expired", "error"]).default("active").notNull(),
-  expiresAt: timestamp("expiresAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+export const mailboxWebhookSubscriptions = mysqlTable(
+  "mailbox_webhook_subscriptions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    mailboxId: int("mailboxId")
+      .notNull()
+      .references(() => mailboxes.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    providerSubscriptionId: varchar("providerSubscriptionId", { length: 256 }).notNull(),
+    status: mysqlEnum("status", ["active", "expired", "error"]).default("active").notNull(),
+    expiresAt: timestamp("expiresAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    // mailboxId is already auto-indexed by InnoDB for the FK constraint, so we
+    // only add an index on providerSubscriptionId (used for webhook lookups).
+    providerSubscriptionIdIdx: index(
+      "mailbox_webhook_subscriptions_provider_subscription_id_idx",
+    ).on(table.providerSubscriptionId),
+  }),
+);
 
 export type MailboxWebhookSubscription = typeof mailboxWebhookSubscriptions.$inferSelect;
 export type InsertMailboxWebhookSubscription = typeof mailboxWebhookSubscriptions.$inferInsert;
@@ -414,62 +468,93 @@ export const campaignContacts = mysqlTable(
       table.campaignId,
       table.contactId,
     ),
+    // campaignId on its own is already covered by the leftmost prefix of the
+    // unique above; only contactId / status / nextSendAt need explicit indexes.
+    contactIdIdx: index("campaign_contacts_contact_id_idx").on(table.contactId),
+    statusIdx: index("campaign_contacts_status_idx").on(table.status),
+    nextSendAtIdx: index("campaign_contacts_next_send_at_idx").on(table.nextSendAt),
+    // Scheduler hot path: WHERE status = 'active' AND nextSendAt <= NOW().
+    statusNextSendAtIdx: index("campaign_contacts_status_next_send_at_idx").on(
+      table.status,
+      table.nextSendAt,
+    ),
   }),
 );
 
 export type CampaignContact = typeof campaignContacts.$inferSelect;
 
 // ─── Email Logs ───────────────────────────────────────────────────────────────
-export const emailLogs = mysqlTable("email_logs", {
-  id: int("id").autoincrement().primaryKey(),
-  campaignId: int("campaignId").notNull(),
-  contactId: int("contactId").notNull(),
-  sequenceStepId: int("sequenceStepId"),
-  campaignContactId: int("campaignContactId"),
-  mailboxId: int("mailboxId"),
-  // Email content
-  subject: varchar("subject", { length: 512 }),
-  body: text("body"),
-  fromEmail: varchar("fromEmail", { length: 320 }),
-  toEmail: varchar("toEmail", { length: 320 }),
-  // Status
-  status: mysqlEnum("status", ["queued", "sent", "failed", "bounced"]).default("queued").notNull(),
-  providerMessageId: varchar("providerMessageId", { length: 256 }),
-  /** Dedupes sends on scheduler retries: `${campaignContactId}:${sequenceStepId}` */
-  idempotencyKey: varchar("idempotencyKey", { length: 256 }).unique(),
-  providerThreadId: varchar("providerThreadId", { length: 256 }),
-  // Tracking
-  trackingId: varchar("trackingId", { length: 64 }).unique(), // UUID for pixel tracking
-  openedAt: timestamp("openedAt"),
-  openCount: int("openCount").default(0),
-  repliedAt: timestamp("repliedAt"),
-  replySentiment: mysqlEnum("replySentiment", [
-    "positive",
-    "negative",
-    "neutral",
-    "unsubscribe_intent",
-    "unknown",
-  ]),
-  replySnippet: text("replySnippet"),
-  bouncedAt: timestamp("bouncedAt"),
-  errorMessage: text("errorMessage"),
-  sentAt: timestamp("sentAt"),
-  scheduledAt: timestamp("scheduledAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+export const emailLogs = mysqlTable(
+  "email_logs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    campaignId: int("campaignId").notNull(),
+    contactId: int("contactId").notNull(),
+    sequenceStepId: int("sequenceStepId"),
+    campaignContactId: int("campaignContactId"),
+    mailboxId: int("mailboxId"),
+    // Email content
+    subject: varchar("subject", { length: 512 }),
+    body: text("body"),
+    fromEmail: varchar("fromEmail", { length: 320 }),
+    toEmail: varchar("toEmail", { length: 320 }),
+    // Status
+    status: mysqlEnum("status", ["queued", "sent", "failed", "bounced"]).default("queued").notNull(),
+    providerMessageId: varchar("providerMessageId", { length: 256 }),
+    /** Dedupes sends on scheduler retries: `${campaignContactId}:${sequenceStepId}` */
+    idempotencyKey: varchar("idempotencyKey", { length: 256 }).unique(),
+    providerThreadId: varchar("providerThreadId", { length: 256 }),
+    // Tracking
+    trackingId: varchar("trackingId", { length: 64 }).unique(), // UUID for pixel tracking
+    openedAt: timestamp("openedAt"),
+    openCount: int("openCount").default(0),
+    repliedAt: timestamp("repliedAt"),
+    replySentiment: mysqlEnum("replySentiment", [
+      "positive",
+      "negative",
+      "neutral",
+      "unsubscribe_intent",
+      "unknown",
+    ]),
+    replySnippet: text("replySnippet"),
+    bouncedAt: timestamp("bouncedAt"),
+    errorMessage: text("errorMessage"),
+    sentAt: timestamp("sentAt"),
+    scheduledAt: timestamp("scheduledAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    // trackingId / idempotencyKey are already unique (declared inline above);
+    // we only add non-unique indexes on the remaining hot filter/join columns.
+    campaignIdIdx: index("email_logs_campaign_id_idx").on(table.campaignId),
+    contactIdIdx: index("email_logs_contact_id_idx").on(table.contactId),
+    mailboxIdIdx: index("email_logs_mailbox_id_idx").on(table.mailboxId),
+    providerMessageIdIdx: index("email_logs_provider_message_id_idx").on(table.providerMessageId),
+    sentAtIdx: index("email_logs_sent_at_idx").on(table.sentAt),
+    repliedAtIdx: index("email_logs_replied_at_idx").on(table.repliedAt),
+    replySentimentIdx: index("email_logs_reply_sentiment_idx").on(table.replySentiment),
+  }),
+);
 
 export type EmailLog = typeof emailLogs.$inferSelect;
 export type InsertEmailLog = typeof emailLogs.$inferInsert;
 
 // ─── Tracking Events ──────────────────────────────────────────────────────────
-export const trackingEvents = mysqlTable("tracking_events", {
-  id: int("id").autoincrement().primaryKey(),
-  trackingId: varchar("trackingId", { length: 64 }).notNull(),
-  eventType: mysqlEnum("eventType", ["open", "click", "bounce", "reply"]).notNull(),
-  ipAddress: varchar("ipAddress", { length: 64 }),
-  userAgent: text("userAgent"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+export const trackingEvents = mysqlTable(
+  "tracking_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    trackingId: varchar("trackingId", { length: 64 }).notNull(),
+    eventType: mysqlEnum("eventType", ["open", "click", "bounce", "reply"]).notNull(),
+    ipAddress: varchar("ipAddress", { length: 64 }),
+    userAgent: text("userAgent"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    trackingIdIdx: index("tracking_events_tracking_id_idx").on(table.trackingId),
+    createdAtIdx: index("tracking_events_created_at_idx").on(table.createdAt),
+  }),
+);
 
 // ─── Signals ──────────────────────────────────────────────────────────────────
 export const signalProfiles = mysqlTable("signal_profiles", {
@@ -593,6 +678,11 @@ export const prospectCompanies = mysqlTable(
   table => ({
     domainUnique: uniqueIndex("prospect_companies_domain_unique").on(table.domain),
     linkedinUrlUnique: uniqueIndex("prospect_companies_linkedin_unique").on(table.linkedinUrl),
+    statusIdx: index("prospect_companies_status_idx").on(table.status),
+    industryCodeIdx: index("prospect_companies_industry_code_idx").on(table.industryCode),
+    hqCountryIdx: index("prospect_companies_hq_country_idx").on(table.hqCountry),
+    lastEnrichedAtIdx: index("prospect_companies_last_enriched_at_idx").on(table.lastEnrichedAt),
+    nameNormalizedIdx: index("prospect_companies_name_normalized_idx").on(table.nameNormalized),
   }),
 );
 
@@ -636,6 +726,11 @@ export const prospectEmployees = mysqlTable(
       table.companyId,
       table.fullName,
     ),
+    // companyId is already covered by the FK auto-index plus the leftmost
+    // prefix of the unique above.
+    emailIdx: index("prospect_employees_email_idx").on(table.email),
+    emailStatusIdx: index("prospect_employees_email_status_idx").on(table.emailStatus),
+    firstSeenAtIdx: index("prospect_employees_first_seen_at_idx").on(table.firstSeenAt),
   }),
 );
 
@@ -666,23 +761,34 @@ export const prospectEmailPatterns = mysqlTable(
 export type ProspectEmailPattern = typeof prospectEmailPatterns.$inferSelect;
 export type InsertProspectEmailPattern = typeof prospectEmailPatterns.$inferInsert;
 
-export const prospectCrawlSeeds = mysqlTable("prospect_crawl_seeds", {
-  id: int("id").autoincrement().primaryKey(),
-  /**
-   * "linkedin_company_serp","linkedin_employee_serp","wikidata_region","sec_edgar","uk_ch","website_team_page".
-   */
-  kind: varchar("kind", { length: 32 }).notNull(),
-  /** ISO country code, US state code, or "global". */
-  region: varchar("region", { length: 16 }).default("global").notNull(),
-  payload: json("payload").$type<Record<string, unknown>>(),
-  frequencyMinutes: int("frequencyMinutes").default(360).notNull(),
-  enabled: boolean("enabled").default(true).notNull(),
-  consecutiveErrors: int("consecutiveErrors").default(0).notNull(),
-  lastRunAt: timestamp("lastRunAt"),
-  nextRunAt: timestamp("nextRunAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+export const prospectCrawlSeeds = mysqlTable(
+  "prospect_crawl_seeds",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /**
+     * "linkedin_company_serp","linkedin_employee_serp","wikidata_region","sec_edgar","uk_ch","website_team_page".
+     */
+    kind: varchar("kind", { length: 32 }).notNull(),
+    /** ISO country code, US state code, or "global". */
+    region: varchar("region", { length: 16 }).default("global").notNull(),
+    payload: json("payload").$type<Record<string, unknown>>(),
+    frequencyMinutes: int("frequencyMinutes").default(360).notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
+    consecutiveErrors: int("consecutiveErrors").default(0).notNull(),
+    lastRunAt: timestamp("lastRunAt"),
+    nextRunAt: timestamp("nextRunAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    // Scheduler hot path: WHERE enabled = 1 AND nextRunAt <= NOW().
+    enabledNextRunAtIdx: index("prospect_crawl_seeds_enabled_next_run_at_idx").on(
+      table.enabled,
+      table.nextRunAt,
+    ),
+    kindIdx: index("prospect_crawl_seeds_kind_idx").on(table.kind),
+  }),
+);
 
 export type ProspectCrawlSeed = typeof prospectCrawlSeeds.$inferSelect;
 export type InsertProspectCrawlSeed = typeof prospectCrawlSeeds.$inferInsert;
@@ -706,32 +812,50 @@ export const prospectCrawlRuns = mysqlTable("prospect_crawl_runs", {
 export type ProspectCrawlRun = typeof prospectCrawlRuns.$inferSelect;
 export type InsertProspectCrawlRun = typeof prospectCrawlRuns.$inferInsert;
 
-export const prospectCrawlQueue = mysqlTable("prospect_crawl_queue", {
-  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
-  /** "resolve_domain","crawl_website","guess_emails","verify_mx","harvest_employee" */
-  kind: varchar("kind", { length: 32 }).notNull(),
-  payload: json("payload").$type<Record<string, unknown>>().notNull(),
-  priority: int("priority").default(0).notNull(),
-  availableAt: timestamp("availableAt").defaultNow().notNull(),
-  attempts: int("attempts").default(0).notNull(),
-  /** "pending","in_flight","done","dead" */
-  status: varchar("status", { length: 16 }).default("pending").notNull(),
-  lockedBy: varchar("lockedBy", { length: 64 }),
-  lockedAt: timestamp("lockedAt"),
-  errorMessage: text("errorMessage"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+export const prospectCrawlQueue = mysqlTable(
+  "prospect_crawl_queue",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    /** "resolve_domain","crawl_website","guess_emails","verify_mx","harvest_employee" */
+    kind: varchar("kind", { length: 32 }).notNull(),
+    payload: json("payload").$type<Record<string, unknown>>().notNull(),
+    priority: int("priority").default(0).notNull(),
+    availableAt: timestamp("availableAt").defaultNow().notNull(),
+    attempts: int("attempts").default(0).notNull(),
+    /** "pending","in_flight","done","dead" */
+    status: varchar("status", { length: 16 }).default("pending").notNull(),
+    lockedBy: varchar("lockedBy", { length: 64 }),
+    lockedAt: timestamp("lockedAt"),
+    errorMessage: text("errorMessage"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    // Queue claim hot path: WHERE status = 'pending' AND availableAt <= NOW().
+    statusAvailableAtIdx: index("prospect_crawl_queue_status_available_at_idx").on(
+      table.status,
+      table.availableAt,
+    ),
+    // Tick-by-kind queries (company tick vs. employee tick).
+    kindStatusIdx: index("prospect_crawl_queue_kind_status_idx").on(table.kind, table.status),
+  }),
+);
 
 export type ProspectCrawlQueue = typeof prospectCrawlQueue.$inferSelect;
 export type InsertProspectCrawlQueue = typeof prospectCrawlQueue.$inferInsert;
 
-export const prospectHostThrottle = mysqlTable("prospect_host_throttle", {
-  host: varchar("host", { length: 255 }).primaryKey(),
-  nextAllowedAt: timestamp("nextAllowedAt").defaultNow().notNull(),
-  consecutiveErrors: int("consecutiveErrors").default(0).notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+export const prospectHostThrottle = mysqlTable(
+  "prospect_host_throttle",
+  {
+    host: varchar("host", { length: 255 }).primaryKey(),
+    nextAllowedAt: timestamp("nextAllowedAt").defaultNow().notNull(),
+    consecutiveErrors: int("consecutiveErrors").default(0).notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    nextAllowedAtIdx: index("prospect_host_throttle_next_allowed_at_idx").on(table.nextAllowedAt),
+  }),
+);
 
 export type ProspectHostThrottle = typeof prospectHostThrottle.$inferSelect;
 export type InsertProspectHostThrottle = typeof prospectHostThrottle.$inferInsert;
