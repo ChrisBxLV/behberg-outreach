@@ -360,6 +360,7 @@ export function registerExpressRoutes(app: Express) {
   );
 
   // ── CSV Import ─────────────────────────────────────────────────────────────
+  // Default writes legacy `contacts`. Use `?mode=prospect_v2` to write per-org `companies` / `people` / `crm_contacts` instead.
   app.post("/api/import/csv", csvImportLimiter, upload.single("file"), async (req, res) => {
     try {
       // Protect CSV import: it writes PII to your database.
@@ -372,8 +373,11 @@ export function registerExpressRoutes(app: Express) {
       if (scope == null) {
         return res.status(403).json({ error: "Organization context required" });
       }
+      const modeRaw = String((req.query as { mode?: string }).mode ?? "").toLowerCase();
+      const mode = modeRaw === "prospect_v2" ? "prospect_v2" : "legacy";
       const result = await importCsvContacts(req.file.buffer, req.file.originalname, {
         organizationId: user.organizationId ?? null,
+        mode,
       });
       res.json({
         success: true,

@@ -48,6 +48,7 @@ import { settingsRouter } from "./routers/settings";
 import { signalsRouter } from "./routers/signals";
 import { prospectingRouter } from "./routers/prospecting";
 import { prospectSearchRouter } from "./routers/prospectSearch";
+import { prospectV2Router } from "./routers/prospectV2";
 import { platformRouter } from "./routers/platform";
 import { mailboxesRouter } from "./routers/mailboxes";
 import { dashboardRouter } from "./routers/dashboard";
@@ -921,6 +922,7 @@ export const appRouter = router({
   signals: signalsRouter,
   prospecting: prospectingRouter,
   prospectSearch: prospectSearchRouter,
+  prospectV2: prospectV2Router,
   dashboard: dashboardRouter,
   platform: platformRouter,
   mailboxes: mailboxesRouter,

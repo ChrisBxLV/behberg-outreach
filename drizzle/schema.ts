@@ -169,6 +169,421 @@ export const contacts = mysqlTable(
 export type Contact = typeof contacts.$inferSelect;
 export type InsertContact = typeof contacts.$inferInsert;
 
+/**
+ * Apollo-style prospecting (per-organization companies, people, CRM, lists).
+ *
+ * MySQL is and remains the source of truth for all prospecting data.
+ * A future Elasticsearch/OpenSearch index is a derived search layer only: it can
+ * always be rebuilt from these tables. Do not store OAuth tokens, mailbox
+ * credentials, or other secrets in search documents or `search_index_jobs`.
+ *
+ * `search_index_jobs` is an outbox-style queue for a future indexer worker
+ * (pending rows are inserted here; nothing consumes them yet in this repo).
+ * Each row includes `organizationId` so workers can dequeue and index in tenant context
+ * (`entityId` alone is not globally unique across orgs).
+ *
+ * MVP keyword search uses MySQL FULLTEXT on `people` and `companies`; those indexes
+ * are created in migration `0024_prospect_v2_mysql_foundation.sql` (not declared here
+ * because Drizzle MySQL helpers do not model FULLTEXT in this version).
+ */
+export const prospectSeniorityLevelEnum = mysqlEnum("seniorityLevel", [
+  "unknown",
+  "c_level",
+  "head",
+  "director",
+  "manager",
+  "ic",
+]);
+
+export const prospectPersonEmailStatusEnum = mysqlEnum("emailStatus", [
+  "unknown",
+  "valid",
+  "invalid",
+  "catch_all",
+  "risky",
+  "mx_present",
+  "mx_absent",
+]);
+
+export const crmContactStageEnum = mysqlEnum("stage", [
+  "new",
+  "enriched",
+  "in_sequence",
+  "replied",
+  "closed",
+  "unsubscribed",
+]);
+
+export const searchIndexEntityTypeEnum = mysqlEnum("entityType", ["person", "company"]);
+export const searchIndexActionEnum = mysqlEnum("action", ["upsert", "delete"]);
+export const searchIndexJobStatusEnum = mysqlEnum("status", [
+  "pending",
+  "processing",
+  "done",
+  "failed",
+]);
+
+export const companies = mysqlTable(
+  "companies",
+  {
+    id: bigint("id", { mode: "bigint", unsigned: true }).autoincrement().primaryKey(),
+    organizationId: int("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    name: varchar("name", { length: 256 }).notNull(),
+    nameNormalized: varchar("nameNormalized", { length: 256 }),
+    domain: varchar("domain", { length: 255 }),
+    website: varchar("website", { length: 512 }),
+    linkedinUrl: varchar("linkedinUrl", { length: 512 }),
+    industry: varchar("industry", { length: 256 }),
+    companySize: varchar("companySize", { length: 64 }),
+    headcount: int("headcount"),
+    country: varchar("country", { length: 128 }),
+    city: varchar("city", { length: 128 }),
+    source: varchar("source", { length: 64 }),
+    confidence: float("confidence"),
+    lastEnrichedAt: timestamp("lastEnrichedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    orgDomainUnique: uniqueIndex("companies_organization_id_domain_unique").on(
+      table.organizationId,
+      table.domain,
+    ),
+    orgNameNormIdx: index("companies_organization_id_name_normalized_idx").on(
+      table.organizationId,
+      table.nameNormalized,
+    ),
+    orgIndustryIdx: index("companies_organization_id_industry_idx").on(
+      table.organizationId,
+      table.industry,
+    ),
+    orgCountryIdx: index("companies_organization_id_country_idx").on(
+      table.organizationId,
+      table.country,
+    ),
+    orgUpdatedIdIdx: index("companies_organization_id_updated_at_id_idx").on(
+      table.organizationId,
+      table.updatedAt,
+      table.id,
+    ),
+    orgLinkedinIdx: index("companies_organization_id_linkedin_url_idx").on(
+      table.organizationId,
+      table.linkedinUrl,
+    ),
+  }),
+);
+
+export type Company = typeof companies.$inferSelect;
+export type InsertCompany = typeof companies.$inferInsert;
+
+export const people = mysqlTable(
+  "people",
+  {
+    id: bigint("id", { mode: "bigint", unsigned: true }).autoincrement().primaryKey(),
+    organizationId: int("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    companyId: bigint("companyId", { mode: "bigint", unsigned: true }).references(() => companies.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    firstName: varchar("firstName", { length: 128 }),
+    lastName: varchar("lastName", { length: 128 }),
+    fullName: varchar("fullName", { length: 256 }),
+    title: varchar("title", { length: 256 }),
+    titleNormalized: varchar("titleNormalized", { length: 256 }),
+    seniorityLevel: prospectSeniorityLevelEnum.default("unknown").notNull(),
+    department: varchar("department", { length: 128 }),
+    email: varchar("email", { length: 320 }),
+    emailDomain: varchar("emailDomain", { length: 255 }),
+    emailStatus: prospectPersonEmailStatusEnum.default("unknown").notNull(),
+    linkedinUrl: varchar("linkedinUrl", { length: 512 }),
+    country: varchar("country", { length: 128 }),
+    city: varchar("city", { length: 128 }),
+    source: varchar("source", { length: 64 }),
+    confidence: float("confidence"),
+    lastVerifiedAt: timestamp("lastVerifiedAt"),
+    lastEnrichedAt: timestamp("lastEnrichedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    orgEmailUnique: uniqueIndex("people_organization_id_email_unique").on(
+      table.organizationId,
+      table.email,
+    ),
+    orgCompanyIdx: index("people_organization_id_company_id_idx").on(
+      table.organizationId,
+      table.companyId,
+    ),
+    orgLinkedinIdx: index("people_organization_id_linkedin_url_idx").on(
+      table.organizationId,
+      table.linkedinUrl,
+    ),
+    orgEmailStatusUpdatedIdIdx: index("people_organization_id_email_status_updated_at_id_idx").on(
+      table.organizationId,
+      table.emailStatus,
+      table.updatedAt,
+      table.id,
+    ),
+    orgTitleNormIdx: index("people_organization_id_title_normalized_idx").on(
+      table.organizationId,
+      table.titleNormalized,
+    ),
+    orgDeptIdx: index("people_organization_id_department_idx").on(
+      table.organizationId,
+      table.department,
+    ),
+    orgCountryIdx: index("people_organization_id_country_idx").on(
+      table.organizationId,
+      table.country,
+    ),
+    orgUpdatedIdIdx: index("people_organization_id_updated_at_id_idx").on(
+      table.organizationId,
+      table.updatedAt,
+      table.id,
+    ),
+    emailDomainIdx: index("people_email_domain_idx").on(table.emailDomain),
+  }),
+);
+
+export type Person = typeof people.$inferSelect;
+export type InsertPerson = typeof people.$inferInsert;
+
+export const crmContacts = mysqlTable(
+  "crm_contacts",
+  {
+    id: bigint("id", { mode: "bigint", unsigned: true }).autoincrement().primaryKey(),
+    organizationId: int("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    personId: bigint("personId", { mode: "bigint", unsigned: true })
+      .notNull()
+      .references(() => people.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    stage: crmContactStageEnum.default("new").notNull(),
+    notes: text("notes"),
+    tags: json("tags").$type<string[]>(),
+    importBatchId: varchar("importBatchId", { length: 64 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    orgPersonUnique: uniqueIndex("crm_contacts_organization_id_person_id_unique").on(
+      table.organizationId,
+      table.personId,
+    ),
+    orgStageUpdatedIdIdx: index("crm_contacts_organization_id_stage_updated_at_id_idx").on(
+      table.organizationId,
+      table.stage,
+      table.updatedAt,
+      table.id,
+    ),
+    orgImportBatchIdx: index("crm_contacts_organization_id_import_batch_id_idx").on(
+      table.organizationId,
+      table.importBatchId,
+    ),
+    personIdIdx: index("crm_contacts_person_id_idx").on(table.personId),
+  }),
+);
+
+export type CrmContact = typeof crmContacts.$inferSelect;
+export type InsertCrmContact = typeof crmContacts.$inferInsert;
+
+/**
+ * Temporary bridge: maps prospect v2 `people` rows to legacy `contacts` ids so
+ * `campaign_contacts` / `email_logs` can keep using `contactId` until a future
+ * migration moves enrollment to `crm_contacts` / `personId`.
+ */
+export const personContactLinks = mysqlTable(
+  "person_contact_links",
+  {
+    id: bigint("id", { mode: "bigint", unsigned: true }).autoincrement().primaryKey(),
+    organizationId: int("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    personId: bigint("personId", { mode: "bigint", unsigned: true })
+      .notNull()
+      .references(() => people.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    contactId: int("contactId")
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    orgPersonUnique: uniqueIndex("person_contact_links_organization_id_person_id_unique").on(
+      table.organizationId,
+      table.personId,
+    ),
+    orgContactUnique: uniqueIndex("person_contact_links_organization_id_contact_id_unique").on(
+      table.organizationId,
+      table.contactId,
+    ),
+    personIdIdx: index("person_contact_links_person_id_idx").on(table.personId),
+    contactIdIdx: index("person_contact_links_contact_id_idx").on(table.contactId),
+  }),
+);
+
+export type PersonContactLink = typeof personContactLinks.$inferSelect;
+export type InsertPersonContactLink = typeof personContactLinks.$inferInsert;
+
+export const prospectLists = mysqlTable(
+  "lists",
+  {
+    id: bigint("id", { mode: "bigint", unsigned: true }).autoincrement().primaryKey(),
+    organizationId: int("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    name: varchar("name", { length: 256 }).notNull(),
+    createdByUserId: int("createdByUserId").references(() => users.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    orgUpdatedIdIdx: index("lists_organization_id_updated_at_id_idx").on(
+      table.organizationId,
+      table.updatedAt,
+      table.id,
+    ),
+    orgNameIdx: index("lists_organization_id_name_idx").on(table.organizationId, table.name),
+  }),
+);
+
+export type ProspectList = typeof prospectLists.$inferSelect;
+export type InsertProspectList = typeof prospectLists.$inferInsert;
+
+export const prospectListItems = mysqlTable(
+  "list_items",
+  {
+    id: bigint("id", { mode: "bigint", unsigned: true }).autoincrement().primaryKey(),
+    organizationId: int("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    listId: bigint("listId", { mode: "bigint", unsigned: true })
+      .notNull()
+      .references(() => prospectLists.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    personId: bigint("personId", { mode: "bigint", unsigned: true }).references(() => people.id, {
+      onDelete: "cascade",
+      onUpdate: "cascade",
+    }),
+    companyId: bigint("companyId", { mode: "bigint", unsigned: true }).references(() => companies.id, {
+      onDelete: "cascade",
+      onUpdate: "cascade",
+    }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    listPersonUnique: uniqueIndex("list_items_list_id_person_id_unique").on(
+      table.listId,
+      table.personId,
+    ),
+    orgListIdx: index("list_items_organization_id_list_id_idx").on(
+      table.organizationId,
+      table.listId,
+    ),
+    orgPersonIdx: index("list_items_organization_id_person_id_idx").on(
+      table.organizationId,
+      table.personId,
+    ),
+    orgCompanyIdx: index("list_items_organization_id_company_id_idx").on(
+      table.organizationId,
+      table.companyId,
+    ),
+  }),
+);
+
+export type ProspectListItem = typeof prospectListItems.$inferSelect;
+export type InsertProspectListItem = typeof prospectListItems.$inferInsert;
+
+export const emailVerifications = mysqlTable(
+  "email_verifications",
+  {
+    id: bigint("id", { mode: "bigint", unsigned: true }).autoincrement().primaryKey(),
+    organizationId: int("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    personId: bigint("personId", { mode: "bigint", unsigned: true })
+      .notNull()
+      .references(() => people.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    email: varchar("email", { length: 320 }).notNull(),
+    provider: varchar("provider", { length: 64 }),
+    status: varchar("status", { length: 64 }),
+    score: float("score"),
+    mxValid: boolean("mxValid"),
+    smtpValid: boolean("smtpValid"),
+    catchAll: boolean("catchAll"),
+    rawResponse: json("rawResponse").$type<unknown>(),
+    checkedAt: timestamp("checkedAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    orgPersonIdx: index("email_verifications_organization_id_person_id_idx").on(
+      table.organizationId,
+      table.personId,
+    ),
+    orgEmailIdx: index("email_verifications_organization_id_email_idx").on(
+      table.organizationId,
+      table.email,
+    ),
+    orgStatusIdx: index("email_verifications_organization_id_status_idx").on(
+      table.organizationId,
+      table.status,
+    ),
+    orgCheckedAtIdx: index("email_verifications_organization_id_checked_at_idx").on(
+      table.organizationId,
+      table.checkedAt,
+    ),
+  }),
+);
+
+export type EmailVerification = typeof emailVerifications.$inferSelect;
+export type InsertEmailVerification = typeof emailVerifications.$inferInsert;
+
+export const searchIndexJobs = mysqlTable(
+  "search_index_jobs",
+  {
+    id: bigint("id", { mode: "bigint", unsigned: true }).autoincrement().primaryKey(),
+    organizationId: int("organizationId")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    entityType: searchIndexEntityTypeEnum.notNull(),
+    entityId: bigint("entityId", { mode: "bigint", unsigned: true }).notNull(),
+    action: searchIndexActionEnum.notNull(),
+    status: searchIndexJobStatusEnum.default("pending").notNull(),
+    attempts: int("attempts").default(0).notNull(),
+    availableAt: timestamp("availableAt").defaultNow().notNull(),
+    lockedAt: timestamp("lockedAt"),
+    lockedBy: varchar("lockedBy", { length: 128 }),
+    errorMessage: text("errorMessage"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    organizationIdIdx: index("search_index_jobs_organization_id_idx").on(table.organizationId),
+    statusAvailableIdIdx: index("search_index_jobs_status_available_at_id_idx").on(
+      table.status,
+      table.availableAt,
+      table.id,
+    ),
+    entityTypeEntityIdIdx: index("search_index_jobs_entity_type_entity_id_idx").on(
+      table.entityType,
+      table.entityId,
+    ),
+    statusLockedAtIdx: index("search_index_jobs_status_locked_at_idx").on(
+      table.status,
+      table.lockedAt,
+    ),
+  }),
+);
+
+export type SearchIndexJob = typeof searchIndexJobs.$inferSelect;
+export type InsertSearchIndexJob = typeof searchIndexJobs.$inferInsert;
+
 // ─── Enrichment Results (contact-level) ───────────────────────────────────────
 export const enrichmentResults = mysqlTable("enrichment_results", {
   id: int("id").autoincrement().primaryKey(),

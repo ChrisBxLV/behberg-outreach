@@ -1,3 +1,8 @@
+/**
+ * CSV import: shared column mapping for Apollo-style exports.
+ * Default `importCsvContacts` path persists legacy `contacts` (campaigns + `/app/contacts`).
+ * Use `mode: "prospect_v2"` (or HTTP `?mode=prospect_v2`) to persist per-org `companies` / `people` / `crm_contacts` via `importProspectsV2FromCsvRows`.
+ */
 import { parse } from "csv-parse/sync";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -8,10 +13,10 @@ import {
 import { bridgeCsvImportToProspectDb } from "./prospect/csvBridge";
 import type { InsertContact } from "../../drizzle/schema";
 
-type CsvMappedField = keyof InsertContact | "__country" | "__keywords";
+export type CsvMappedField = keyof InsertContact | "__country" | "__keywords" | "__companyLinkedin";
 
 // Apollo CSV column name mappings (handles various export formats)
-const FIELD_MAP: Record<string, CsvMappedField> = {
+export const FIELD_MAP: Record<string, CsvMappedField> = {
   // Name variants
   "first name": "firstName",
   "firstname": "firstName",
@@ -48,7 +53,15 @@ const FIELD_MAP: Record<string, CsvMappedField> = {
   // LinkedIn
   "linkedin url": "linkedinUrl",
   "linkedin": "linkedinUrl",
+  "person linkedin": "linkedinUrl",
+  "personlinkedin": "linkedinUrl",
   "profile url": "linkedinUrl",
+  "company linkedin url": "__companyLinkedin",
+  "company linkedin": "__companyLinkedin",
+  "company linkedin profile": "__companyLinkedin",
+  "company domain": "normalizedDomain",
+  "company_domain": "normalizedDomain",
+  "domain": "normalizedDomain",
   // Location
   "location": "location",
   "city": "location",
@@ -70,7 +83,7 @@ const FIELD_MAP: Record<string, CsvMappedField> = {
   "email status": "emailStatus",
 };
 
-function normalizeHeader(h: string): string {
+export function normalizeHeader(h: string): string {
   // Strip UTF-8 BOM and normalize whitespace/separators (Excel/Sheets exports often include these).
   return h
     .replace(/^\uFEFF/, "")
@@ -100,7 +113,7 @@ function isLikelyEmailAddressColumnName(h: string): boolean {
   return true;
 }
 
-function guessFieldFromHeader(normalized: string): CsvMappedField | null {
+export function guessFieldFromHeader(normalized: string): CsvMappedField | null {
   const h = normalized;
   if (!h) return null;
 
@@ -139,7 +152,7 @@ function guessFieldFromHeader(normalized: string): CsvMappedField | null {
   return null;
 }
 
-function mapEmailStatus(raw: string): InsertContact["emailStatus"] {
+export function mapEmailStatus(raw: string): InsertContact["emailStatus"] {
   const v = raw?.toLowerCase().trim();
   if (v === "valid" || v === "verified") return "valid";
   if (v === "invalid") return "invalid";
@@ -148,14 +161,14 @@ function mapEmailStatus(raw: string): InsertContact["emailStatus"] {
   return "unknown";
 }
 
-function splitKeywords(raw: string): string[] {
+export function splitKeywords(raw: string): string[] {
   return raw
     .split(/[;,|]/g)
     .map((item) => item.trim())
     .filter(Boolean);
 }
 
-function isProbablyEmail(raw: string): boolean {
+export function isProbablyEmail(raw: string): boolean {
   const v = raw.trim();
   if (!v) return false;
   // Guard against common mis-maps (timestamps/UUIDs/etc). Keep permissive but require '@' + a dot later.
@@ -164,7 +177,7 @@ function isProbablyEmail(raw: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
-function looksLikeId(raw: string): boolean {
+export function looksLikeId(raw: string): boolean {
   const v = raw.trim();
   if (!v) return false;
   // Mongo ObjectId / Apollo-ish IDs
@@ -176,7 +189,7 @@ function looksLikeId(raw: string): boolean {
   return false;
 }
 
-function looksLikePhone(raw: string): boolean {
+export function looksLikePhone(raw: string): boolean {
   const v = raw.trim();
   if (!v) return false;
   // Allow "+", spaces, hyphens, parentheses; require enough digits.
@@ -205,9 +218,113 @@ export interface ImportResult {
   };
 }
 
-type ImportCsvOptions = {
+export type CsvImportMode = "legacy" | "prospect_v2";
+
+export type ImportCsvOptions = {
   organizationId?: number | null;
+  /**
+   * `legacy` (default): writes tenant `contacts` and keeps campaign flows unchanged.
+   * `prospect_v2`: writes per-org `companies`, `people`, and `crm_contacts` only (Apollo-like foundation).
+   */
+  mode?: CsvImportMode;
 };
+
+export type ContactCsvDraft = {
+  contact: InsertContact;
+  csvCountry: string;
+  mappedAny: boolean;
+  companyLinkedinUrl: string | null;
+};
+
+/**
+ * Maps a single CSV record into the same `InsertContact` shape used by legacy import.
+ * Used by legacy `importCsvContacts` and by prospect v2 (`importProspectsV2FromCsvRows`).
+ */
+export function buildContactDraftFromCsvRow(
+  row: Record<string, string>,
+  organizationId: number | null,
+  importBatchId: string,
+): ContactCsvDraft {
+  const contact: InsertContact = {
+    source: "csv_import",
+    importBatchId,
+    stage: "new",
+    emailStatus: "unknown",
+    tags: [],
+    organizationId,
+  };
+  let csvCountry = "";
+  let mappedAny = false;
+  let companyLinkedinUrl: string | null = null;
+
+  for (const [rawKey, value] of Object.entries(row)) {
+    const normalized = normalizeHeader(rawKey);
+    const field = FIELD_MAP[normalized] ?? guessFieldFromHeader(normalized);
+    if (!field || !value) continue;
+    mappedAny = true;
+
+    if (field === "emailConfidence") {
+      const num = parseFloat(value);
+      if (!isNaN(num)) contact.emailConfidence = num > 1 ? num / 100 : num;
+    } else if (field === "emailStatus") {
+      contact.emailStatus = mapEmailStatus(value);
+    } else if (field === "__country") {
+      csvCountry = value.trim();
+    } else if (field === "__keywords") {
+      const parsed = splitKeywords(value);
+      const existing = contact.tags ?? [];
+      contact.tags = Array.from(new Set([...existing, ...parsed]));
+    } else if (field === "__companyLinkedin") {
+      companyLinkedinUrl = value.trim() || null;
+    } else {
+      const v = value.trim();
+      if (field === "email" && /^(true|false|yes|no)$/i.test(v) && v.length <= 5) {
+        continue;
+      }
+      if (field === "email" && !isProbablyEmail(v)) {
+        continue;
+      }
+      if (field === "company" && isProbablyEmail(v)) {
+        continue;
+      }
+      if (field === "company" && looksLikePhone(v)) {
+        continue;
+      }
+      if (field === "phone") {
+        if (!contact.phone && looksLikePhone(v)) {
+          contact.phone = v;
+        }
+        continue;
+      }
+      if ((field === "company" || field === "companyWebsite") && looksLikeId(v)) {
+        continue;
+      }
+      (contact as Record<string, unknown>)[field] = v;
+    }
+  }
+
+  if (csvCountry) {
+    const currentLocation = contact.location?.trim();
+    if (!currentLocation) {
+      contact.location = csvCountry;
+    } else if (!currentLocation.toLowerCase().includes(csvCountry.toLowerCase())) {
+      contact.location = `${currentLocation}, ${csvCountry}`;
+    }
+  }
+
+  if (!contact.fullName && (contact.firstName || contact.lastName)) {
+    contact.fullName = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+  }
+
+  if (contact.email && contact.emailStatus !== "invalid") {
+    contact.stage = "enriched";
+    if (!contact.emailStatus || contact.emailStatus === "unknown") {
+      contact.emailStatus = contact.emailConfidence && contact.emailConfidence > 0.7 ? "valid" : "risky";
+    }
+  }
+
+  return { contact, csvCountry, mappedAny, companyLinkedinUrl };
+}
 
 export async function importCsvContacts(
   csvBuffer: Buffer,
@@ -240,6 +357,45 @@ export async function importCsvContacts(
 
   const total = records.length;
   await createImportBatch({ batchId, filename, totalRows: total });
+
+  const mode: CsvImportMode = options.mode ?? "legacy";
+  if (mode === "prospect_v2") {
+    if (options.organizationId == null || !Number.isFinite(options.organizationId)) {
+      throw new Error("prospect_v2 CSV import requires organizationId (tenant scope).");
+    }
+    const { importProspectsV2FromCsvRows } = await import("./prospectImportV2");
+    const v2 = await importProspectsV2FromCsvRows({
+      organizationId: options.organizationId,
+      rows: records,
+      importBatchId: batchId,
+      source: "csv_import",
+    });
+    await updateImportBatch(batchId, {
+      importedRows: v2.importedRows,
+      skippedRows: v2.skippedRows,
+      status: v2.errors.length > 0 && v2.importedRows === 0 ? "failed" : "completed",
+      errorLog: v2.errors.length > 0 ? v2.errors.slice(0, 20).join("\n") : undefined,
+    });
+    if (records[0]) {
+      debug.detectedHeaders = Object.keys(records[0])
+        .map((k) => normalizeHeader(k))
+        .filter(Boolean);
+    }
+    void bridgeCsvImportToProspectDb(v2.bridgeHints).catch((err: any) => {
+      console.warn(`[CSV Import] prospect bridge failed:`, err?.message ?? err);
+    });
+    return {
+      batchId,
+      total,
+      imported: v2.importedRows,
+      skipped: v2.skippedRows,
+      matchedExisting: 0,
+      matchedContactIds: [],
+      errors: v2.errors,
+      debug,
+    };
+  }
+
   // Capture (company, domain, person) hints we observed so the autonomous
   // prospect crawler can enrich this universe in the background. Sent after
   // the loop so an LLM-free hand-off never blocks the user-facing import.
@@ -254,95 +410,18 @@ export async function importCsvContacts(
   for (let i = 0; i < records.length; i++) {
     const row = records[i];
     try {
-      const contact: InsertContact = {
-        source: "csv_import",
-        importBatchId: batchId,
-        stage: "new",
-        emailStatus: "unknown",
-        tags: [],
-        organizationId: options.organizationId ?? null,
-      };
-      let csvCountry = "";
-      let mappedAny = false;
+      const { contact, mappedAny, companyLinkedinUrl } = buildContactDraftFromCsvRow(
+        row,
+        options.organizationId ?? null,
+        batchId,
+      );
       const headerUsed: Partial<Record<"email" | "company" | "fullName" | "linkedinUrl", string>> = {};
-
-      // Map columns
       for (const [rawKey, value] of Object.entries(row)) {
         const normalized = normalizeHeader(rawKey);
         const field = FIELD_MAP[normalized] ?? guessFieldFromHeader(normalized);
         if (!field || !value) continue;
-        mappedAny = true;
-
-        if (field === "emailConfidence") {
-          const num = parseFloat(value);
-          if (!isNaN(num)) contact.emailConfidence = num > 1 ? num / 100 : num;
-        } else if (field === "emailStatus") {
-          contact.emailStatus = mapEmailStatus(value);
-        } else if (field === "__country") {
-          csvCountry = value.trim();
-        } else if (field === "__keywords") {
-          const parsed = splitKeywords(value);
-          const existing = contact.tags ?? [];
-          contact.tags = Array.from(new Set([...existing, ...parsed]));
-        } else {
-          const v = value.trim();
-          if (
-            field === "email" &&
-            /^(true|false|yes|no)$/i.test(v) &&
-            v.length <= 5
-          ) {
-            continue; // boolean export column mis-mapped to email (e.g. "Has Email")
-          }
-          if (field === "email" && !isProbablyEmail(v)) {
-            // If a non-email value lands in the email column, it causes all rows to collapse into one "duplicate".
-            // Treat it as absent and let other identifiers (name/company/linkedin) drive matching/creation.
-            continue;
-          }
-          if (field === "company" && isProbablyEmail(v)) {
-            // Avoid setting company to an owner email ("Account Owner", etc).
-            continue;
-          }
-          if (field === "company" && looksLikePhone(v)) {
-            // Avoid setting company to phone numbers ("Company Phone", etc).
-            continue;
-          }
-          if (field === "phone") {
-            // Prefer the first non-empty phone we see (CSV exports often include multiple phone columns).
-            if (!contact.phone && looksLikePhone(v)) {
-              contact.phone = v;
-            }
-            continue;
-          }
-          if ((field === "company" || field === "companyWebsite") && looksLikeId(v)) {
-            // Some exports put internal IDs in "Company" columns; don't store them as a company name.
-            continue;
-          }
-          if ((field === "email" || field === "company" || field === "fullName" || field === "linkedinUrl") && !headerUsed[field]) {
-            headerUsed[field] = normalized;
-          }
-          (contact as any)[field] = v;
-        }
-      }
-
-      if (csvCountry) {
-        const currentLocation = contact.location?.trim();
-        if (!currentLocation) {
-          contact.location = csvCountry;
-        } else if (!currentLocation.toLowerCase().includes(csvCountry.toLowerCase())) {
-          contact.location = `${currentLocation}, ${csvCountry}`;
-        }
-      }
-
-      // Build fullName from parts if not present
-      if (!contact.fullName && (contact.firstName || contact.lastName)) {
-        contact.fullName = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
-      }
-
-      // Determine enrichment stage
-      if (contact.email && contact.emailStatus !== "invalid") {
-        contact.stage = "enriched";
-        if (!contact.emailStatus || contact.emailStatus === "unknown") {
-          contact.emailStatus = contact.emailConfidence && contact.emailConfidence > 0.7 ? "valid" : "risky";
+        if ((field === "email" || field === "company" || field === "fullName" || field === "linkedinUrl") && !headerUsed[field]) {
+          headerUsed[field] = normalized;
         }
       }
 

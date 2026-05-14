@@ -1,5 +1,6 @@
 import { eq, and, desc, asc, like, inArray, sql, isNull, isNotNull, gt, count, ne, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import { TRPCError } from "@trpc/server";
 import {
   users, organizations, contacts, enrichmentResults, importBatches, campaigns, sequenceSteps,
@@ -45,15 +46,34 @@ import {
   devBackfillSignalHeadlinesFromRawTitle,
 } from "./devLocalSignalsStore";
 
+let _pool: mysql.Pool | null = null;
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
+    let pool: mysql.Pool | null = null;
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const connectionLimit = Number(process.env.DB_POOL_LIMIT ?? 10);
+      pool = mysql.createPool({
+        uri: process.env.DATABASE_URL,
+        waitForConnections: true,
+        connectionLimit: Number.isFinite(connectionLimit) && connectionLimit > 0 ? connectionLimit : 10,
+        queueLimit: 0,
+      });
+      // Drizzle's mysql2 driver types target the callback `mysql2` Pool; `mysql2/promise` pools are compatible at runtime.
+      _db = drizzle(pool as unknown as import("mysql2").Pool);
+      _pool = pool;
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
+      _pool = null;
+      if (pool) {
+        try {
+          await pool.end();
+        } catch {
+          // ignore shutdown errors after failed init
+        }
+      }
     }
   }
   return _db;
