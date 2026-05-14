@@ -104,8 +104,11 @@ jspm_packages/
 tmp/
 temp/
 
-# Local dev auth (no DATABASE_URL)
+# Local dev auth (no DATABASE_URL) — never commit; contains local-auth.json with credentials
 .data/
+
+# Local runtime (worker heartbeat, etc.)
+data/runtime/
 
 # Database
 *.db

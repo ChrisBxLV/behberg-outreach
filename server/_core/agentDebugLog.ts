@@ -2,21 +2,28 @@ import { appendFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Debug logging should be safe by default.
-// In production, this function is a no-op (see below).
-//
-// In development, optional ingest + file logging are configured via env vars
-// so we don't hardcode a specific endpoint/session/log filename.
+// This file lives at server/_core/agentDebugLog.ts → repo root is two levels up (stable vs process.cwd()).
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
 const INGEST_URL = process.env.AGENT_DEBUG_INGEST_URL;
 const SESSION_ID = process.env.AGENT_DEBUG_SESSION_ID ?? "";
 const LOG_FILENAME = process.env.AGENT_DEBUG_LOG_FILENAME ?? "agent-debug.log";
-
-// This file lives at server/_core/agentDebugLog.ts → repo root is two levels up (stable vs process.cwd()).
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const LOG_FILE = join(REPO_ROOT, LOG_FILENAME);
 
 /**
- * Debug-mode logging: POST to ingest (when available) and always append NDJSON to project-root log file.
+ * Opt-in agent / Cursor debug logging. When false (default), `agentDebugLog` is a no-op:
+ * no ingest POST, no log file writes, no stderr noise — including in development.
+ *
+ * Set `AGENT_DEBUG_LOGS=true` (or `1` / `yes`) only while actively debugging.
+ */
+export function isAgentDebugEnabled(): boolean {
+  const v = (process.env.AGENT_DEBUG_LOGS ?? "").trim().toLowerCase();
+  return v === "true" || v === "1" || v === "yes";
+}
+
+/**
+ * Debug-mode logging: POST to ingest (when configured) and append NDJSON to project-root log file.
+ * Gated by {@link isAgentDebugEnabled}; does not replace production `console.error` / `console.warn`.
  */
 export function agentDebugLog(entry: {
   location: string;
@@ -25,11 +32,7 @@ export function agentDebugLog(entry: {
   hypothesisId?: string;
   runId?: string;
 }) {
-  // Never run debug logging in production.
-  // This prevents:
-  // - hardcoded HTTP ingest calls to local endpoints
-  // - writing debug log files into the repo on the deployed host
-  if (process.env.NODE_ENV === "production") return;
+  if (!isAgentDebugEnabled()) return;
 
   const payload = {
     ...(SESSION_ID ? { sessionId: SESSION_ID } : {}),

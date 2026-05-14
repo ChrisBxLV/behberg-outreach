@@ -98,7 +98,10 @@ Environment variables:
   RUN_CHECKS            true/false — run `pnpm run check` before build (default: true)
   RUN_TESTS             true/false — run `pnpm test` before build (default: true)
 
-  HEALTHCHECK_URL       optional; if set, `curl -fsS` is run after restart (do not embed secrets in URLs)
+  HEALTHCHECK_URL       optional; if set, `curl -fsS` is run after restart (expects HTTP 200).
+                        GET /api/health returns 200 only when MySQL is reachable and the worker
+                        process has written a fresh heartbeat (see data/runtime/worker-heartbeat.json).
+                        Do not embed secrets in URLs.
 
   DEPLOY_ROOT           optional absolute repo path for the running Node process when its cwd is not
                         the repository root (e.g. starts from dist/). Lets the server find build-info.json.

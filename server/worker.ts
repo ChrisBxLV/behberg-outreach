@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { assertRequiredProductionEnv, ENV } from "./_core/env";
+import { startWorkerHeartbeatLoop } from "./_core/runtimeHealth";
 import { isProspectCrawlerDisabled } from "./services/prospect/crawler";
 import { startProspectCrawlerScheduler } from "./services/prospect/crawlerScheduler";
 import { seedProspectDb } from "./services/prospect/seedProspectDb";
@@ -32,6 +33,7 @@ async function startWorker() {
   }
   startProspectCrawlerScheduler();
   console.log("background schedulers started");
+  startWorkerHeartbeatLoop();
   console.log(
     `[Worker] Background worker started (nodeEnv=${process.env.NODE_ENV ?? "unknown"}).`,
   );

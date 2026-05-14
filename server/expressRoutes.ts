@@ -19,6 +19,7 @@ import { completeMailboxOAuthConnect } from "./services/mailboxConnectFlow";
 import { validateMicrosoftClientState } from "./services/microsoftGraphSubscription";
 import { tryIngestSesOrSnsBounceNotification } from "./services/sesBounceIngest";
 import { ENV } from "./_core/env";
+import { checkDatabaseReachable, evaluateWorkerHeartbeat } from "./_core/runtimeHealth";
 import { BUILD_INFO } from "./_generated/buildInfo";
 import {
   csvImportLimiter,
@@ -101,9 +102,28 @@ export function registerExpressRoutes(app: Express) {
 </html>`);
   });
 
-  // ── Liveness (no dependency checks) ─────────────────────────────────────────
-  app.get("/api/health", (_req, res) => {
-    return res.status(200).json({ ok: true });
+  // ── Readiness-style health (DB + worker heartbeat); no secrets ───────────────
+  app.get("/api/health", async (_req, res) => {
+    const nodeEnv = process.env.NODE_ENV ?? "development";
+    const dbSlice = await checkDatabaseReachable();
+    const workerSlice = evaluateWorkerHeartbeat();
+    const ok = dbSlice.ok && workerSlice.ok;
+    const payload = {
+      ok,
+      web: { ok: true as const },
+      db: dbSlice.ok
+        ? { ok: true as const }
+        : ({ ok: false as const, error: dbSlice.error ?? "unknown" } as const),
+      worker: {
+        ok: workerSlice.ok,
+        lastSeenAt: workerSlice.lastSeenAt,
+        ageSeconds: workerSlice.ageSeconds,
+      },
+      version: BUILD_INFO.version,
+      commit: BUILD_INFO.commit ?? "unknown",
+      nodeEnv,
+    };
+    return res.status(ok ? 200 : 503).json(payload);
   });
 
   // ── Build metadata (embedded at compile time; no secrets) ──────────────────
