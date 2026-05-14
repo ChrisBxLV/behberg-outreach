@@ -19,6 +19,7 @@ import { completeMailboxOAuthConnect } from "./services/mailboxConnectFlow";
 import { validateMicrosoftClientState } from "./services/microsoftGraphSubscription";
 import { tryIngestSesOrSnsBounceNotification } from "./services/sesBounceIngest";
 import { ENV } from "./_core/env";
+import { BUILD_INFO } from "./_generated/buildInfo";
 import {
   csvImportLimiter,
   oauthCallbackLimiter,
@@ -101,11 +102,20 @@ export function registerExpressRoutes(app: Express) {
   });
 
   // ── Version (debug deploy) ────────────────────────────────────────────────
+  // Pulls from the build-time generated module first; falls back to
+  // host-provided env vars (GIT_SHA / VERCEL_GIT_COMMIT_SHA / BUILD_TIME)
+  // when the generator could not read git on this host. Never returns
+  // secrets — only commit sha, build timestamp, and `process.env.NODE_ENV`.
   app.get("/api/version", (_req, res) => {
     return res.status(200).json({
       ok: true,
-      commit: process.env.GIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
-      buildTime: process.env.BUILD_TIME ?? null,
+      version: BUILD_INFO.version,
+      commit:
+        BUILD_INFO.commit ??
+        process.env.GIT_SHA ??
+        process.env.VERCEL_GIT_COMMIT_SHA ??
+        null,
+      buildTime: BUILD_INFO.buildTime ?? process.env.BUILD_TIME ?? null,
       nodeEnv: process.env.NODE_ENV ?? null,
     });
   });
@@ -351,8 +361,13 @@ export function registerExpressRoutes(app: Express) {
         success: true,
         ...result,
         serverBuild: {
-          commit: process.env.GIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
-          buildTime: process.env.BUILD_TIME ?? null,
+          version: BUILD_INFO.version,
+          commit:
+            BUILD_INFO.commit ??
+            process.env.GIT_SHA ??
+            process.env.VERCEL_GIT_COMMIT_SHA ??
+            null,
+          buildTime: BUILD_INFO.buildTime ?? process.env.BUILD_TIME ?? null,
         },
       });
     } catch (err: any) {

@@ -441,8 +441,8 @@ describe("contacts", () => {
   it("blocks cross-tenant contact get for org member", async () => {
     const db = await import("./db");
     // Simulate the db helper enforcing tenant scope: when scope is { tenant, 1 }
-    // and the row belongs to org 999, the query returns null.
-    vi.mocked(db.getContactById).mockResolvedValueOnce(null);
+    // and the row belongs to org 999, the query returns no row (undefined).
+    vi.mocked(db.getContactById).mockResolvedValueOnce(undefined);
 
     const caller = appRouter.createCaller(makeTenantCtx());
     await expect(caller.contacts.get({ id: 7 })).rejects.toMatchObject({
@@ -628,8 +628,8 @@ describe("campaigns", () => {
   it("blocks cross-tenant campaign get for org member", async () => {
     const db = await import("./db");
     // When scope is { tenant, organizationId: 1 }, the db helper filters
-    // out rows that belong to other organizations -> returns null.
-    vi.mocked(db.getCampaignById).mockResolvedValueOnce(null);
+    // out rows that belong to other organizations -> returns no row (undefined).
+    vi.mocked(db.getCampaignById).mockResolvedValueOnce(undefined);
 
     const caller = appRouter.createCaller(makeTenantCtx());
     await expect(caller.campaigns.get({ id: 99 })).rejects.toMatchObject({

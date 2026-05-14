@@ -15,6 +15,7 @@ import { resolve } from "node:path";
 import { parse } from "csv-parse/sync";
 import { protectedProcedure, router } from "../_core/trpc";
 import { dataScopeOrganizationId } from "../_core/orgScope";
+import { summarizeDbError } from "../_core/dbErrorInfo";
 import { createOrMergeContact, getDb } from "../db";
 import { prospectEnableSerpSources } from "../services/prospect/env";
 import {
@@ -1298,8 +1299,11 @@ export const prospectSearchRouter = router({
         seedHealth,
         budget,
       };
-    } catch (err: any) {
-      console.warn(`[prospectSearch.platformOverview] returning empty snapshot:`, err?.message ?? err);
+    } catch (err) {
+      console.warn(
+        "[prospectSearch.platformOverview] returning empty snapshot:",
+        summarizeDbError(err),
+      );
       return emptyPlatformOverview();
     }
   }),
@@ -1325,6 +1329,12 @@ export const prospectSearchRouter = router({
       }
       const db = await getDb();
       if (!db) return { items: [] as Array<unknown>, nextCursor: null as number | null };
+      // Mirror platformOverview's behavior: when the prospect catalogue is not
+      // provisioned yet (fresh install or migration not applied), surface an
+      // empty list rather than a misleading "Failed query" warning.
+      if (!(await hasProspectSchema())) {
+        return { items: [] as Array<unknown>, nextCursor: null as number | null };
+      }
       const offset = input.cursor ?? 0;
       try {
         if (input.scope === "companies") {
@@ -1395,8 +1405,11 @@ export const prospectSearchRouter = router({
       }));
       const nextCursor = rows.length > input.limit ? offset + input.limit : null;
       return { items, nextCursor };
-      } catch (err: any) {
-        console.warn(`[prospectSearch.platformContacts] returning empty rows:`, err?.message ?? err);
+      } catch (err) {
+        console.warn(
+          "[prospectSearch.platformContacts] returning empty rows:",
+          { scope: input.scope, ...summarizeDbError(err) },
+        );
         return { items: [] as Array<unknown>, nextCursor: null as number | null };
       }
     }),
