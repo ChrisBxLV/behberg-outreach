@@ -4,7 +4,7 @@
  * Kept side-effect free (no fs, no child_process) so it can be unit-tested
  * and re-used by both the build-time generator script and any future runtime
  * fallback path. The actual git/file IO lives in
- * `scripts/generate-build-info.ts`, which feeds inputs into this function.
+ * `scripts/generate-build-info.mjs`, which feeds inputs into this function.
  */
 
 export type BuildInfo = {

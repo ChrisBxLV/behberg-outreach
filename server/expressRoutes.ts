@@ -19,6 +19,7 @@ import { completeMailboxOAuthConnect } from "./services/mailboxConnectFlow";
 import { validateMicrosoftClientState } from "./services/microsoftGraphSubscription";
 import { tryIngestSesOrSnsBounceNotification } from "./services/sesBounceIngest";
 import { ENV } from "./_core/env";
+import { BUILD_INFO } from "./_generated/buildInfo";
 import {
   csvImportLimiter,
   oauthCallbackLimiter,
@@ -100,9 +101,21 @@ export function registerExpressRoutes(app: Express) {
 </html>`);
   });
 
-  // ── Liveness (no deploy metadata — build info is superadmin-only via tRPC) ─
+  // ── Liveness (no dependency checks) ─────────────────────────────────────────
   app.get("/api/health", (_req, res) => {
     return res.status(200).json({ ok: true });
+  });
+
+  // ── Build metadata (embedded at compile time; no secrets) ──────────────────
+  app.get("/api/version", (_req, res) => {
+    const nodeEnv = process.env.NODE_ENV ?? "development";
+    return res.status(200).json({
+      ok: true,
+      version: BUILD_INFO.version,
+      commit: BUILD_INFO.commit ?? "unknown",
+      buildTime: BUILD_INFO.buildTime ?? new Date(0).toISOString(),
+      nodeEnv,
+    });
   });
 
   // ── Mailbox OAuth callbacks ────────────────────────────────────────────────
