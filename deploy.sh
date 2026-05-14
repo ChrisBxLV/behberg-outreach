@@ -109,7 +109,7 @@ Examples:
   PM2_APP_NAME=behberg-outreach ./deploy.sh
   RUN_MIGRATIONS=true ./deploy.sh
   RUN_CHECKS=false RUN_TESTS=false ./deploy.sh
-  HEALTHCHECK_URL=http://127.0.0.1:3000/api/version ./deploy.sh
+  HEALTHCHECK_URL=http://127.0.0.1:3000/api/health ./deploy.sh
 EOF
       exit 0
       ;;
@@ -149,6 +149,15 @@ log "Resetting working tree to $REMOTE/$BRANCH"
 git checkout -q "$BRANCH" || git checkout -q -B "$BRANCH" "$REMOTE/$BRANCH"
 git reset --hard "$REMOTE/$BRANCH"
 git clean -fd
+
+log "Writing build-info.json (superadmin-only metadata; not served as a static file)"
+COMMIT_SHA="$(git rev-parse HEAD)"
+SHORT_SHA="$(git rev-parse --short HEAD)"
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+APP_VERSION="$(date -u +"%Y.%m.%d")-${SHORT_SHA}"
+node -e 'const fs=require("fs");const [sha,short,branch,btime,appv]=process.argv.slice(1);fs.writeFileSync("build-info.json",JSON.stringify({appVersion:appv,gitCommitSha:sha,gitCommitShortSha:short,gitBranch:branch,buildTime:btime},null,2)+"\n");' \
+  "$COMMIT_SHA" "$SHORT_SHA" "$BRANCH" "$BUILD_TIME" "$APP_VERSION"
 
 if [[ -f pnpm-lock.yaml ]]; then
   if command -v pnpm >/dev/null; then

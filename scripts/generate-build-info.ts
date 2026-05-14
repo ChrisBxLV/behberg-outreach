@@ -3,7 +3,9 @@
  *
  * Pulls `version` from `package.json`, then runs `git rev-list --count HEAD`
  * and `git rev-parse --short HEAD` to compose a `BuildInfo` value, and writes
- * a tiny TypeScript module the server bundles and serves at `/api/version`.
+ * a tiny TypeScript module under `server/_generated/` (optional local metadata).
+ * Production deploy version strings for operators come from `build-info.json`
+ * at the repo root (written by `deploy.sh`), read only via `platform.runtimeInfo`.
  *
  * Designed to be robust to missing git / shallow clones — falls back to safe
  * placeholder values so the build never fails because of metadata collection.

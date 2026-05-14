@@ -7,6 +7,9 @@ dist/
 build/
 *.dist
 
+# Deploy-generated metadata at repo root (never commit; never serve as static)
+build-info.json
+
 # Environment variables
 .env
 .env.local

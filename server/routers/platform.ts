@@ -18,6 +18,7 @@ import {
   updateOrganizationName,
   upsertUser,
 } from "../db";
+import { resolveDeployBuildInfo } from "../_core/deployBuildInfo";
 
 const subscriptionPlanSchema = z.enum(["free", "basic", "business_standard", "pro"]);
 
@@ -25,17 +26,26 @@ export const platformRouter = router({
   overview: superadminProcedure.query(async () => getPlatformOverview()),
 
   /** Non-secret runtime flags (change via host env / redeploy). */
-  runtimeInfo: superadminProcedure.query(() => ({
-    nodeEnv: process.env.NODE_ENV ?? "development",
-    databaseUrlConfigured: Boolean(process.env.DATABASE_URL?.trim()),
-    devFileAuth: ENV.useDevFileAuth,
-    authRequireEmailOtp: ENV.authRequireEmailOtp,
-    disableScheduler: process.env.DISABLE_SCHEDULER === "true",
-    disableSignalsScheduler: process.env.DISABLE_SIGNALS_SCHEDULER === "true",
-    oauthServerConfigured: Boolean(ENV.oAuthServerUrl?.trim()),
-    firebaseSignInServerConfigured: isFirebaseServerAuthConfigured(),
-    defaultAdminLogin: ENV.defaultAdminLogin,
-  })),
+  runtimeInfo: superadminProcedure.query(async () => {
+    const build = resolveDeployBuildInfo();
+    return {
+      nodeEnv: process.env.NODE_ENV ?? "development",
+      databaseUrlConfigured: Boolean(process.env.DATABASE_URL?.trim()),
+      devFileAuth: ENV.useDevFileAuth,
+      authRequireEmailOtp: ENV.authRequireEmailOtp,
+      disableScheduler: process.env.DISABLE_SCHEDULER === "true",
+      disableSignalsScheduler: process.env.DISABLE_SIGNALS_SCHEDULER === "true",
+      oauthServerConfigured: Boolean(ENV.oAuthServerUrl?.trim()),
+      firebaseSignInServerConfigured: isFirebaseServerAuthConfigured(),
+      defaultAdminLogin: ENV.defaultAdminLogin,
+      appVersion: build.appVersion,
+      gitCommitSha: build.gitCommitSha,
+      gitCommitShortSha: build.gitCommitShortSha,
+      gitBranch: build.gitBranch,
+      buildTime: build.buildTime,
+      serverStartedAt: build.serverStartedAt,
+    };
+  }),
 
   users: superadminProcedure.query(async () => listUsersForPlatform()),
 

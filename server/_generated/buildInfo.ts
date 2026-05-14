@@ -7,8 +7,8 @@
 import type { BuildInfo } from "../_core/buildInfoCompose";
 
 export const BUILD_INFO: BuildInfo = {
-  "version": "v1.0.118",
-  "commit": "a8bb2e5",
-  "buildTime": "2026-05-13T15:32:45.547Z",
-  "commitCount": 118
+  "version": "v1.0.119",
+  "commit": "2089ad1",
+  "buildTime": "2026-05-14T10:34:44.875Z",
+  "commitCount": 119
 };

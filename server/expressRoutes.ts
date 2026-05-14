@@ -19,7 +19,6 @@ import { completeMailboxOAuthConnect } from "./services/mailboxConnectFlow";
 import { validateMicrosoftClientState } from "./services/microsoftGraphSubscription";
 import { tryIngestSesOrSnsBounceNotification } from "./services/sesBounceIngest";
 import { ENV } from "./_core/env";
-import { BUILD_INFO } from "./_generated/buildInfo";
 import {
   csvImportLimiter,
   oauthCallbackLimiter,
@@ -101,23 +100,9 @@ export function registerExpressRoutes(app: Express) {
 </html>`);
   });
 
-  // ── Version (debug deploy) ────────────────────────────────────────────────
-  // Pulls from the build-time generated module first; falls back to
-  // host-provided env vars (GIT_SHA / VERCEL_GIT_COMMIT_SHA / BUILD_TIME)
-  // when the generator could not read git on this host. Never returns
-  // secrets — only commit sha, build timestamp, and `process.env.NODE_ENV`.
-  app.get("/api/version", (_req, res) => {
-    return res.status(200).json({
-      ok: true,
-      version: BUILD_INFO.version,
-      commit:
-        BUILD_INFO.commit ??
-        process.env.GIT_SHA ??
-        process.env.VERCEL_GIT_COMMIT_SHA ??
-        null,
-      buildTime: BUILD_INFO.buildTime ?? process.env.BUILD_TIME ?? null,
-      nodeEnv: process.env.NODE_ENV ?? null,
-    });
+  // ── Liveness (no deploy metadata — build info is superadmin-only via tRPC) ─
+  app.get("/api/health", (_req, res) => {
+    return res.status(200).json({ ok: true });
   });
 
   // ── Mailbox OAuth callbacks ────────────────────────────────────────────────
@@ -360,15 +345,6 @@ export function registerExpressRoutes(app: Express) {
       res.json({
         success: true,
         ...result,
-        serverBuild: {
-          version: BUILD_INFO.version,
-          commit:
-            BUILD_INFO.commit ??
-            process.env.GIT_SHA ??
-            process.env.VERCEL_GIT_COMMIT_SHA ??
-            null,
-          buildTime: BUILD_INFO.buildTime ?? process.env.BUILD_TIME ?? null,
-        },
       });
     } catch (err: any) {
       console.error("[CSV Import] Error:", err.message);

@@ -54,6 +54,7 @@ import {
   Check,
   CheckCircle2,
   ChevronsUpDown,
+  Copy,
   Mail,
   Pencil,
   RefreshCw,
@@ -150,6 +151,11 @@ function RuntimeRow({ label, value }: { label: string; value: string }) {
       <span className="text-sm font-medium text-foreground font-mono">{value}</span>
     </div>
   );
+}
+
+function displayOrUnknown(v: string | null | undefined): string {
+  if (v == null || v === "") return "unknown";
+  return v;
 }
 
 function UsersTable({
@@ -1196,6 +1202,78 @@ export default function SuperadminDashboard() {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle className="text-lg">Build info</CardTitle>
+                </div>
+                <CardDescription>
+                  Values come from <code className="text-xs bg-muted px-1 py-0.5 rounded">build-info.json</code>{" "}
+                  on the server (written by the deploy script). Not exposed on any public URL.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {runtimeInfo.isLoading ? (
+                  <p className="text-sm text-muted-foreground py-6">Loading…</p>
+                ) : runtimeInfo.isError ? (
+                  <p className="text-sm text-destructive">{runtimeInfo.error.message}</p>
+                ) : rt ? (
+                  <div className="rounded-lg border border-border/60 bg-muted/20 px-4">
+                    <RuntimeRow label="App version" value={displayOrUnknown(rt.appVersion)} />
+                    <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between py-2 border-b border-border/60">
+                      <span className="text-sm text-muted-foreground">Commit (short)</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium text-foreground font-mono truncate">
+                          {displayOrUnknown(rt.gitCommitShortSha)}
+                        </span>
+                        {rt.gitCommitSha ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 shrink-0 px-2"
+                            aria-label="Copy full commit SHA"
+                            title="Copy full commit SHA"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(rt.gitCommitSha!);
+                                toast.success("Full commit SHA copied.");
+                              } catch {
+                                toast.error("Could not copy to clipboard.");
+                              }
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                    <RuntimeRow label="Branch" value={displayOrUnknown(rt.gitBranch)} />
+                    <RuntimeRow
+                      label="Built at"
+                      value={
+                        rt.buildTime
+                          ? new Date(rt.buildTime).toLocaleString(undefined, {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            })
+                          : "not available"
+                      }
+                    />
+                    <RuntimeRow
+                      label="Server started"
+                      value={new Date(rt.serverStartedAt).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    />
+                    <RuntimeRow label="Environment" value={displayOrUnknown(rt.nodeEnv)} />
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
 

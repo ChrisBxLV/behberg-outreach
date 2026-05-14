@@ -255,6 +255,17 @@ describe("platform superadmin", () => {
     expect(typeof r.nodeEnv).toBe("string");
     expect(typeof r.databaseUrlConfigured).toBe("boolean");
     expect(typeof r.defaultAdminLogin).toBe("string");
+    expect(typeof r.appVersion).toBe("string");
+    expect(r.serverStartedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(r.gitCommitSha === null || typeof r.gitCommitSha === "string").toBe(true);
+    expect(r.gitCommitShortSha === null || typeof r.gitCommitShortSha === "string").toBe(true);
+    expect(r.gitBranch === null || typeof r.gitBranch === "string").toBe(true);
+    expect(r.buildTime === null || typeof r.buildTime === "string").toBe(true);
+  });
+
+  it("runtimeInfo rejects workspace users without platform console access", async () => {
+    const caller = appRouter.createCaller(makeTenantCtx());
+    await expect(caller.platform.runtimeInfo()).rejects.toThrow(/Platform superadmin|FORBIDDEN/);
   });
 
   it("updateUser persists changes", async () => {
