@@ -5,7 +5,12 @@
  * one app instance runs this module.
  */
 
-import { isProspectCrawlerDisabled, tickQueueCompany, tickQueueEmployee, tickSeeds } from "./crawler";
+import {
+  isProspectCrawlerDisabled,
+  tickQueueCompany,
+  tickQueueEmployee,
+  tickSeeds,
+} from "./crawler";
 import { advanceProspectSchedulerAfterTick } from "./crawlerControl";
 import { getProspectCrawlerRuntimeSettings, invalidateProspectCrawlerSettingsCache } from "./crawlerSettings";
 
@@ -121,6 +126,10 @@ let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
 export function startProspectCrawlerScheduler(): void {
   if (intervalHandle) return;
+  if (isProspectCrawlerDisabled()) {
+    console.log("[ProspectScheduler] not starting (DISABLE_PROSPECT_CRAWLER)");
+    return;
+  }
   console.log("[ProspectScheduler] started (30s poll)");
   void pollOnce();
   intervalHandle = setInterval(() => {

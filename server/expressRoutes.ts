@@ -510,12 +510,10 @@ export function registerExpressRoutes(app: Express) {
   //
   // In development, keep the existing convenience of auto-starting the
   // scheduler from the web process. `startScheduler()` still respects
-  // `DISABLE_SCHEDULER` for explicit opt-out.
-  if (ENV.isProduction) {
-    console.info(
-      "[Scheduler] Skipped in web process (production). Run the worker process separately.",
-    );
-  } else {
+  // `DISABLE_SCHEDULER` for explicit opt-out. Production web skips schedulers
+  // here; the listen handler in `_core/index.ts` logs that background work is
+  // disabled on the web process.
+  if (!ENV.isProduction) {
     startScheduler();
   }
 }

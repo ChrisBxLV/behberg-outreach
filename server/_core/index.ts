@@ -11,7 +11,9 @@ import { serveStatic, setupVite } from "./vite";
 import { registerExpressRoutes } from "../expressRoutes";
 import { agentDebugLog } from "./agentDebugLog";
 import { assertRequiredProductionEnv, ENV } from "./env";
+import { isProspectCrawlerDisabled } from "../services/prospect/crawler";
 import { startProspectCrawlerScheduler } from "../services/prospect/crawlerScheduler";
+import { seedProspectDb } from "../services/prospect/seedProspectDb";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -176,7 +178,23 @@ async function startServer() {
       data: { port, nodeEnv: process.env.NODE_ENV ?? "unknown" },
     });
     // #endregion
-    startProspectCrawlerScheduler();
+    if (ENV.isProduction) {
+      console.log("background schedulers disabled in web process");
+    } else {
+      void (async () => {
+        if (!isProspectCrawlerDisabled()) {
+          try {
+            await seedProspectDb();
+          } catch (err: unknown) {
+            console.warn(
+              "[ProspectCrawler] initial seed failed:",
+              err instanceof Error ? err.message : err,
+            );
+          }
+        }
+        startProspectCrawlerScheduler();
+      })();
+    }
   });
 }
 

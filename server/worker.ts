@@ -1,5 +1,8 @@
 import "dotenv/config";
 import { assertRequiredProductionEnv, ENV } from "./_core/env";
+import { isProspectCrawlerDisabled } from "./services/prospect/crawler";
+import { startProspectCrawlerScheduler } from "./services/prospect/crawlerScheduler";
+import { seedProspectDb } from "./services/prospect/seedProspectDb";
 import { startScheduler } from "./services/sequenceScheduler";
 
 function installFatalHandlers() {
@@ -20,6 +23,15 @@ async function startWorker() {
   assertRequiredProductionEnv();
   installFatalHandlers();
   startScheduler();
+  if (!isProspectCrawlerDisabled()) {
+    try {
+      await seedProspectDb();
+    } catch (err: unknown) {
+      console.warn("[ProspectCrawler] initial seed failed:", err instanceof Error ? err.message : err);
+    }
+  }
+  startProspectCrawlerScheduler();
+  console.log("background schedulers started");
   console.log(
     `[Worker] Background worker started (nodeEnv=${process.env.NODE_ENV ?? "unknown"}).`,
   );

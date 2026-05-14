@@ -100,6 +100,10 @@ Environment variables:
 
   HEALTHCHECK_URL       optional; if set, `curl -fsS` is run after restart (do not embed secrets in URLs)
 
+  DEPLOY_ROOT           optional absolute repo path for the running Node process when its cwd is not
+                        the repository root (e.g. starts from dist/). Lets the server find build-info.json.
+                        Usually set to the same path as APP_DIR after deploy.
+
 Examples:
   ./deploy.sh
   ./deploy.sh --branch main
@@ -158,6 +162,8 @@ BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 APP_VERSION="$(date -u +"%Y.%m.%d")-${SHORT_SHA}"
 node -e 'const fs=require("fs");const [sha,short,branch,btime,appv]=process.argv.slice(1);fs.writeFileSync("build-info.json",JSON.stringify({appVersion:appv,gitCommitSha:sha,gitCommitShortSha:short,gitBranch:branch,buildTime:btime},null,2)+"\n");' \
   "$COMMIT_SHA" "$SHORT_SHA" "$BRANCH" "$BUILD_TIME" "$APP_VERSION"
+
+log "Superadmin build metadata: if Node's cwd is not the repo root, set DEPLOY_ROOT=$APP_DIR on the server process (systemd Environment=, pm2 env, etc.). See ecosystem.config.example.cjs."
 
 if [[ -f pnpm-lock.yaml ]]; then
   if command -v pnpm >/dev/null; then
