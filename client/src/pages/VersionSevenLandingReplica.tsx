@@ -22,8 +22,10 @@ import {
   versionSevenCaseStudies,
   versionSevenFaq,
   versionSevenFeatures,
+  versionSevenFounders,
   versionSevenMetrics,
   versionSevenTestimonials,
+  versionSevenValues,
   versionSevenWhyItems,
 } from "./versionSevenLandingData";
 
@@ -185,6 +187,7 @@ export default function VersionSevenLandingReplica({
             <div className="flex items-center gap-4 max-sm:w-full max-sm:justify-between max-sm:gap-2 max-[380px]:justify-center max-[380px]:flex-wrap max-[380px]:gap-x-3 max-[380px]:gap-y-1.5">
               <a href="#features" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Features</a>
               <a href="#workflow" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Workflow</a>
+              <a href="#team-values" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Team</a>
               <a href="#pricing" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Pricing</a>
               <a href="#faq" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">FAQ</a>
               {switchable && toggleTheme ? (
@@ -534,6 +537,52 @@ export default function VersionSevenLandingReplica({
                 </div>
               </div>
             ))}
+          </div>
+        </LandingContainer>
+      </section>
+
+      {/* Team + values */}
+      <section id="team-values" className="py-16 border-t border-border">
+        <LandingContainer>
+          <h2 className="text-3xl font-extrabold tracking-tight text-foreground">
+            Built by Founders Who Lived the Problem
+          </h2>
+          <p className="mt-3 text-muted-foreground max-w-3xl">
+            We are three founders: one with prior CISO experience and two who previously founded a recruitment
+            agency and sold outbound day-to-day. Krot exists because competitor workflows were not secure enough,
+            practical enough, or effective enough for real pipeline growth.
+          </p>
+
+          <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-4">
+            {versionSevenFounders.map((founder) => (
+              <div key={founder.name + founder.role} className="rounded-2xl border border-border bg-card/70 p-6">
+                <img
+                  src={founder.photoSrc}
+                  alt={founder.photoAlt}
+                  className="h-40 w-40 rounded-xl border border-border/60 object-cover bg-muted/30"
+                  loading="lazy"
+                />
+                <div className="mt-4 text-base font-extrabold text-foreground">{founder.name}</div>
+                <div className="mt-1 text-xs font-semibold text-primary">{founder.role}</div>
+                <div className="mt-3 text-sm leading-relaxed text-muted-foreground">{founder.bio}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-10">
+            <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Our values
+            </div>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+              {versionSevenValues.map((value) => (
+                <div key={value.title} className="rounded-xl border border-border bg-card/60 p-5">
+                  <div className="text-base font-extrabold text-foreground">{value.title}</div>
+                  <div className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {value.description}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </LandingContainer>
       </section>

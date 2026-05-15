@@ -1,0 +1,9 @@
+<svg width="640" height="640" viewBox="0 0 640 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="640" rx="32" fill="#E6E8EC"/>
+  <circle cx="320" cy="230" r="100" fill="#B9C0CC"/>
+  <path d="M150 530C150 436.112 226.112 360 320 360C413.888 360 490 436.112 490 530V640H150V530Z" fill="#B9C0CC"/>
+  <rect x="208" y="544" width="224" height="48" rx="12" fill="#8F99AA"/>
+  <text x="320" y="572" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#F8FAFC">
+    Founder Photo
+  </text>
+</svg>
