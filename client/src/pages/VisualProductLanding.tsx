@@ -362,6 +362,61 @@ function SnapshotVisual({ variant }: { variant: Snapshot["variant"] }) {
   return <LeadBoardVisual />;
 }
 
+function HeroValuePanel() {
+  const issues = [
+    { title: "Low-fit lists", text: "Teams waste time writing to accounts that were never likely to convert.", icon: Target },
+    { title: "Weak timing", text: "Good prospects get contacted before there is a reason to respond.", icon: BellRing },
+    { title: "Manual handoffs", text: "Research, enrichment, and sequencing often live in disconnected tools.", icon: Zap },
+  ];
+
+  return (
+    <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-2xl shadow-primary/10 backdrop-blur">
+      <div className="rounded-2xl border border-primary/25 bg-primary/10 p-5">
+        <div className="text-xs font-black uppercase tracking-[0.24em] text-primary">
+          The problem
+        </div>
+        <h2 className="mt-3 text-2xl font-black tracking-tight text-foreground">
+          Cold email works when the account, timing, and message line up.
+        </h2>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          Krot helps B2B teams turn real-time account signals and better lead data into
+          email outreach that is relevant from the first touch.
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        {issues.map(({ title, text, icon: Icon }) => (
+          <div key={title} className="flex gap-3 rounded-2xl border border-border bg-background/70 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+              <Icon className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-black text-foreground">{title}</div>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-border bg-background/70 p-4">
+        <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Krot connects
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {["Lead fit", "Enrichment", "Real-time signals", "Email sequences"].map((item) => (
+            <span
+              key={item}
+              className="rounded-full border border-border bg-card/80 px-3 py-1 text-[11px] font-bold text-muted-foreground"
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HeroProductMockup() {
   const heroStats: { label: string; value: string; icon: LucideIcon }[] = [
     { label: "Fit", value: "92", icon: Target },
@@ -431,6 +486,50 @@ function SectionHeader({
         <p className="mt-3 text-base leading-relaxed text-muted-foreground">{text}</p>
       ) : null}
     </div>
+  );
+}
+
+function CollapsibleLandingSection({
+  id,
+  className,
+  eyebrow,
+  title,
+  text,
+  children,
+}: {
+  id: string;
+  className?: string;
+  eyebrow: string;
+  title: string;
+  text: string;
+  children: ReactNode;
+}) {
+  return (
+    <section id={id} className={className}>
+      <LandingContainer>
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem
+            value={id}
+            className="overflow-hidden rounded-3xl border border-border bg-card/80 px-5 shadow-sm backdrop-blur sm:px-7"
+          >
+            <AccordionTrigger className="py-7 text-left hover:no-underline">
+              <div className="max-w-3xl pr-4">
+                <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">
+                  {eyebrow}
+                </div>
+                <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
+                  {title}
+                </h2>
+                <p className="mt-3 text-base leading-relaxed text-muted-foreground">{text}</p>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-7">
+              <div className="pt-2">{children}</div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </LandingContainer>
+    </section>
   );
 }
 
@@ -511,18 +610,18 @@ export default function VisualProductLanding({
         <main>
           <section className="pt-28 pb-16 sm:pt-32 lg:pb-20">
             <LandingContainer>
-              <div className="grid items-center gap-10 lg:grid-cols-[0.82fr_1.18fr]">
+              <div className="grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr]">
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-4 py-2 text-sm font-black text-primary">
                     <Sparkles className="h-4 w-4" />
                     B2B outbound platform
                   </div>
                   <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-tight text-foreground sm:text-6xl">
-                    See who to contact, why now, and what to send.
+                    Turn better timing into better B2B email.
                   </h1>
                   <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
-                    Krot turns lead quality, enrichment, signals, and inbox-native
-                    sequencing into one GTM workspace.
+                    Krot helps sales teams find the right accounts, understand what changed,
+                    and launch email outreach with context while the opportunity is fresh.
                   </p>
                   <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                     <PrimaryCtaLink href="/signup">
@@ -532,7 +631,7 @@ export default function VisualProductLanding({
                     </PrimaryCtaLink>
                     <SecondaryCtaLink href="#product">
                       <span className="flex items-center gap-2">
-                        See how it works <ArrowRight className="h-4 w-4" />
+                        See the product <ArrowRight className="h-4 w-4" />
                       </span>
                     </SecondaryCtaLink>
                   </div>
@@ -548,7 +647,7 @@ export default function VisualProductLanding({
                   </div>
                 </div>
 
-                <HeroProductMockup />
+                <HeroValuePanel />
               </div>
             </LandingContainer>
           </section>
@@ -578,7 +677,11 @@ export default function VisualProductLanding({
                 text="Review lead fit, sequence performance, signal timing, and pipeline outcomes from one workspace."
               />
 
-              <div className="mt-10 grid gap-5 lg:grid-cols-3">
+              <div className="mt-10">
+                <HeroProductMockup />
+              </div>
+
+              <div className="mt-8 grid gap-5 lg:grid-cols-3">
                 {snapshots.map((snapshot) => {
                   const Icon = snapshot.icon;
                   return (
@@ -746,122 +849,114 @@ export default function VisualProductLanding({
             </LandingContainer>
           </section>
 
-          <section id="team" className="border-y border-border bg-card/30 py-16">
-            <LandingContainer>
-              <div className="grid gap-10 lg:grid-cols-[0.72fr_1.28fr] lg:items-start">
-                <SectionHeader
-                  eyebrow="Team"
-                  title="Built by operators who lived the problem."
-                  text="Krot is led by founders with security, recruiting, and hands-on outbound experience, which shapes the product around practical growth and trust."
-                />
+          <CollapsibleLandingSection
+            id="team"
+            className="border-y border-border bg-card/30 py-16"
+            eyebrow="Team"
+            title="Built by operators who lived the problem."
+            text="Krot is led by founders with security, recruiting, and hands-on outbound experience, which shapes the product around practical growth and trust."
+          >
+            <div className="grid gap-4 md:grid-cols-3">
+              {versionSevenFounders.map((founder) => (
+                <article
+                  key={founder.name + founder.role}
+                  className="rounded-3xl border border-border bg-background/70 p-5 shadow-sm"
+                >
+                  <img
+                    src={founder.photoSrc}
+                    alt={founder.photoAlt}
+                    className="h-28 w-28 rounded-2xl border border-border/70 bg-muted/30 object-cover"
+                    loading="lazy"
+                  />
+                  <div className="mt-5 text-lg font-black text-foreground">{founder.name}</div>
+                  <div className="mt-1 text-xs font-bold uppercase tracking-wide text-primary">
+                    {founder.role}
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                    {founder.bio}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </CollapsibleLandingSection>
 
-                <div className="grid gap-4 md:grid-cols-3">
-                  {versionSevenFounders.map((founder) => (
-                    <article
-                      key={founder.name + founder.role}
-                      className="rounded-3xl border border-border bg-card/80 p-5 shadow-sm"
-                    >
-                      <img
-                        src={founder.photoSrc}
-                        alt={founder.photoAlt}
-                        className="h-28 w-28 rounded-2xl border border-border/70 bg-muted/30 object-cover"
-                        loading="lazy"
-                      />
-                      <div className="mt-5 text-lg font-black text-foreground">{founder.name}</div>
-                      <div className="mt-1 text-xs font-bold uppercase tracking-wide text-primary">
-                        {founder.role}
-                      </div>
-                      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                        {founder.bio}
-                      </p>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            </LandingContainer>
-          </section>
-
-          <section id="pricing" className="py-16">
-            <LandingContainer>
-              <SectionHeader
-                eyebrow="Pricing"
-                title="Choose the right plan."
-                text="Short plans, clear limits, and a simple path to getting started."
-              />
-              <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                {pricingPlans.map((plan) => (
-                  <div
-                    key={plan.name}
+          <CollapsibleLandingSection
+            id="pricing"
+            className="py-16"
+            eyebrow="Pricing"
+            title="Choose the right plan."
+            text="Short plans, clear limits, and a simple path to getting started."
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              {pricingPlans.map((plan) => (
+                <div
+                  key={plan.name}
+                  className={cn(
+                    "flex h-full flex-col rounded-3xl border bg-card/80 p-5",
+                    plan.highlight
+                      ? "border-primary shadow-[0_0_0_1px_rgba(196,160,66,0.2)]"
+                      : "border-border",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-black text-foreground">{plan.name}</div>
+                    {plan.highlight ? <ScorePill value="Popular" /> : null}
+                  </div>
+                  <div className="mt-4 text-4xl font-black text-foreground">{plan.price}</div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                    {plan.label}
+                  </div>
+                  <ul className="mt-5 flex-1 space-y-3 text-sm font-semibold text-muted-foreground">
+                    {plan.bullets.map((bullet) => (
+                      <li key={bullet} className="flex items-start gap-2">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        <span>{bullet}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <a
+                    href="/signup"
                     className={cn(
-                      "flex h-full flex-col rounded-3xl border bg-card/80 p-5",
+                      "mt-6 inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-black transition hover:-translate-y-0.5",
                       plan.highlight
-                        ? "border-primary shadow-[0_0_0_1px_rgba(196,160,66,0.2)]"
-                        : "border-border",
+                        ? "border-primary/45 bg-primary/15 text-primary"
+                        : "border-border bg-background/70 text-foreground",
                     )}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-black text-foreground">{plan.name}</div>
-                      {plan.highlight ? <ScorePill value="Popular" /> : null}
-                    </div>
-                    <div className="mt-4 text-4xl font-black text-foreground">{plan.price}</div>
-                    <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                      {plan.label}
-                    </div>
-                    <ul className="mt-5 flex-1 space-y-3 text-sm font-semibold text-muted-foreground">
-                      {plan.bullets.map((bullet) => (
-                        <li key={bullet} className="flex items-start gap-2">
-                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                          <span>{bullet}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <a
-                      href="/signup"
-                      className={cn(
-                        "mt-6 inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-black transition hover:-translate-y-0.5",
-                        plan.highlight
-                          ? "border-primary/45 bg-primary/15 text-primary"
-                          : "border-border bg-background/70 text-foreground",
-                      )}
-                    >
-                      Get started
-                    </a>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-6 rounded-2xl border border-border bg-card/70 p-4 text-sm font-semibold text-muted-foreground">
-                Need custom integrations? Contact{" "}
-                <a href="mailto:sales@krot.io" className="text-foreground underline underline-offset-4">
-                  sales@krot.io
-                </a>
-                .
-              </div>
-            </LandingContainer>
-          </section>
+                    Get started
+                  </a>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 rounded-2xl border border-border bg-background/70 p-4 text-sm font-semibold text-muted-foreground">
+              Need custom integrations? Contact{" "}
+              <a href="mailto:sales@krot.io" className="text-foreground underline underline-offset-4">
+                sales@krot.io
+              </a>
+              .
+            </div>
+          </CollapsibleLandingSection>
 
-          <section id="faq" className="py-16">
-            <LandingContainer>
-              <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr]">
-                <SectionHeader
-                  eyebrow="FAQ"
-                  title="Frequently asked questions."
-                  text="Answers about the product, workflow, inboxes, analytics, and getting started."
-                />
-                <Accordion type="single" collapsible className="w-full rounded-3xl border border-border bg-card/80 px-5">
-                  {faqs.map((item) => (
-                    <AccordionItem key={item.question} value={item.question}>
-                      <AccordionTrigger className="text-left font-black text-foreground">
-                        {item.question}
-                      </AccordionTrigger>
-                      <AccordionContent className="text-muted-foreground">
-                        {item.answer}
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-              </div>
-            </LandingContainer>
-          </section>
+          <CollapsibleLandingSection
+            id="faq"
+            className="py-16"
+            eyebrow="FAQ"
+            title="Frequently asked questions."
+            text="Answers about the product, workflow, inboxes, analytics, and getting started."
+          >
+            <Accordion type="single" collapsible className="w-full rounded-3xl border border-border bg-background/70 px-5">
+              {faqs.map((item) => (
+                <AccordionItem key={item.question} value={item.question}>
+                  <AccordionTrigger className="text-left font-black text-foreground">
+                    {item.question}
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    {item.answer}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </CollapsibleLandingSection>
 
           <section className="pb-16">
             <LandingContainer>
