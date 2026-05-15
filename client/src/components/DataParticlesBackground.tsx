@@ -11,36 +11,48 @@ export default function DataParticlesBackground() {
   useEffect(() => {
     const initParticles = () => {
       if (!window.particlesJS) return;
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
       window.particlesJS("landing-particles", {
         particles: {
-          number: { value: 70, density: { enable: true, value_area: 850 } },
+          number: { value: reduceMotion ? 24 : 42, density: { enable: true, value_area: 1100 } },
           color: { value: "#d2b46d" },
           shape: {
             type: "polygon",
             polygon: { nb_sides: 6 },
           },
           opacity: {
-            value: 0.34,
+            value: 0.18,
             random: true,
-            anim: { enable: true, speed: 0.35, opacity_min: 0.14, sync: false },
+            anim: {
+              enable: !reduceMotion,
+              speed: 0.16,
+              opacity_min: 0.08,
+              sync: false,
+            },
           },
           size: {
-            value: 5,
+            value: 3.8,
             random: true,
-            anim: { enable: true, speed: 1.2, size_min: 2.2, sync: false },
+            anim: {
+              enable: !reduceMotion,
+              speed: 0.35,
+              size_min: 2,
+              sync: false,
+            },
           },
           line_linked: {
             enable: true,
-            distance: 130,
+            distance: 115,
             color: "#8fa4cb",
-            opacity: 0.62,
-            width: 1.5,
+            opacity: 0.18,
+            width: 0.8,
           },
           move: {
-            enable: true,
-            speed: 0.9,
+            enable: !reduceMotion,
+            speed: 0.22,
             direction: "none",
-            random: false,
+            random: true,
             straight: false,
             out_mode: "out",
             bounce: false,
@@ -88,6 +100,7 @@ export default function DataParticlesBackground() {
     <div className="data-particles-layer" aria-hidden="true">
       <div className="data-grid-overlay" />
       <div id="landing-particles" className="data-particles-canvas" />
+      <div className="data-particles-softener" />
     </div>
   );
 }
