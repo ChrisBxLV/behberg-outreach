@@ -29,6 +29,19 @@ export type FaqItem = {
   answer: string;
 };
 
+export type FounderProfile = {
+  name: string;
+  role: string;
+  bio: string;
+  photoSrc: string;
+  photoAlt: string;
+};
+
+export type ValueItem = {
+  title: string;
+  description: string;
+};
+
 export const versionSevenMetrics: Metric[] = [
   { label: "Qualified Leads", value: "3,420", delta: "+18%" },
   { label: "Sequence Reply Rate", value: "21%", delta: "+4%" },
@@ -153,6 +166,51 @@ export const versionSevenWhyItems = [
     title: "Revenue Focused",
     description:
       "Align intelligence, outreach, and follow-up around what creates pipeline and meetings.",
+  },
+];
+
+export const versionSevenFounders: FounderProfile[] = [
+  {
+    name: "Founder 01",
+    role: "Security lead (former CISO)",
+    bio:
+      "Former CISO focused on building secure-by-design systems, clear controls, and practical risk governance for revenue teams.",
+    photoSrc: "/founder-placeholder.svg",
+    photoAlt: "Founder photo placeholder",
+  },
+  {
+    name: "Founder 02",
+    role: "Recruitment agency founder & salesperson",
+    bio:
+      "Previously co-founded a recruitment agency and worked frontline sales, where existing outbound tools felt fragmented and slow.",
+    photoSrc: "/founder-placeholder.svg",
+    photoAlt: "Founder photo placeholder",
+  },
+  {
+    name: "Founder 03",
+    role: "Recruitment agency founder & salesperson",
+    bio:
+      "Previously co-founded a recruitment agency and sold directly to clients. Built Krot to replace competitor workflows that did not convert into pipeline reliably.",
+    photoSrc: "/founder-placeholder.svg",
+    photoAlt: "Founder photo placeholder",
+  },
+];
+
+export const versionSevenValues: ValueItem[] = [
+  {
+    title: "Security by default",
+    description:
+      "We design product decisions with security first so teams can move fast without exposing customer data.",
+  },
+  {
+    title: "Privacy that is practical",
+    description:
+      "Data minimization, permission-aware workflows, and transparent controls are built into daily outbound operations.",
+  },
+  {
+    title: "Growth with integrity",
+    description:
+      "We help teams create real business opportunities through better-fit targeting, trustworthy messaging, and measurable pipeline impact.",
   },
 ];
 
