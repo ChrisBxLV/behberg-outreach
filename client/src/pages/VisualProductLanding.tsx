@@ -33,17 +33,17 @@ type VisualProductLandingProps = {
   brandHomeHref?: string;
 };
 
-type MetricCard = {
-  value: string;
-  label: string;
-  detail: string;
-};
-
 type Snapshot = {
   title: string;
   caption: string;
   icon: LucideIcon;
   variant: "contact-search" | "sequence" | "signals";
+};
+
+type SimpleStep = {
+  title: string;
+  text: string;
+  icon: LucideIcon;
 };
 
 type PricingPlan = {
@@ -54,11 +54,22 @@ type PricingPlan = {
   bullets: string[];
 };
 
-const metrics: MetricCard[] = [
-  { value: "3,420", label: "searchable contacts", detail: "ready to save" },
-  { value: "21%", label: "sequence reply rate", detail: "workspace average" },
-  { value: "97.8%", label: "inbox health", detail: "deliverability view" },
-  { value: "10 min", label: "contact-to-sequence", detail: "from search to launch" },
+const simpleSteps: SimpleStep[] = [
+  {
+    title: "Search contacts",
+    text: "Find people in the database without switching between tools first.",
+    icon: Search,
+  },
+  {
+    title: "Add to a sequence",
+    text: "Save contacts or move them directly into an email campaign.",
+    icon: Mail,
+  },
+  {
+    title: "Use the right signal",
+    text: "Reference timely account context without turning outreach into a research project.",
+    icon: BellRing,
+  },
 ];
 
 const snapshots: Snapshot[] = [
@@ -120,12 +131,12 @@ const faqs = [
   {
     question: "What is Krot?",
     answer:
-      "Krot is a B2B outbound platform that combines contact search, email sequences, real-time signals, and campaign analytics in one workspace.",
+      "Krot is a focused B2B outbound platform that combines contact search, email sequences, real-time signals, and campaign analytics in one workspace.",
   },
   {
     question: "How does Krot work?",
     answer:
-      "Teams search the contact database, save contacts or add them directly to a sequence, write outreach, and use real-time signals to improve timing and context.",
+      "Teams search the contact database, save contacts or add them directly to a sequence, write outreach, and use real-time signals to improve timing and context without adding extra operational layers.",
   },
   {
     question: "Who is Krot built for?",
@@ -594,12 +605,12 @@ export default function VisualProductLanding({
               <div className="grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr]">
                 <div>
                   <h1 className="text-4xl font-black leading-[1.02] tracking-tight text-foreground sm:text-6xl">
-                    Find contacts, catch buying signals, and send better email.
+                    B2B email outreach without the busywork.
                   </h1>
                   <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
-                    Krot gives B2B teams a searchable contact database, real-time account
-                    signals, and email sequences in one workspace so outreach is easier to
-                    start and more relevant when it lands.
+                    Search contacts, add them to a sequence, and use real-time signals to
+                    send with better context. Krot keeps outbound focused enough for any
+                    team to use, with the controls needed to scale.
                   </p>
                   <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                     <PrimaryCtaLink href="/signup">
@@ -622,17 +633,27 @@ export default function VisualProductLanding({
 
           <section className="pb-12">
             <LandingContainer>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {metrics.map((metric) => (
-                  <div
-                    key={metric.label}
-                    className="rounded-2xl border border-border bg-card/75 p-5 backdrop-blur"
-                  >
-                    <div className="text-3xl font-black text-foreground">{metric.value}</div>
-                    <div className="mt-1 text-sm font-bold text-foreground">{metric.label}</div>
-                    <div className="text-xs font-semibold text-muted-foreground">{metric.detail}</div>
-                  </div>
-                ))}
+              <div className="grid gap-3 md:grid-cols-3">
+                {simpleSteps.map((step, index) => {
+                  const Icon = step.icon;
+                  return (
+                    <div
+                      key={step.title}
+                      className="rounded-2xl border border-border bg-card/75 p-5 backdrop-blur"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+                          Step {index + 1}
+                        </div>
+                      </div>
+                      <div className="mt-4 text-xl font-black text-foreground">{step.title}</div>
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.text}</p>
+                    </div>
+                  );
+                })}
               </div>
             </LandingContainer>
           </section>
@@ -641,8 +662,8 @@ export default function VisualProductLanding({
             <LandingContainer>
               <SectionHeader
                 eyebrow="Product"
-                title="See Krot in action."
-                text="Search contacts, add them to sequences, track replies, and use real-time signals to shape timely email outreach."
+                title="A clean workspace for the work that matters."
+                text="Krot keeps contact search, sequences, signals, and replies close together so teams can move without navigating a crowded sales stack."
               />
 
               <div className="mt-10">
@@ -686,8 +707,8 @@ export default function VisualProductLanding({
                 <div className="rounded-3xl border border-border bg-card/80 p-7">
                   <SectionHeader
                     eyebrow="Trust"
-                    title="Secure-by-design outbound."
-                    text="Krot keeps the marketing promise simple: useful automation, clear controls, and privacy-aware execution."
+                    title="Control without clutter."
+                    text="Krot gives teams practical controls for outbound without burying daily work under unnecessary configuration."
                   />
                   <div className="mt-7 grid gap-3 sm:grid-cols-2">
                     {[
@@ -714,7 +735,7 @@ export default function VisualProductLanding({
                       <Users className="h-5 w-5 text-primary" />
                       <div className="mt-4 text-2xl font-black text-foreground">Recruiting</div>
                       <p className="mt-2 text-sm text-muted-foreground">
-                        Spot hiring signals, map accounts, launch timely client outreach.
+                        Spot hiring signals, find contacts, and launch timely client outreach.
                       </p>
                     </div>
                     <div className="rounded-2xl border border-border bg-background/70 p-5">
