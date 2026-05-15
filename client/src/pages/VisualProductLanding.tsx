@@ -28,6 +28,7 @@ import { useCookieConsent } from "@/contexts/CookieConsentContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getPublicHomeUrl } from "@/const";
 import { cn } from "@/lib/utils";
+import { versionSevenFounders } from "./versionSevenLandingData";
 
 type VisualProductLandingProps = {
   /** Header logo + brand tap target; should match the marketing route hosting this page (`/` vs `/home`). */
@@ -58,7 +59,7 @@ type PricingPlan = {
 
 const metrics: MetricCard[] = [
   { value: "3,420", label: "qualified leads", detail: "ready for outreach" },
-  { value: "21%", label: "sequence reply rate", detail: "sample workspace" },
+  { value: "21%", label: "sequence reply rate", detail: "workspace average" },
   { value: "97.8%", label: "inbox health", detail: "deliverability view" },
   { value: "10 min", label: "lead-to-sequence", detail: "from ICP to launch" },
 ];
@@ -72,8 +73,8 @@ const snapshots: Snapshot[] = [
     variant: "lead-board",
   },
   {
-    title: "Build safe sequences",
-    caption: "Use placeholders and approvals before sending.",
+    title: "Build approved sequences",
+    caption: "Use variables and approvals before sending.",
     metric: "5-step email flow",
     icon: Mail,
     variant: "sequence",
@@ -91,7 +92,7 @@ const workflowSteps = [
   { label: "Search", detail: "ICP filters", icon: Search },
   { label: "Qualify", detail: "Fit score", icon: Target },
   { label: "Enrich", detail: "Clean contacts", icon: Database },
-  { label: "Personalize", detail: "Safe snippets", icon: Sparkles },
+  { label: "Personalize", detail: "Message snippets", icon: Sparkles },
   { label: "Launch", detail: "Inbox-native", icon: Zap },
   { label: "Learn", detail: "Reply analytics", icon: BarChart3 },
 ];
@@ -140,11 +141,6 @@ const pricingPlans: PricingPlan[] = [
 ];
 
 const faqs = [
-  {
-    question: "What is shown in the product visuals?",
-    answer:
-      "The landing page uses illustrative mock data only. Company names, contacts, snippets, scores, and metrics are examples that show the product shape without exposing sensitive data.",
-  },
   {
     question: "Is Krot mostly a signals tool?",
     answer:
@@ -206,7 +202,7 @@ function BrowserChrome({ children }: { children: ReactNode }) {
         <span className="h-2.5 w-2.5 rounded-full bg-primary/70" />
         <span className="h-2.5 w-2.5 rounded-full bg-chart-3/70" />
         <div className="ml-3 h-6 flex-1 rounded-full border border-border bg-background/80 px-3 text-[11px] font-semibold leading-6 text-muted-foreground">
-          app.krot.io/workspace/demo
+          app.krot.io/workspace
         </div>
       </div>
       {children}
@@ -216,7 +212,7 @@ function BrowserChrome({ children }: { children: ReactNode }) {
 
 function ScorePill({ value }: { value: string }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-primary/40 bg-primary/12 px-2 py-1 text-[11px] font-bold text-primary">
+    <span className="inline-flex min-h-9 shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-primary/40 bg-primary/12 px-3.5 py-1.5 text-center text-[11px] font-bold leading-none text-primary">
       {value}
     </span>
   );
@@ -279,7 +275,7 @@ function SequenceVisual() {
     <div className="space-y-3">
       <div className="rounded-xl border border-primary/35 bg-primary/10 p-4">
         <div className="text-xs font-bold uppercase tracking-wide text-primary">
-          Safe snippet preview
+          Message preview
         </div>
         <div className="mt-2 rounded-lg border border-border bg-background/80 p-3 text-xs leading-relaxed text-muted-foreground">
           Hi {"{{first_name}}"}, saw {"{{account_signal}}"}. Krot flagged a likely fit
@@ -337,88 +333,46 @@ function SnapshotVisual({ variant }: { variant: Snapshot["variant"] }) {
 }
 
 function HeroProductMockup() {
+  const heroStats: { label: string; value: string; icon: LucideIcon }[] = [
+    { label: "Fit", value: "92", icon: Target },
+    { label: "Contacts", value: "128", icon: Database },
+    { label: "Replies", value: "21%", icon: BarChart3 },
+  ];
+
   return (
     <BrowserChrome>
-      <div className="grid min-h-[520px] grid-cols-1 bg-background/60 lg:grid-cols-[13rem_1fr]">
-        <aside className="hidden border-r border-border bg-card/65 p-4 lg:block">
-          <div className="mb-6 flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
-              <Sparkles className="h-4 w-4" />
+      <div className="bg-background/60 p-4 sm:p-6">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.22em] text-primary">
+              ICP to outbound
             </div>
-            <div>
-              <div className="text-sm font-black text-foreground">Krot</div>
-              <div className="text-[11px] font-semibold text-muted-foreground">Demo workspace</div>
-            </div>
+            <h2 className="mt-1 text-2xl font-black tracking-tight text-foreground">
+              Visual pipeline control
+            </h2>
           </div>
-          {["Prospecting", "Sequences", "Signals", "Analytics"].map((item, index) => (
-            <div
-              key={item}
-              className={cn(
-                "mb-2 rounded-lg px-3 py-2 text-xs font-bold",
-                index === 0 ? "bg-primary/15 text-primary" : "text-muted-foreground",
-              )}
-            >
-              {item}
-            </div>
-          ))}
-        </aside>
-
-        <div className="space-y-4 p-4 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.22em] text-primary">
-                ICP to outbound
-              </div>
-              <h2 className="mt-1 text-2xl font-black tracking-tight text-foreground">
-                Visual pipeline control
-              </h2>
-            </div>
-            <div className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-2 text-xs font-bold text-muted-foreground">
-              <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              Safe mock data
-            </div>
+          <div className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-2 text-xs font-bold text-muted-foreground">
+            <span className="h-2 w-2 rounded-full bg-primary" />
+            Pipeline active
           </div>
+        </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="rounded-2xl border border-border bg-card/80 p-4">
-              <LeadBoardVisual />
-            </div>
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-border bg-card/80 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                      Sequence status
-                    </div>
-                    <div className="mt-1 text-xl font-black text-foreground">46 meetings</div>
-                  </div>
-                  <ScorePill value="+18%" />
+        <div className="grid gap-4 lg:grid-cols-[1fr_15rem]">
+          <div className="rounded-2xl border border-border bg-card/80 p-4">
+            <LeadBoardVisual />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            {heroStats.map(({ label, value, icon: Icon }) => (
+              <div key={label} className="rounded-2xl border border-border bg-card/80 p-4">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                  <Icon className="h-4 w-4" />
                 </div>
-                <div className="mt-4 grid grid-cols-5 items-end gap-2">
-                  {[42, 58, 51, 76, 68].map((height, index) => (
-                    <div key={height + index} className="flex h-24 items-end rounded-lg bg-muted/60 p-1">
-                      <div
-                        className="w-full rounded-md bg-primary/80"
-                        style={{ height: `${height}%` }}
-                      />
-                    </div>
-                  ))}
+                <div className="mt-4 text-2xl font-black text-foreground">{value}</div>
+                <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  {label}
                 </div>
               </div>
-
-              <div className="rounded-2xl border border-border bg-card/80 p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                    Approved snippet
-                  </div>
-                  <CheckCircle2 className="h-4 w-4 text-primary" />
-                </div>
-                <div className="rounded-xl border border-border bg-background/70 p-3 text-xs leading-relaxed text-muted-foreground">
-                  {"{{company}}"} is expanding its GTM team. Krot suggests a short
-                  opener around hiring momentum and pipeline coverage.
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
@@ -490,6 +444,9 @@ export default function VisualProductLanding({
                 <a href="#workflow" className="transition hover:text-foreground">
                   Workflow
                 </a>
+                <a href="#team" className="transition hover:text-foreground">
+                  Team
+                </a>
                 <a href="#pricing" className="transition hover:text-foreground">
                   Pricing
                 </a>
@@ -545,12 +502,12 @@ export default function VisualProductLanding({
                     </PrimaryCtaLink>
                     <SecondaryCtaLink href="#product">
                       <span className="flex items-center gap-2">
-                        View product snippets <ArrowRight className="h-4 w-4" />
+                        View product tour <ArrowRight className="h-4 w-4" />
                       </span>
                     </SecondaryCtaLink>
                   </div>
                   <div className="mt-7 flex flex-wrap gap-2">
-                    {["Mock data only", "GDPR-aware workflows", "Connected inboxes"].map((item) => (
+                    {["Lead quality", "GDPR-aware workflows", "Connected inboxes"].map((item) => (
                       <span
                         key={item}
                         className="inline-flex items-center rounded-full border border-border bg-card/70 px-3 py-1 text-[11px] font-bold text-muted-foreground"
@@ -587,7 +544,7 @@ export default function VisualProductLanding({
             <LandingContainer>
               <SectionHeader
                 eyebrow="Product snapshots"
-                title="More demo, less brochure."
+                title="More product, less brochure."
                 text="The landing page now shows the surfaces buyers care about: lead fit, sequence control, signal timing, and measurable outcomes."
               />
 
@@ -629,7 +586,7 @@ export default function VisualProductLanding({
                 <SectionHeader
                   eyebrow="Workflow"
                   title="A visual path from target account to reply."
-                  text="Competitor audits showed that buyers understand platforms faster when the workflow is visible. Krot now shows the whole loop at a glance."
+                  text="Buyers can understand the platform faster when the workflow is visible. Krot now shows the whole loop at a glance."
                 />
 
                 <div className="rounded-3xl border border-border bg-card/80 p-5 shadow-sm backdrop-blur">
@@ -737,7 +694,7 @@ export default function VisualProductLanding({
                         <div>
                           <div className="text-sm font-black text-foreground">Pipeline preview</div>
                           <div className="text-xs font-semibold text-muted-foreground">
-                            Illustrative weekly outcome
+                            Weekly outcome
                           </div>
                         </div>
                         <ScorePill value="46 meetings" />
@@ -759,7 +716,42 @@ export default function VisualProductLanding({
             </LandingContainer>
           </section>
 
-          <section id="pricing" className="border-y border-border bg-card/30 py-16">
+          <section id="team" className="border-y border-border bg-card/30 py-16">
+            <LandingContainer>
+              <div className="grid gap-10 lg:grid-cols-[0.72fr_1.28fr] lg:items-start">
+                <SectionHeader
+                  eyebrow="Team"
+                  title="Built by operators who lived the problem."
+                  text="Krot is led by founders with security, recruiting, and hands-on outbound experience, which shapes the product around practical growth and trust."
+                />
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  {versionSevenFounders.map((founder) => (
+                    <article
+                      key={founder.name + founder.role}
+                      className="rounded-3xl border border-border bg-card/80 p-5 shadow-sm"
+                    >
+                      <img
+                        src={founder.photoSrc}
+                        alt={founder.photoAlt}
+                        className="h-28 w-28 rounded-2xl border border-border/70 bg-muted/30 object-cover"
+                        loading="lazy"
+                      />
+                      <div className="mt-5 text-lg font-black text-foreground">{founder.name}</div>
+                      <div className="mt-1 text-xs font-bold uppercase tracking-wide text-primary">
+                        {founder.role}
+                      </div>
+                      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                        {founder.bio}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </LandingContainer>
+          </section>
+
+          <section id="pricing" className="py-16">
             <LandingContainer>
               <SectionHeader
                 eyebrow="Pricing"
