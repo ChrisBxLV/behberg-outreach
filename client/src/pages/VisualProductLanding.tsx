@@ -6,14 +6,18 @@ import {
   BellRing,
   CheckCircle2,
   ChevronUp,
+  Code2,
   Database,
+  DollarSign,
   Mail,
   Moon,
+  Newspaper,
   Search,
   ShieldCheck,
   Sun,
   Target,
   Users,
+  UserRoundPlus,
 } from "lucide-react";
 import {
   Accordion,
@@ -283,31 +287,49 @@ function ContactSearchVisual() {
 
 function SequenceVisual() {
   const steps = [
-    { label: "Email 1", value: "Personal intro", width: "w-[82%]" },
-    { label: "Email 2", value: "Signal follow-up", width: "w-[68%]" },
-    { label: "Email 3", value: "Proof point", width: "w-[74%]" },
+    { label: "Email 1", timing: "Day 1", subject: "Personal intro", status: "Ready" },
+    { label: "Email 2", timing: "Day 3", subject: "Signal follow-up", status: "Queued" },
+    { label: "Email 3", timing: "Day 7", subject: "Reply reminder", status: "Draft" },
   ];
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-xl border border-primary/35 bg-primary/10 p-4">
-        <div className="text-xs font-bold uppercase tracking-wide text-primary">
-          Message preview
+    <div className="rounded-xl border border-border bg-background/70 p-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            Sequence timeline
+          </div>
+          <div className="text-lg font-black text-foreground">3-step email flow</div>
         </div>
-        <div className="mt-2 rounded-lg border border-border bg-background/80 p-3 text-xs leading-relaxed text-muted-foreground">
-          Hi {"{{first_name}}"}, saw {"{{account_signal}}"}. Thought this might be
-          relevant for {"{{company}}"} as your team is growing. Worth a quick look?
-        </div>
+        <span className="rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-primary">
+          Active
+        </span>
       </div>
-      <div className="space-y-2">
-        {steps.map((step) => (
-          <div key={step.label} className="rounded-xl border border-border bg-background/70 p-3">
-            <div className="flex items-center justify-between gap-2 text-xs font-bold">
-              <span className="text-foreground">{step.label}</span>
-              <span className="text-muted-foreground">{step.value}</span>
+
+      <div className="space-y-3">
+        {steps.map((step, index) => (
+          <div key={step.label} className="relative flex gap-3">
+            {index !== steps.length - 1 ? (
+              <div className="absolute left-5 top-10 h-[calc(100%-1rem)] w-px bg-border" />
+            ) : null}
+            <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
+              <Mail className="h-4 w-4" />
             </div>
-            <div className="mt-3 h-2 rounded-full bg-primary/15">
-              <div className={cn("h-2 rounded-full bg-primary", step.width)} />
+            <div className="flex-1 rounded-xl border border-border bg-card/85 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black text-foreground">{step.label}</div>
+                  <div className="mt-1 text-xs font-semibold text-muted-foreground">
+                    {step.subject}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-black text-primary">{step.timing}</div>
+                  <div className="mt-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                    {step.status}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         ))}
@@ -318,17 +340,19 @@ function SequenceVisual() {
 
 function SignalsVisual() {
   const signals = [
-    ["Funding", "High"],
-    ["Hiring", "Medium"],
-    ["Tech stack", "High"],
-    ["News", "Fresh"],
+    { label: "Funding", strength: "High", icon: DollarSign },
+    { label: "Hiring", strength: "Medium", icon: UserRoundPlus },
+    { label: "Tech stack", strength: "High", icon: Code2 },
+    { label: "News", strength: "Fresh", icon: Newspaper },
   ];
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      {signals.map(([label, strength]) => (
+      {signals.map(({ label, strength, icon: Icon }) => (
         <div key={label} className="rounded-xl border border-border bg-background/70 p-4">
-          <div className="h-16 rounded-lg bg-[radial-gradient(circle_at_35%_35%,rgba(196,160,66,0.42),transparent_32%),radial-gradient(circle_at_70%_65%,rgba(99,179,237,0.25),transparent_30%)]" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary">
+            <Icon className="h-6 w-6" />
+          </div>
           <div className="mt-3 text-sm font-extrabold text-foreground">{label}</div>
           <div className="text-xs font-semibold text-muted-foreground">{strength} timing value</div>
         </div>
@@ -898,7 +922,7 @@ export default function VisualProductLanding({
             </LandingContainer>
           </section>
 
-          <section className="pb-16">
+          <section className="py-16">
             <LandingContainer>
               <div className="overflow-hidden rounded-3xl border border-border bg-card/80 p-8 sm:p-10">
                 <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
