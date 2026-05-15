@@ -1,8 +1,8 @@
 import { getPublicMarketingAltUrl } from "@/const";
-import VersionSevenLandingReplica from "./VersionSevenLandingReplica";
+import VisualProductLanding from "./VisualProductLanding";
 
 export default function MarketingLanding() {
   return (
-    <VersionSevenLandingReplica brandHomeHref={getPublicMarketingAltUrl()} />
+    <VisualProductLanding brandHomeHref={getPublicMarketingAltUrl()} />
   );
 }
