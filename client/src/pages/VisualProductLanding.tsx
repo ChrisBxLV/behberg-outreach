@@ -375,7 +375,7 @@ function HeroEmailMotionPanel() {
   ];
 
   return (
-    <div className="relative min-h-[31rem] overflow-hidden rounded-3xl border border-border bg-card/80 p-6 shadow-2xl shadow-primary/10 backdrop-blur">
+    <div className="relative min-h-[31rem] p-2 sm:p-6">
       <style>
         {`
           @keyframes krot-email-float-a {
@@ -402,7 +402,7 @@ function HeroEmailMotionPanel() {
       </style>
 
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(196,160,66,0.20),transparent_28%),radial-gradient(circle_at_78%_20%,rgba(99,179,237,0.16),transparent_24%),radial-gradient(circle_at_50%_85%,rgba(196,160,66,0.14),transparent_26%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_24%_26%,rgba(196,160,66,0.15),transparent_26%),radial-gradient(circle_at_80%_22%,rgba(99,179,237,0.12),transparent_24%),radial-gradient(circle_at_50%_84%,rgba(196,160,66,0.10),transparent_28%)]"
         aria-hidden
       />
 

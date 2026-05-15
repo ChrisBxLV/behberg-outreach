@@ -283,47 +283,45 @@
 }
 
 .data-particles-layer {
-  position: fixed;
+  position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
   overflow: hidden;
+  height: min(56rem, 100vh);
+  max-height: 56rem;
 }
 
 .data-grid-overlay {
   position: absolute;
   inset: 0;
-  opacity: 0.08;
+  opacity: 0.11;
   background-image:
     linear-gradient(to right, var(--border) 1px, transparent 1px),
     linear-gradient(to bottom, var(--border) 1px, transparent 1px);
   background-size: 72px 72px;
-  mask-image: radial-gradient(circle at center, black 20%, transparent 78%);
+  mask-image: linear-gradient(to bottom, black 0, black 58%, transparent 100%);
 }
 
 .data-particles-canvas {
   position: absolute;
   inset: 0;
-  mask-image:
-    radial-gradient(circle at 18% 16%, transparent 0 10rem, black 18rem),
-    linear-gradient(to bottom, transparent 0, black 7rem, black calc(100% - 7rem), transparent 100%);
-  mask-composite: intersect;
+  mask-image: linear-gradient(to bottom, black 0, black 64%, transparent 100%);
 }
 
 .data-particles-canvas > canvas {
   width: 100% !important;
   height: 100% !important;
-  opacity: 0.42;
-  filter: saturate(0.72) blur(0.15px);
+  opacity: 0.66;
+  filter: saturate(0.82) blur(0.08px);
 }
 
 .data-particles-softener {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 24% 18%, oklch(from var(--background) l c h / 0.86), transparent 30rem),
-    linear-gradient(to bottom, oklch(from var(--background) l c h / 0.74), transparent 18rem),
-    oklch(from var(--background) l c h / 0.18);
+    radial-gradient(circle at 24% 20%, oklch(from var(--background) l c h / 0.38), transparent 26rem),
+    linear-gradient(to bottom, oklch(from var(--background) l c h / 0.28), transparent 24rem);
 }
 
 @media (prefers-reduced-motion: reduce) {

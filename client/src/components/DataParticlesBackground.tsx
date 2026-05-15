@@ -15,19 +15,19 @@ export default function DataParticlesBackground() {
 
       window.particlesJS("landing-particles", {
         particles: {
-          number: { value: reduceMotion ? 24 : 42, density: { enable: true, value_area: 1100 } },
+          number: { value: reduceMotion ? 22 : 54, density: { enable: true, value_area: 1050 } },
           color: { value: "#d2b46d" },
           shape: {
             type: "polygon",
             polygon: { nb_sides: 6 },
           },
           opacity: {
-            value: 0.18,
+            value: 0.26,
             random: true,
             anim: {
               enable: !reduceMotion,
-              speed: 0.16,
-              opacity_min: 0.08,
+              speed: 0.18,
+              opacity_min: 0.1,
               sync: false,
             },
           },
@@ -43,14 +43,14 @@ export default function DataParticlesBackground() {
           },
           line_linked: {
             enable: true,
-            distance: 115,
+            distance: 125,
             color: "#8fa4cb",
-            opacity: 0.18,
-            width: 0.8,
+            opacity: 0.28,
+            width: 1,
           },
           move: {
             enable: !reduceMotion,
-            speed: 0.22,
+            speed: 0.26,
             direction: "none",
             random: true,
             straight: false,
