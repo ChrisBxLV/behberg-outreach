@@ -658,8 +658,9 @@ export default function VisualProductLanding({
             </LandingContainer>
           </section>
 
-          <section id="product" className="border-y border-border bg-card/30 py-16">
-            <LandingContainer>
+          <section id="product" className="relative isolate overflow-hidden border-y border-border bg-card/30 py-16">
+            <DataParticlesBackground id="product-particles" variant="section" />
+            <LandingContainer className="relative z-10">
               <SectionHeader
                 eyebrow="Product"
                 title="A clean workspace for the work that matters."

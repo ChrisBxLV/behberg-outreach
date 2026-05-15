@@ -292,6 +292,11 @@
   max-height: 56rem;
 }
 
+.data-particles-layer--section {
+  height: 100%;
+  max-height: none;
+}
+
 .data-grid-overlay {
   position: absolute;
   inset: 0;
@@ -309,11 +314,20 @@
   mask-image: linear-gradient(to bottom, black 0, black 64%, transparent 100%);
 }
 
+.data-particles-layer--section .data-particles-canvas {
+  mask-image: radial-gradient(ellipse at center, black 0, black 45%, transparent 82%);
+}
+
 .data-particles-canvas > canvas {
   width: 100% !important;
   height: 100% !important;
   opacity: 0.66;
   filter: saturate(0.82) blur(0.08px);
+}
+
+.data-particles-layer--section .data-particles-canvas > canvas {
+  opacity: 0.36;
+  filter: saturate(0.72) blur(0.12px);
 }
 
 .data-particles-softener {
@@ -322,6 +336,17 @@
   background:
     radial-gradient(circle at 24% 20%, oklch(from var(--background) l c h / 0.38), transparent 26rem),
     linear-gradient(to bottom, oklch(from var(--background) l c h / 0.28), transparent 24rem);
+}
+
+.data-particles-layer--section .data-grid-overlay {
+  opacity: 0.075;
+  mask-image: radial-gradient(ellipse at center, black 0, black 36%, transparent 80%);
+}
+
+.data-particles-layer--section .data-particles-softener {
+  background:
+    radial-gradient(circle at 50% 42%, oklch(from var(--background) l c h / 0.34), transparent 25rem),
+    linear-gradient(to bottom, oklch(from var(--background) l c h / 0.22), transparent 16rem, transparent calc(100% - 16rem), oklch(from var(--background) l c h / 0.42));
 }
 
 @media (prefers-reduced-motion: reduce) {
