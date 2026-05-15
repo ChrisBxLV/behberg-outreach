@@ -26,7 +26,8 @@ export function ThemeGradientTransition() {
   }, [key]);
 
   useEffect(() => {
-    if (!transition || !config) return;
+    // "Torch" reveal should only run when entering dark mode.
+    if (!transition || !config || transition.to === "light") return;
     const el = layerRef.current;
     if (!el) return;
 
@@ -74,7 +75,7 @@ export function ThemeGradientTransition() {
   }, [key, config, transition]);
 
   // Render whenever a transition exists so the ref is available for the first rAF tick.
-  if (!transition || !config) return null;
+  if (!transition || !config || transition.to === "light") return null;
 
   return (
     <div
