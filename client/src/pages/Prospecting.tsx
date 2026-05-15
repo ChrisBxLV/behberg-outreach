@@ -90,7 +90,16 @@ export default function Prospecting() {
 
   const { data: orgMine } = trpc.organization.mine.useQuery();
   const subscriptionPlanId = orgMine?.organization?.subscriptionPlanId ?? "free";
-  const hasEmailCheckerAccess = ["basic", "business_standard", "pro"].includes(subscriptionPlanId);
+  const hasEmailCheckerAccess = [
+    "starter",
+    "growth",
+    "scale",
+    "pro_teams",
+    // Legacy ids
+    "basic",
+    "business_standard",
+    "pro",
+  ].includes(subscriptionPlanId);
 
   const checkEmailsMutation = trpc.prospecting.checkEmailsV1.useMutation({
     onSuccess: (res, vars) => {
@@ -127,7 +136,7 @@ export default function Prospecting() {
   async function checkSelectedEmails() {
     if (!runId) return;
     if (!hasEmailCheckerAccess) {
-      toast.error("Email Checker is available on paid plans (Basic and up).");
+      toast.error("Email Checker is available on paid plans (Starter and up).");
       return;
     }
     for (const r of selectedRows) {
@@ -234,7 +243,7 @@ export default function Prospecting() {
                 <div>
                   <Label>Email Checker (paid)</Label>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Verify the best guessed email using DNS/MX checks (Basic and up).
+                    Verify the best guessed email using DNS/MX checks (Starter and up).
                   </p>
                 </div>
                 <Button
@@ -254,7 +263,7 @@ export default function Prospecting() {
               </div>
               {!hasEmailCheckerAccess && (
                 <p className="text-xs text-amber-500">
-                  Upgrade to Basic (or higher) to unlock Email Checker.
+                  Upgrade to Starter (or higher) to unlock Email Checker.
                 </p>
               )}
             </div>

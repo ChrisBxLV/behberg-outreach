@@ -20,7 +20,17 @@ import {
 } from "../db";
 import { resolveDeployBuildInfo } from "../_core/deployBuildInfo";
 
-const subscriptionPlanSchema = z.enum(["free", "basic", "business_standard", "pro"]);
+const subscriptionPlanSchema = z.enum([
+  "free",
+  "starter",
+  "growth",
+  "scale",
+  "pro_teams",
+  // Legacy plan ids kept for compatibility/migration.
+  "basic",
+  "business_standard",
+  "pro",
+]);
 
 export const platformRouter = router({
   overview: superadminProcedure.query(async () => getPlatformOverview()),

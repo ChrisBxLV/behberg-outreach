@@ -1,7 +1,16 @@
 import { TRPCError } from "@trpc/server";
 import { getOrganizationById } from "../db";
 
-export type SubscriptionPlanId = "free" | "basic" | "business_standard" | "pro" | (string & {});
+export type SubscriptionPlanId =
+  | "free"
+  | "starter"
+  | "growth"
+  | "scale"
+  | "pro_teams"
+  | "basic"
+  | "business_standard"
+  | "pro"
+  | (string & {});
 
 export function normalizeSubscriptionPlanId(planId: string | null | undefined): SubscriptionPlanId {
   return ((planId ?? "free").trim().toLowerCase() || "free") as SubscriptionPlanId;
@@ -9,7 +18,15 @@ export function normalizeSubscriptionPlanId(planId: string | null | undefined): 
 
 export function hasEmailCheckerAccess(planId: string | null | undefined): boolean {
   const p = normalizeSubscriptionPlanId(planId);
-  return p === "basic" || p === "business_standard" || p === "pro";
+  return (
+    p === "starter" ||
+    p === "growth" ||
+    p === "scale" ||
+    p === "pro_teams" ||
+    p === "basic" ||
+    p === "business_standard" ||
+    p === "pro"
+  );
 }
 
 export async function assertEmailCheckerAccess(organizationId: number): Promise<void> {
@@ -17,7 +34,7 @@ export async function assertEmailCheckerAccess(organizationId: number): Promise<
   if (!hasEmailCheckerAccess(org?.subscriptionPlanId)) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: "Email Checker is available on paid plans (Basic and up). Please upgrade to unlock this feature.",
+      message: "Email Checker is available on paid plans (Starter and up). Please upgrade to unlock this feature.",
     });
   }
 }
