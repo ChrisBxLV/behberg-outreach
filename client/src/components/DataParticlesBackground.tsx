@@ -39,12 +39,12 @@ export default function DataParticlesBackground({
             polygon: { nb_sides: 6 },
           },
           opacity: {
-            value: isSection ? 0.2 : 0.26,
+            value: isSection ? 0.28 : 0.34,
             random: true,
             anim: {
               enable: !reduceMotion,
-              speed: 0.18,
-              opacity_min: isSection ? 0.08 : 0.1,
+              speed: 0.2,
+              opacity_min: isSection ? 0.12 : 0.14,
               sync: false,
             },
           },
@@ -62,7 +62,7 @@ export default function DataParticlesBackground({
             enable: true,
             distance: isSection ? 105 : 125,
             color: "#8fa4cb",
-            opacity: isSection ? 0.2 : 0.28,
+            opacity: isSection ? 0.3 : 0.38,
             width: isSection ? 0.8 : 1,
           },
           move: {

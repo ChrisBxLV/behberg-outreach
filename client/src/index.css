@@ -300,7 +300,7 @@
 .data-grid-overlay {
   position: absolute;
   inset: 0;
-  opacity: 0.11;
+  opacity: 0.14;
   background-image:
     linear-gradient(to right, var(--border) 1px, transparent 1px),
     linear-gradient(to bottom, var(--border) 1px, transparent 1px);
@@ -321,32 +321,32 @@
 .data-particles-canvas > canvas {
   width: 100% !important;
   height: 100% !important;
-  opacity: 0.66;
-  filter: saturate(0.82) blur(0.08px);
+  opacity: 0.78;
+  filter: saturate(0.9) blur(0.06px);
 }
 
 .data-particles-layer--section .data-particles-canvas > canvas {
-  opacity: 0.36;
-  filter: saturate(0.72) blur(0.12px);
+  opacity: 0.52;
+  filter: saturate(0.82) blur(0.08px);
 }
 
 .data-particles-softener {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 24% 20%, oklch(from var(--background) l c h / 0.38), transparent 26rem),
-    linear-gradient(to bottom, oklch(from var(--background) l c h / 0.28), transparent 24rem);
+    radial-gradient(circle at 24% 20%, oklch(from var(--background) l c h / 0.24), transparent 26rem),
+    linear-gradient(to bottom, oklch(from var(--background) l c h / 0.18), transparent 24rem);
 }
 
 .data-particles-layer--section .data-grid-overlay {
-  opacity: 0.075;
+  opacity: 0.095;
   mask-image: radial-gradient(ellipse at center, black 0, black 36%, transparent 80%);
 }
 
 .data-particles-layer--section .data-particles-softener {
   background:
-    radial-gradient(circle at 50% 42%, oklch(from var(--background) l c h / 0.34), transparent 25rem),
-    linear-gradient(to bottom, oklch(from var(--background) l c h / 0.22), transparent 16rem, transparent calc(100% - 16rem), oklch(from var(--background) l c h / 0.42));
+    radial-gradient(circle at 50% 42%, oklch(from var(--background) l c h / 0.2), transparent 25rem),
+    linear-gradient(to bottom, oklch(from var(--background) l c h / 0.14), transparent 16rem, transparent calc(100% - 16rem), oklch(from var(--background) l c h / 0.28));
 }
 
 @media (prefers-reduced-motion: reduce) {
