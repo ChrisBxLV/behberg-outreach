@@ -1,11 +1,11 @@
 import { getPublicHomeUrl } from "@/const";
-import VersionSevenLandingReplica from "./VersionSevenLandingReplica";
+import VisualProductLanding from "./VisualProductLanding";
 
 /**
  * Public marketing homepage.
  */
 export default function InsideSoftwareLanding() {
   return (
-    <VersionSevenLandingReplica brandHomeHref={getPublicHomeUrl()} />
+    <VisualProductLanding brandHomeHref={getPublicHomeUrl()} />
   );
 }
