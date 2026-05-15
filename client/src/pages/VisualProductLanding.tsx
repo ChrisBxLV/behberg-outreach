@@ -378,7 +378,7 @@ function HeroProductMockup() {
               ICP to outbound
             </div>
             <h2 className="mt-1 text-2xl font-black tracking-tight text-foreground">
-              Visual pipeline control
+              Pipeline command center
             </h2>
           </div>
           <div className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-2 text-xs font-bold text-muted-foreground">
@@ -515,14 +515,14 @@ export default function VisualProductLanding({
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-4 py-2 text-sm font-black text-primary">
                     <Sparkles className="h-4 w-4" />
-                    Visual outbound workspace
+                    B2B outbound platform
                   </div>
                   <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-tight text-foreground sm:text-6xl">
                     See who to contact, why now, and what to send.
                   </h1>
                   <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
                     Krot turns lead quality, enrichment, signals, and inbox-native
-                    sequencing into one visual GTM flow.
+                    sequencing into one GTM workspace.
                   </p>
                   <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                     <PrimaryCtaLink href="/signup">
@@ -532,7 +532,7 @@ export default function VisualProductLanding({
                     </PrimaryCtaLink>
                     <SecondaryCtaLink href="#product">
                       <span className="flex items-center gap-2">
-                        View product tour <ArrowRight className="h-4 w-4" />
+                        See how it works <ArrowRight className="h-4 w-4" />
                       </span>
                     </SecondaryCtaLink>
                   </div>
@@ -573,9 +573,9 @@ export default function VisualProductLanding({
           <section id="product" className="border-y border-border bg-card/30 py-16">
             <LandingContainer>
               <SectionHeader
-                eyebrow="Product snapshots"
-                title="More product, less brochure."
-                text="The landing page now shows the surfaces buyers care about: lead fit, sequence control, signal timing, and measurable outcomes."
+                eyebrow="Product"
+                title="See Krot in action."
+                text="Review lead fit, sequence performance, signal timing, and pipeline outcomes from one workspace."
               />
 
               <div className="mt-10 grid gap-5 lg:grid-cols-3">
@@ -615,8 +615,8 @@ export default function VisualProductLanding({
               <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr] lg:items-center">
                 <SectionHeader
                   eyebrow="Workflow"
-                  title="A visual path from target account to reply."
-                  text="Buyers can understand the platform faster when the workflow is visible. Krot now shows the whole loop at a glance."
+                  title="From target account to reply."
+                  text="Krot connects prospecting, enrichment, personalization, sequencing, and analytics in one workflow."
                 />
 
                 <div className="rounded-3xl border border-border bg-card/80 p-5 shadow-sm backdrop-blur">
@@ -785,8 +785,8 @@ export default function VisualProductLanding({
             <LandingContainer>
               <SectionHeader
                 eyebrow="Pricing"
-                title="Pick the outbound lane."
-                text="Short plans, clear limits, and a fast path to trying the visual workflow."
+                title="Choose the right plan."
+                text="Short plans, clear limits, and a simple path to getting started."
               />
               <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 {pricingPlans.map((plan) => (
@@ -869,7 +869,7 @@ export default function VisualProductLanding({
                 <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
                   <div>
                     <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">
-                      Start visually
+                      Get started
                     </div>
                     <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
                       Turn account context into sequenced outreach.
@@ -908,7 +908,7 @@ export default function VisualProductLanding({
               ))}
             </div>
             <div className="text-center text-sm font-bold text-muted-foreground">
-              Krot - visual B2B intelligence and outbound execution.
+              Krot - B2B intelligence and outbound execution.
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center text-xs text-muted-foreground">
               <a
