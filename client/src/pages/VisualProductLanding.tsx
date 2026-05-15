@@ -11,11 +11,9 @@ import {
   Moon,
   Search,
   ShieldCheck,
-  Sparkles,
   Sun,
   Target,
   Users,
-  Zap,
 } from "lucide-react";
 import {
   Accordion,
@@ -44,9 +42,8 @@ type MetricCard = {
 type Snapshot = {
   title: string;
   caption: string;
-  metric: string;
   icon: LucideIcon;
-  variant: "lead-board" | "sequence" | "signals";
+  variant: "contact-search" | "sequence" | "signals";
 };
 
 type PricingPlan = {
@@ -58,66 +55,45 @@ type PricingPlan = {
 };
 
 const metrics: MetricCard[] = [
-  { value: "3,420", label: "qualified leads", detail: "ready for outreach" },
+  { value: "3,420", label: "searchable contacts", detail: "ready to save" },
   { value: "21%", label: "sequence reply rate", detail: "workspace average" },
   { value: "97.8%", label: "inbox health", detail: "deliverability view" },
-  { value: "10 min", label: "lead-to-sequence", detail: "from ICP to launch" },
+  { value: "10 min", label: "contact-to-sequence", detail: "from search to launch" },
 ];
 
 const snapshots: Snapshot[] = [
   {
-    title: "Find fit first",
-    caption: "Score accounts before reps spend time writing.",
-    metric: "84/100 fit score",
-    icon: Target,
-    variant: "lead-board",
+    title: "Search the database",
+    caption: "Find contacts and save them or add them directly to a sequence.",
+    icon: Search,
+    variant: "contact-search",
   },
   {
-    title: "Build approved sequences",
-    caption: "Use variables and approvals before sending.",
-    metric: "5-step email flow",
+    title: "Build sequences",
+    caption: "Create email flows from saved contacts and connected inboxes.",
     icon: Mail,
     variant: "sequence",
   },
   {
-    title: "Act on timing",
-    caption: "Add signals when they make outreach more relevant.",
-    metric: "3 fresh triggers",
+    title: "Use timely signals",
+    caption: "Bring account news and market events into your outreach context.",
     icon: BellRing,
     variant: "signals",
   },
-];
-
-const workflowSteps = [
-  { label: "Search", detail: "ICP filters", icon: Search },
-  { label: "Qualify", detail: "Fit score", icon: Target },
-  { label: "Enrich", detail: "Clean contacts", icon: Database },
-  { label: "Personalize", detail: "Message snippets", icon: Sparkles },
-  { label: "Launch", detail: "Inbox-native", icon: Zap },
-  { label: "Learn", detail: "Reply analytics", icon: BarChart3 },
-];
-
-const featureTiles = [
-  { title: "Lead generation", text: "Build lists from ICP filters.", icon: Search },
-  { title: "Enrichment", text: "Validate contacts before launch.", icon: Database },
-  { title: "Sequencing", text: "Send from connected inboxes.", icon: Mail },
-  { title: "Signals addon", text: "Spot timely account changes.", icon: BellRing },
-  { title: "AI personalization", text: "Draft relevant first lines.", icon: Sparkles },
-  { title: "Analytics", text: "Track replies and meetings.", icon: BarChart3 },
 ];
 
 const pricingPlans: PricingPlan[] = [
   {
     name: "Free",
     price: "$0",
-    label: "Try the workflow",
+    label: "Try Krot",
     bullets: ["1 mailbox", "100 contacts", "Basic sequences"],
   },
   {
     name: "Starter",
     price: "$59",
     label: "Small team outbound",
-    bullets: ["1 connected email", "2,000 contacts", "1,000 enrichments"],
+    bullets: ["1 connected email", "2,000 saved contacts", "Contact search access"],
   },
   {
     name: "Growth",
@@ -144,32 +120,32 @@ const faqs = [
   {
     question: "What is Krot?",
     answer:
-      "Krot is a B2B sales intelligence and outbound platform that helps teams find qualified leads, enrich contact data, build sequences, and track pipeline activity in one workspace.",
+      "Krot is a B2B outbound platform that combines contact search, email sequences, real-time signals, and campaign analytics in one workspace.",
   },
   {
     question: "How does Krot work?",
     answer:
-      "Teams define their ideal customer profile, review prioritized accounts, enrich the right contacts, create personalized outreach, and launch sequences from connected inboxes.",
+      "Teams search the contact database, save contacts or add them directly to a sequence, write outreach, and use real-time signals to improve timing and context.",
   },
   {
     question: "Who is Krot built for?",
     answer:
-      "Krot is built for recruitment agencies, marketing agencies, and B2B sales teams that need a faster way to turn target accounts into qualified conversations.",
+      "Krot is built for recruitment agencies, marketing agencies, and B2B sales teams that need a faster way to turn contacts and timely account context into sales conversations.",
   },
   {
-    question: "Does Krot include lead generation and enrichment?",
+    question: "How does contact search work?",
     answer:
-      "Yes. Krot helps teams build targeted lead lists, enrich contacts, and validate account fit before outreach starts.",
+      "Users can search the Krot contact database, review relevant contact records, save contacts, upload CSVs, or add selected contacts directly into a sequence.",
   },
   {
     question: "Can teams send from their own inboxes?",
     answer:
-      "Yes. Krot is designed around connected user inboxes so outbound stays authentic while teams keep centralized workflow control.",
+      "Yes. Krot is designed around connected user inboxes so outbound stays authentic while teams keep centralized campaign control.",
   },
   {
     question: "What role do signals play in Krot?",
     answer:
-      "Signals give teams timely context such as hiring, funding, news, or account changes. They help improve timing and personalization, but they work alongside lead quality, enrichment, and sequencing.",
+      "Signals give teams timely context such as hiring, funding, news, or account changes. They help teams decide when to reach out and what context to reference in email.",
   },
   {
     question: "Does Krot provide campaign analytics?",
@@ -177,14 +153,14 @@ const faqs = [
       "Yes. Teams can review outreach performance, reply activity, meetings, inbox health, and pipeline outcomes from the workspace.",
   },
   {
-    question: "Can Krot fit into an existing sales workflow?",
+    question: "Can Krot fit into an existing sales process?",
     answer:
-      "Yes. Krot is designed to support common outbound workflows, including CSV uploads, connected inboxes, team roles, and automations for CRM or workflow tools depending on the plan.",
+      "Yes. Krot supports common outbound processes, including CSV uploads, connected inboxes, team roles, and automations for CRM or other sales tools depending on the plan.",
   },
   {
     question: "Can I try Krot for free?",
     answer:
-      "Yes. The free plan lets teams explore the workflow with a limited mailbox, contacts, enrichments, and basic sequencing.",
+      "Yes. The free plan lets teams explore Krot with a limited mailbox, saved contacts, contact search, and basic sequencing.",
   },
 ];
 
@@ -248,11 +224,11 @@ function ScorePill({ value }: { value: string }) {
   );
 }
 
-function LeadBoardVisual() {
+function ContactSearchVisual() {
   const rows = [
-    { account: "Northstar Labs", signal: "Hiring SDRs", score: "92", stage: "Ready" },
-    { account: "BluePeak Systems", signal: "New funding", score: "87", stage: "Review" },
-    { account: "OrbitOps", signal: "Tool change", score: "79", stage: "Enrich" },
+    { name: "Maya Chen", role: "VP Sales", company: "Northstar Labs", action: "Add to sequence" },
+    { name: "Jon Bell", role: "Head of Growth", company: "BluePeak Systems", action: "Save contact" },
+    { name: "Priya Shah", role: "Founder", company: "OrbitOps", action: "Add to sequence" },
   ];
 
   return (
@@ -260,32 +236,32 @@ function LeadBoardVisual() {
       <div className="flex items-center justify-between">
         <div>
           <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-            Lead quality board
+            Contact search
           </div>
-          <div className="text-lg font-black text-foreground">Prioritized accounts</div>
+          <div className="text-lg font-black text-foreground">Database results</div>
         </div>
-        <ScorePill value="Live fit" />
       </div>
       <div className="overflow-hidden rounded-xl border border-border bg-background/70">
         {rows.map((row, index) => (
           <div
-            key={row.account}
+            key={row.name}
             className={cn(
               "grid grid-cols-[1fr_auto] gap-3 px-4 py-3",
               index !== rows.length - 1 && "border-b border-border/70",
             )}
           >
             <div className="min-w-0">
-              <div className="truncate text-sm font-extrabold text-foreground">{row.account}</div>
+              <div className="truncate text-sm font-extrabold text-foreground">{row.name}</div>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-muted-foreground">
-                <span>{row.signal}</span>
+                <span>{row.role}</span>
                 <span className="h-1 w-1 rounded-full bg-muted-foreground/40" />
-                <span>{row.stage}</span>
+                <span>{row.company}</span>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-lg font-black text-primary">{row.score}</div>
-              <div className="text-[10px] font-semibold text-muted-foreground">score</div>
+            <div className="flex items-center">
+              <span className="rounded-full border border-border bg-card/80 px-2.5 py-1 text-[10px] font-bold text-muted-foreground">
+                {row.action}
+              </span>
             </div>
           </div>
         ))}
@@ -308,8 +284,8 @@ function SequenceVisual() {
           Message preview
         </div>
         <div className="mt-2 rounded-lg border border-border bg-background/80 p-3 text-xs leading-relaxed text-muted-foreground">
-          Hi {"{{first_name}}"}, saw {"{{account_signal}}"}. Krot flagged a likely fit
-          because {"{{fit_reason}}"}. Worth a quick look?
+          Hi {"{{first_name}}"}, saw {"{{account_signal}}"}. Thought this might be
+          relevant for {"{{company}}"} as your team is growing. Worth a quick look?
         </div>
       </div>
       <div className="space-y-2">
@@ -359,68 +335,120 @@ function SnapshotVisual({ variant }: { variant: Snapshot["variant"] }) {
     return <SignalsVisual />;
   }
 
-  return <LeadBoardVisual />;
+  return <ContactSearchVisual />;
 }
 
-function HeroValuePanel() {
-  const issues = [
-    { title: "Low-fit lists", text: "Teams waste time writing to accounts that were never likely to convert.", icon: Target },
-    { title: "Weak timing", text: "Good prospects get contacted before there is a reason to respond.", icon: BellRing },
-    { title: "Manual handoffs", text: "Research, enrichment, and sequencing often live in disconnected tools.", icon: Zap },
+function HeroEmailMotionPanel() {
+  const emailCards = [
+    {
+      label: "Contact search",
+      title: "Find the right people",
+      text: "Search the database, save contacts, or add them straight to a campaign.",
+      icon: Search,
+      className: "left-4 top-8 rotate-[-2deg] krot-email-card-a",
+    },
+    {
+      label: "Real-time signal",
+      title: "New hiring activity",
+      text: "Use fresh account context to make outreach more timely.",
+      icon: BellRing,
+      className: "right-4 top-24 rotate-[2deg] krot-email-card-b",
+    },
+    {
+      label: "Email sequence",
+      title: "Personalized follow-up",
+      text: "Launch a sequence from a connected inbox and track replies.",
+      icon: Mail,
+      className: "left-10 bottom-7 rotate-[-1deg] krot-email-card-c",
+    },
   ];
 
   return (
-    <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-2xl shadow-primary/10 backdrop-blur">
-      <div className="rounded-2xl border border-primary/25 bg-primary/10 p-5">
-        <div className="text-xs font-black uppercase tracking-[0.24em] text-primary">
-          The problem
-        </div>
-        <h2 className="mt-3 text-2xl font-black tracking-tight text-foreground">
-          Cold email works when the account, timing, and message line up.
-        </h2>
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          Krot helps B2B teams turn real-time account signals and better lead data into
-          email outreach that is relevant from the first touch.
-        </p>
-      </div>
+    <div className="relative min-h-[31rem] overflow-hidden rounded-3xl border border-border bg-card/80 p-6 shadow-2xl shadow-primary/10 backdrop-blur">
+      <style>
+        {`
+          @keyframes krot-email-float-a {
+            0%, 100% { transform: translate3d(0, 0, 0) rotate(-2deg); }
+            50% { transform: translate3d(10px, -14px, 0) rotate(0deg); }
+          }
+          @keyframes krot-email-float-b {
+            0%, 100% { transform: translate3d(0, 0, 0) rotate(2deg); }
+            50% { transform: translate3d(-12px, 12px, 0) rotate(0deg); }
+          }
+          @keyframes krot-email-float-c {
+            0%, 100% { transform: translate3d(0, 0, 0) rotate(-1deg); }
+            50% { transform: translate3d(12px, 10px, 0) rotate(1deg); }
+          }
+          .krot-email-card-a { animation: krot-email-float-a 6s ease-in-out infinite; }
+          .krot-email-card-b { animation: krot-email-float-b 7s ease-in-out infinite; }
+          .krot-email-card-c { animation: krot-email-float-c 6.5s ease-in-out infinite; }
+          @media (prefers-reduced-motion: reduce) {
+            .krot-email-card-a,
+            .krot-email-card-b,
+            .krot-email-card-c { animation: none; }
+          }
+        `}
+      </style>
 
-      <div className="mt-4 grid gap-3">
-        {issues.map(({ title, text, icon: Icon }) => (
-          <div key={title} className="flex gap-3 rounded-2xl border border-border bg-background/70 p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-              <Icon className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-sm font-black text-foreground">{title}</div>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
-            </div>
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(196,160,66,0.20),transparent_28%),radial-gradient(circle_at_78%_20%,rgba(99,179,237,0.16),transparent_24%),radial-gradient(circle_at_50%_85%,rgba(196,160,66,0.14),transparent_26%)]"
+        aria-hidden
+      />
+
+      <div className="relative z-10 mx-auto max-w-sm rounded-3xl border border-border bg-background/80 p-5 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+            <Mail className="h-5 w-5" />
           </div>
-        ))}
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-border bg-background/70 p-4">
-        <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-          Krot connects
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">
+              Sequence builder
+            </div>
+            <div className="text-xl font-black text-foreground">Email campaign ready</div>
+          </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {["Lead fit", "Enrichment", "Real-time signals", "Email sequences"].map((item) => (
-            <span
-              key={item}
-              className="rounded-full border border-border bg-card/80 px-3 py-1 text-[11px] font-bold text-muted-foreground"
-            >
-              {item}
-            </span>
+        <div className="mt-5 space-y-3">
+          {["Intro email", "Signal follow-up", "Reply reminder"].map((step, index) => (
+            <div key={step} className="rounded-2xl border border-border bg-card/85 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-black text-foreground">{step}</div>
+                <div className="text-xs font-bold text-primary">0{index + 1}</div>
+              </div>
+              <div className="mt-3 h-2 rounded-full bg-primary/15">
+                <div
+                  className="h-2 rounded-full bg-primary"
+                  style={{ width: `${82 - index * 12}%` }}
+                />
+              </div>
+            </div>
           ))}
         </div>
       </div>
+
+      {emailCards.map(({ label, title, text, icon: Icon, className }) => (
+        <div
+          key={label}
+          className={cn(
+            "absolute z-20 w-56 rounded-2xl border border-border bg-card/95 p-4 shadow-lg backdrop-blur max-sm:static max-sm:mt-4 max-sm:w-full max-sm:rotate-0",
+            className,
+          )}
+        >
+          <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-primary">
+            <Icon className="h-4 w-4" />
+            {label}
+          </div>
+          <div className="mt-2 text-sm font-black text-foreground">{title}</div>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
+        </div>
+      ))}
     </div>
   );
 }
 
 function HeroProductMockup() {
   const heroStats: { label: string; value: string; icon: LucideIcon }[] = [
-    { label: "Fit", value: "92", icon: Target },
-    { label: "Contacts", value: "128", icon: Database },
+    { label: "Saved", value: "128", icon: Database },
+    { label: "Signals", value: "24", icon: BellRing },
     { label: "Replies", value: "21%", icon: BarChart3 },
   ];
 
@@ -430,10 +458,10 @@ function HeroProductMockup() {
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-xs font-bold uppercase tracking-[0.22em] text-primary">
-              ICP to outbound
+              Search to sequence
             </div>
             <h2 className="mt-1 text-2xl font-black tracking-tight text-foreground">
-              Pipeline command center
+              Contact and campaign workspace
             </h2>
           </div>
           <div className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-2 text-xs font-bold text-muted-foreground">
@@ -444,7 +472,7 @@ function HeroProductMockup() {
 
         <div className="grid gap-4 lg:grid-cols-[1fr_15rem]">
           <div className="rounded-2xl border border-border bg-card/80 p-4">
-            <LeadBoardVisual />
+            <ContactSearchVisual />
           </div>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
             {heroStats.map(({ label, value, icon: Icon }) => (
@@ -489,50 +517,6 @@ function SectionHeader({
   );
 }
 
-function CollapsibleLandingSection({
-  id,
-  className,
-  eyebrow,
-  title,
-  text,
-  children,
-}: {
-  id: string;
-  className?: string;
-  eyebrow: string;
-  title: string;
-  text: string;
-  children: ReactNode;
-}) {
-  return (
-    <section id={id} className={className}>
-      <LandingContainer>
-        <Accordion type="single" collapsible className="w-full">
-          <AccordionItem
-            value={id}
-            className="overflow-hidden rounded-3xl border border-border bg-card/80 px-5 shadow-sm backdrop-blur sm:px-7"
-          >
-            <AccordionTrigger className="py-7 text-left hover:no-underline">
-              <div className="max-w-3xl pr-4">
-                <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">
-                  {eyebrow}
-                </div>
-                <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
-                  {title}
-                </h2>
-                <p className="mt-3 text-base leading-relaxed text-muted-foreground">{text}</p>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pb-7">
-              <div className="pt-2">{children}</div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </LandingContainer>
-    </section>
-  );
-}
-
 export default function VisualProductLanding({
   brandHomeHref = getPublicHomeUrl(),
 }: VisualProductLandingProps) {
@@ -569,9 +553,6 @@ export default function VisualProductLanding({
               <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold text-muted-foreground sm:gap-x-5">
                 <a href="#product" className="transition hover:text-foreground">
                   Product
-                </a>
-                <a href="#workflow" className="transition hover:text-foreground">
-                  Workflow
                 </a>
                 <a href="#team" className="transition hover:text-foreground">
                   Team
@@ -612,16 +593,13 @@ export default function VisualProductLanding({
             <LandingContainer>
               <div className="grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr]">
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-4 py-2 text-sm font-black text-primary">
-                    <Sparkles className="h-4 w-4" />
-                    B2B outbound platform
-                  </div>
-                  <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-tight text-foreground sm:text-6xl">
-                    Turn better timing into better B2B email.
+                  <h1 className="text-4xl font-black leading-[1.02] tracking-tight text-foreground sm:text-6xl">
+                    Find contacts, catch buying signals, and send better email.
                   </h1>
                   <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
-                    Krot helps sales teams find the right accounts, understand what changed,
-                    and launch email outreach with context while the opportunity is fresh.
+                    Krot gives B2B teams a searchable contact database, real-time account
+                    signals, and email sequences in one workspace so outreach is easier to
+                    start and more relevant when it lands.
                   </p>
                   <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                     <PrimaryCtaLink href="/signup">
@@ -635,19 +613,9 @@ export default function VisualProductLanding({
                       </span>
                     </SecondaryCtaLink>
                   </div>
-                  <div className="mt-7 flex flex-wrap gap-2">
-                    {["Lead quality", "GDPR-aware workflows", "Connected inboxes"].map((item) => (
-                      <span
-                        key={item}
-                        className="inline-flex items-center rounded-full border border-border bg-card/70 px-3 py-1 text-[11px] font-bold text-muted-foreground"
-                      >
-                        {item}
-                      </span>
-                    ))}
-                  </div>
                 </div>
 
-                <HeroValuePanel />
+                <HeroEmailMotionPanel />
               </div>
             </LandingContainer>
           </section>
@@ -674,7 +642,7 @@ export default function VisualProductLanding({
               <SectionHeader
                 eyebrow="Product"
                 title="See Krot in action."
-                text="Review lead fit, sequence performance, signal timing, and pipeline outcomes from one workspace."
+                text="Search contacts, add them to sequences, track replies, and use real-time signals to shape timely email outreach."
               />
 
               <div className="mt-10">
@@ -701,77 +669,11 @@ export default function VisualProductLanding({
                             {snapshot.caption}
                           </p>
                         </div>
-                        <ScorePill value={snapshot.metric} />
                       </div>
                       <div className="mt-auto rounded-2xl border border-border bg-muted/25 p-4">
                         <SnapshotVisual variant={snapshot.variant} />
                       </div>
                     </article>
-                  );
-                })}
-              </div>
-            </LandingContainer>
-          </section>
-
-          <section id="workflow" className="py-16">
-            <LandingContainer>
-              <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr] lg:items-center">
-                <SectionHeader
-                  eyebrow="Workflow"
-                  title="From target account to reply."
-                  text="Krot connects prospecting, enrichment, personalization, sequencing, and analytics in one workflow."
-                />
-
-                <div className="rounded-3xl border border-border bg-card/80 p-5 shadow-sm backdrop-blur">
-                  <div className="grid gap-3 md:grid-cols-3">
-                    {workflowSteps.map((step, index) => {
-                      const Icon = step.icon;
-                      return (
-                        <div key={step.label} className="relative">
-                          <div className="rounded-2xl border border-border bg-background/70 p-4">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                              <Icon className="h-5 w-5" />
-                            </div>
-                            <div className="mt-4 text-lg font-black text-foreground">{step.label}</div>
-                            <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                              {step.detail}
-                            </div>
-                          </div>
-                          {index !== workflowSteps.length - 1 ? (
-                            <div className="absolute -right-3 top-1/2 hidden h-px w-6 bg-primary/35 md:block" />
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </LandingContainer>
-          </section>
-
-          <section className="border-y border-border bg-card/30 py-16">
-            <LandingContainer>
-              <SectionHeader
-                eyebrow="Features"
-                title="Everything needed to move faster."
-                center
-              />
-              <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {featureTiles.map((feature) => {
-                  const Icon = feature.icon;
-                  return (
-                    <div
-                      key={feature.title}
-                      className="rounded-2xl border border-border bg-card/80 p-5 transition hover:-translate-y-0.5 hover:border-primary/40"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div className="text-lg font-black text-foreground">{feature.title}</div>
-                      </div>
-                      <p className="mt-3 text-sm font-semibold text-muted-foreground">{feature.text}</p>
-                    </div>
                   );
                 })}
               </div>
@@ -819,7 +721,7 @@ export default function VisualProductLanding({
                       <Target className="h-5 w-5 text-primary" />
                       <div className="mt-4 text-2xl font-black text-foreground">B2B sales</div>
                       <p className="mt-2 text-sm text-muted-foreground">
-                        Prioritize high-fit accounts and personalize from verified context.
+                        Search contacts, add them to campaigns, and personalize from signal context.
                       </p>
                     </div>
                     <div className="rounded-2xl border border-border bg-background/70 p-5 sm:col-span-2">
@@ -849,114 +751,130 @@ export default function VisualProductLanding({
             </LandingContainer>
           </section>
 
-          <CollapsibleLandingSection
-            id="team"
-            className="border-y border-border bg-card/30 py-16"
-            eyebrow="Team"
-            title="Built by operators who lived the problem."
-            text="Krot is led by founders with security, recruiting, and hands-on outbound experience, which shapes the product around practical growth and trust."
-          >
-            <div className="grid gap-4 md:grid-cols-3">
-              {versionSevenFounders.map((founder) => (
-                <article
-                  key={founder.name + founder.role}
-                  className="rounded-3xl border border-border bg-background/70 p-5 shadow-sm"
-                >
-                  <img
-                    src={founder.photoSrc}
-                    alt={founder.photoAlt}
-                    className="h-28 w-28 rounded-2xl border border-border/70 bg-muted/30 object-cover"
-                    loading="lazy"
-                  />
-                  <div className="mt-5 text-lg font-black text-foreground">{founder.name}</div>
-                  <div className="mt-1 text-xs font-bold uppercase tracking-wide text-primary">
-                    {founder.role}
-                  </div>
-                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                    {founder.bio}
-                  </p>
-                </article>
-              ))}
-            </div>
-          </CollapsibleLandingSection>
-
-          <CollapsibleLandingSection
-            id="pricing"
-            className="py-16"
-            eyebrow="Pricing"
-            title="Choose the right plan."
-            text="Short plans, clear limits, and a simple path to getting started."
-          >
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              {pricingPlans.map((plan) => (
-                <div
-                  key={plan.name}
-                  className={cn(
-                    "flex h-full flex-col rounded-3xl border bg-card/80 p-5",
-                    plan.highlight
-                      ? "border-primary shadow-[0_0_0_1px_rgba(196,160,66,0.2)]"
-                      : "border-border",
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-black text-foreground">{plan.name}</div>
-                    {plan.highlight ? <ScorePill value="Popular" /> : null}
-                  </div>
-                  <div className="mt-4 text-4xl font-black text-foreground">{plan.price}</div>
-                  <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                    {plan.label}
-                  </div>
-                  <ul className="mt-5 flex-1 space-y-3 text-sm font-semibold text-muted-foreground">
-                    {plan.bullets.map((bullet) => (
-                      <li key={bullet} className="flex items-start gap-2">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                        <span>{bullet}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <a
-                    href="/signup"
-                    className={cn(
-                      "mt-6 inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-black transition hover:-translate-y-0.5",
-                      plan.highlight
-                        ? "border-primary/45 bg-primary/15 text-primary"
-                        : "border-border bg-background/70 text-foreground",
-                    )}
-                  >
-                    Get started
-                  </a>
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 rounded-2xl border border-border bg-background/70 p-4 text-sm font-semibold text-muted-foreground">
-              Need custom integrations? Contact{" "}
-              <a href="mailto:sales@krot.io" className="text-foreground underline underline-offset-4">
-                sales@krot.io
-              </a>
-              .
-            </div>
-          </CollapsibleLandingSection>
-
-          <CollapsibleLandingSection
-            id="faq"
-            className="py-16"
-            eyebrow="FAQ"
-            title="Frequently asked questions."
-            text="Answers about the product, workflow, inboxes, analytics, and getting started."
-          >
-            <Accordion type="single" collapsible className="w-full rounded-3xl border border-border bg-background/70 px-5">
-              {faqs.map((item) => (
-                <AccordionItem key={item.question} value={item.question}>
-                  <AccordionTrigger className="text-left font-black text-foreground">
-                    {item.question}
+          <section className="border-y border-border bg-card/30 py-10">
+            <LandingContainer>
+              <Accordion
+                type="single"
+                collapsible
+                className="overflow-hidden rounded-3xl border border-border bg-card/80 px-5 shadow-sm backdrop-blur sm:px-7"
+              >
+                <AccordionItem id="team" value="team">
+                  <AccordionTrigger className="py-5 text-left hover:no-underline">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">Team</div>
+                      <div className="mt-1 text-2xl font-black text-foreground">Built by operators.</div>
+                    </div>
                   </AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground">
-                    {item.answer}
+                  <AccordionContent>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      {versionSevenFounders.map((founder) => (
+                        <article
+                          key={founder.name + founder.role}
+                          className="rounded-2xl border border-border bg-background/70 p-5 shadow-sm"
+                        >
+                          <img
+                            src={founder.photoSrc}
+                            alt={founder.photoAlt}
+                            className="h-24 w-24 rounded-2xl border border-border/70 bg-muted/30 object-cover"
+                            loading="lazy"
+                          />
+                          <div className="mt-4 text-base font-black text-foreground">{founder.name}</div>
+                          <div className="mt-1 text-xs font-bold uppercase tracking-wide text-primary">
+                            {founder.role}
+                          </div>
+                          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                            {founder.bio}
+                          </p>
+                        </article>
+                      ))}
+                    </div>
                   </AccordionContent>
                 </AccordionItem>
-              ))}
-            </Accordion>
-          </CollapsibleLandingSection>
+
+                <AccordionItem id="pricing" value="pricing">
+                  <AccordionTrigger className="py-5 text-left hover:no-underline">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">Pricing</div>
+                      <div className="mt-1 text-2xl font-black text-foreground">Choose the right plan.</div>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                      {pricingPlans.map((plan) => (
+                        <div
+                          key={plan.name}
+                          className={cn(
+                            "flex h-full flex-col rounded-2xl border bg-background/70 p-5",
+                            plan.highlight ? "border-primary" : "border-border",
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-sm font-black text-foreground">{plan.name}</div>
+                            {plan.highlight ? <ScorePill value="Popular" /> : null}
+                          </div>
+                          <div className="mt-4 text-4xl font-black text-foreground">{plan.price}</div>
+                          <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                            {plan.label}
+                          </div>
+                          <ul className="mt-5 flex-1 space-y-3 text-sm font-semibold text-muted-foreground">
+                            {plan.bullets.map((bullet) => (
+                              <li key={bullet} className="flex items-start gap-2">
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                                <span>{bullet}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <a
+                            href="/signup"
+                            className={cn(
+                              "mt-6 inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-black transition hover:-translate-y-0.5",
+                              plan.highlight
+                                ? "border-primary/45 bg-primary/15 text-primary"
+                                : "border-border bg-card/80 text-foreground",
+                            )}
+                          >
+                            Get started
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-6 rounded-2xl border border-border bg-background/70 p-4 text-sm font-semibold text-muted-foreground">
+                      Need custom integrations? Contact{" "}
+                      <a href="mailto:sales@krot.io" className="text-foreground underline underline-offset-4">
+                        sales@krot.io
+                      </a>
+                      .
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem id="faq" value="faq">
+                  <AccordionTrigger className="py-5 text-left hover:no-underline">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">FAQ</div>
+                      <div className="mt-1 text-2xl font-black text-foreground">
+                        Frequently asked questions.
+                      </div>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <Accordion type="single" collapsible className="w-full rounded-2xl border border-border bg-background/70 px-5">
+                      {faqs.map((item) => (
+                        <AccordionItem key={item.question} value={item.question}>
+                          <AccordionTrigger className="text-left font-black text-foreground">
+                            {item.question}
+                          </AccordionTrigger>
+                          <AccordionContent className="text-muted-foreground">
+                            {item.answer}
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </LandingContainer>
+          </section>
 
           <section className="pb-16">
             <LandingContainer>
@@ -967,11 +885,11 @@ export default function VisualProductLanding({
                       Get started
                     </div>
                     <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
-                      Turn account context into sequenced outreach.
+                      Turn contact search and signals into email outreach.
                     </h2>
                     <p className="mt-3 max-w-2xl text-muted-foreground">
-                      Bring your ICP, connect inboxes, and move from qualified lead to
-                      personalized sequence in one workspace.
+                      Search the database, save contacts, connect inboxes, and launch
+                      sequences with timely account context.
                     </p>
                   </div>
                   <PrimaryCtaLink href="/signup">
