@@ -142,9 +142,24 @@ const pricingPlans: PricingPlan[] = [
 
 const faqs = [
   {
-    question: "Is Krot mostly a signals tool?",
+    question: "What is Krot?",
     answer:
-      "No. Krot centers on lead quality, enrichment, and inbox-native sequencing. Signals are a high-value addon for timing and personalization.",
+      "Krot is a B2B sales intelligence and outbound platform that helps teams find qualified leads, enrich contact data, build sequences, and track pipeline activity in one workspace.",
+  },
+  {
+    question: "How does Krot work?",
+    answer:
+      "Teams define their ideal customer profile, review prioritized accounts, enrich the right contacts, create personalized outreach, and launch sequences from connected inboxes.",
+  },
+  {
+    question: "Who is Krot built for?",
+    answer:
+      "Krot is built for recruitment agencies, marketing agencies, and B2B sales teams that need a faster way to turn target accounts into qualified conversations.",
+  },
+  {
+    question: "Does Krot include lead generation and enrichment?",
+    answer:
+      "Yes. Krot helps teams build targeted lead lists, enrich contacts, and validate account fit before outreach starts.",
   },
   {
     question: "Can teams send from their own inboxes?",
@@ -152,9 +167,24 @@ const faqs = [
       "Yes. Krot is designed around connected user inboxes so outbound stays authentic while teams keep centralized workflow control.",
   },
   {
-    question: "Who is Krot built for?",
+    question: "What role do signals play in Krot?",
     answer:
-      "Recruitment agencies, marketing agencies, and B2B sales teams that need a faster path from target accounts to qualified outreach.",
+      "Signals give teams timely context such as hiring, funding, news, or account changes. They help improve timing and personalization, but they work alongside lead quality, enrichment, and sequencing.",
+  },
+  {
+    question: "Does Krot provide campaign analytics?",
+    answer:
+      "Yes. Teams can review outreach performance, reply activity, meetings, inbox health, and pipeline outcomes from the workspace.",
+  },
+  {
+    question: "Can Krot fit into an existing sales workflow?",
+    answer:
+      "Yes. Krot is designed to support common outbound workflows, including CSV uploads, connected inboxes, team roles, and automations for CRM or workflow tools depending on the plan.",
+  },
+  {
+    question: "Can I try Krot for free?",
+    answer:
+      "Yes. The free plan lets teams explore the workflow with a limited mailbox, contacts, enrichments, and basic sequencing.",
   },
 ];
 
@@ -814,8 +844,8 @@ export default function VisualProductLanding({
               <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr]">
                 <SectionHeader
                   eyebrow="FAQ"
-                  title="Plain answers."
-                  text="Short context for buyers who want to understand the product quickly."
+                  title="Frequently asked questions."
+                  text="Answers about the product, workflow, inboxes, analytics, and getting started."
                 />
                 <Accordion type="single" collapsible className="w-full rounded-3xl border border-border bg-card/80 px-5">
                   {faqs.map((item) => (
