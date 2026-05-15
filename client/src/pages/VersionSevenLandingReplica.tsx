@@ -550,15 +550,17 @@ export default function VersionSevenLandingReplica({
             </p>
           </div>
 
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
             <div className="rounded-2xl border border-border bg-card/70 p-6 flex flex-col h-full">
               <div className="text-sm font-semibold text-muted-foreground">Free</div>
               <div className="mt-2 text-3xl font-extrabold">$0</div>
               <div className="text-xs text-muted-foreground">per month</div>
               <ul className="mt-5 space-y-2 text-sm text-muted-foreground flex-1">
-                <li>- Limited email sequencing</li>
-                <li>- CSV uploads</li>
-                <li>- Signals access</li>
+                <li>- 1 mailbox (limited)</li>
+                <li>- 100 contacts</li>
+                <li>- 50 enrichments / month</li>
+                <li>- Basic sequencing + CSV upload</li>
+                <li>- Limited signals</li>
               </ul>
               <a
                 href="/signup"
@@ -569,16 +571,15 @@ export default function VersionSevenLandingReplica({
             </div>
 
             <div className="rounded-2xl border border-border bg-card/70 p-6 flex flex-col h-full">
-              <div className="text-sm font-semibold text-muted-foreground">Basic</div>
-              <div className="mt-2 text-3xl font-extrabold">$49</div>
+              <div className="text-sm font-semibold text-muted-foreground">Starter</div>
+              <div className="mt-2 text-3xl font-extrabold">$59</div>
               <div className="text-xs text-muted-foreground">per month</div>
               <ul className="mt-5 space-y-2 text-sm text-muted-foreground flex-1">
                 <li>- 1 connected email</li>
-                <li>- Full email sequencing</li>
-                <li>- CSV uploads</li>
-                <li>- Lead generation and enrichment (limited)</li>
-                <li>- Signals</li>
-                <li>- Add extra email licenses in-app</li>
+                <li>- 2,000 contacts</li>
+                <li>- 1,000 enrichments / month</li>
+                <li>- Full sequencing + basic signals</li>
+                <li>- CSV upload</li>
               </ul>
               <a
                 href="/signup"
@@ -590,21 +591,20 @@ export default function VersionSevenLandingReplica({
 
             <div className="rounded-2xl border border-primary bg-card/80 p-6 shadow-[0_0_0_1px_rgba(196,160,66,0.25)] flex flex-col h-full">
               <div className="flex items-center justify-between gap-2">
-                <div className="text-sm font-semibold text-primary">Business Standard</div>
+                <div className="text-sm font-semibold text-primary">Growth</div>
                 <span className="rounded-full border border-primary/45 bg-primary/12 px-3 py-1 text-[10px] font-semibold tracking-wide text-primary/95">
-                  Best value
+                  Most popular
                 </span>
               </div>
-              <div className="mt-2 text-3xl font-extrabold">$129</div>
+              <div className="mt-2 text-3xl font-extrabold">$149</div>
               <div className="text-xs text-muted-foreground">per month</div>
               <ul className="mt-5 space-y-2 text-sm text-muted-foreground flex-1">
                 <li>- 3 connected emails</li>
-                <li>- Full email sequencing</li>
-                <li>- CSV uploads</li>
-                <li>- Lead generation and enrichment (extensive limits)</li>
-                <li>- Premium Signals</li>
-                <li>- Automations (Zapier, CRMs, other tools)</li>
-                <li>- Add extra email licenses in-app</li>
+                <li>- 10,000 contacts</li>
+                <li>- 5,000 enrichments / month</li>
+                <li>- Advanced signals</li>
+                <li>- Automations (Zapier/CRM)</li>
+                <li>- Analytics</li>
               </ul>
               <a
                 href="/signup"
@@ -615,18 +615,36 @@ export default function VersionSevenLandingReplica({
             </div>
 
             <div className="rounded-2xl border border-border bg-card/70 p-6 flex flex-col h-full">
-              <div className="text-sm font-semibold text-muted-foreground">Pro</div>
-              <div className="mt-2 text-3xl font-extrabold">$249</div>
+              <div className="text-sm font-semibold text-muted-foreground">Scale</div>
+              <div className="mt-2 text-3xl font-extrabold">$299</div>
               <div className="text-xs text-muted-foreground">per month</div>
               <ul className="mt-5 space-y-2 text-sm text-muted-foreground flex-1">
                 <li>- 5 connected emails</li>
-                <li>- Full email sequencing</li>
-                <li>- CSV uploads</li>
-                <li>- Unlimited lead generation and enrichment</li>
+                <li>- 30,000 contacts</li>
+                <li>- 15,000 enrichments / month</li>
                 <li>- Premium Signals</li>
-                <li>- Early access to beta tools</li>
-                <li>- Automations (Zapier, CRMs, other tools)</li>
-                <li>- Add extra email licenses in-app</li>
+                <li>- Advanced analytics</li>
+                <li>- Priority processing</li>
+              </ul>
+              <a
+                href="/signup"
+                className="mt-4 inline-flex w-full items-center justify-center text-center rounded-md border border-border bg-card/80 px-4 py-2 text-sm font-semibold leading-none text-foreground hover:bg-card transition-colors"
+              >
+                Get started
+              </a>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card/70 p-6 flex flex-col h-full">
+              <div className="text-sm font-semibold text-muted-foreground">Pro / Teams</div>
+              <div className="mt-2 text-3xl font-extrabold">$499</div>
+              <div className="text-xs text-muted-foreground">per month</div>
+              <ul className="mt-5 space-y-2 text-sm text-muted-foreground flex-1">
+                <li>- 10 connected emails</li>
+                <li>- 100,000 contacts</li>
+                <li>- 50,000 enrichments / month</li>
+                <li>- Advanced automations</li>
+                <li>- Team roles + audit logs</li>
+                <li>- Priority support</li>
               </ul>
               <a
                 href="/signup"

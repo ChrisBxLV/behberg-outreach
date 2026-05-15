@@ -45,30 +45,50 @@ const SUBSCRIPTION_PLANS = [
     name: "Free",
     priceEur: 0,
     mailboxLimit: 1,
-    summary: "Limited email sequencing, CSV uploads, and signals access.",
+    summary: "1 mailbox (limited), 100 contacts, 50 enrichments/month.",
   },
   {
-    id: "basic",
-    name: "Basic",
-    priceEur: 49,
+    id: "starter",
+    name: "Starter",
+    priceEur: 59,
     mailboxLimit: 1,
-    summary: "1 connected email, full sequencing, and limited enrichment.",
+    summary: "1 mailbox, 2,000 contacts, 1,000 enrichments/month.",
   },
   {
-    id: "business_standard",
-    name: "Business Standard",
-    priceEur: 129,
+    id: "growth",
+    name: "Growth",
+    priceEur: 149,
     mailboxLimit: 3,
-    summary: "3 connected emails, premium signals, and automations.",
+    summary: "3 mailboxes, 10,000 contacts, 5,000 enrichments/month.",
   },
   {
-    id: "pro",
-    name: "Pro",
-    priceEur: 249,
+    id: "scale",
+    name: "Scale",
+    priceEur: 299,
     mailboxLimit: 5,
-    summary: "5 connected emails, unlimited enrichment, and beta access.",
+    summary: "5 mailboxes, 30,000 contacts, 15,000 enrichments/month.",
+  },
+  {
+    id: "pro_teams",
+    name: "Pro / Teams",
+    priceEur: 499,
+    mailboxLimit: 10,
+    summary: "10 mailboxes, 100,000 contacts, 50,000 enrichments/month.",
   },
 ] as const;
+
+type SubscriptionPlanId = (typeof SUBSCRIPTION_PLANS)[number]["id"];
+
+function normalizeSubscriptionPlanId(planId: string | null | undefined): SubscriptionPlanId {
+  const normalized = (planId ?? "free").trim().toLowerCase();
+  if (normalized === "basic") return "starter";
+  if (normalized === "business_standard") return "growth";
+  if (normalized === "pro") return "scale";
+  if (SUBSCRIPTION_PLANS.some(plan => plan.id === normalized)) {
+    return normalized as SubscriptionPlanId;
+  }
+  return "free";
+}
 
 function oauthReasonLabel(reason: string): string {
   switch (reason) {
@@ -755,7 +775,7 @@ export default function Settings() {
   );
   const connectedMailboxCount = mailboxes?.length ?? 0;
   const currentPlan =
-    SUBSCRIPTION_PLANS.find((p) => p.id === orgMine?.organization?.subscriptionPlanId) ??
+    SUBSCRIPTION_PLANS.find((p) => p.id === normalizeSubscriptionPlanId(orgMine?.organization?.subscriptionPlanId)) ??
     SUBSCRIPTION_PLANS[0];
   const mailboxLimit = currentPlan.mailboxLimit;
   const mailboxLimitReached = connectedMailboxCount >= mailboxLimit;

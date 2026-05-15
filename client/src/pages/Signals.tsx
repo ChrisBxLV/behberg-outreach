@@ -72,7 +72,15 @@ export default function Signals() {
   const { data: profile, isLoading: profileLoading } = trpc.signals.getProfile.useQuery();
   const { data: orgMine } = trpc.organization.mine.useQuery();
   const subscriptionPlanId = orgMine?.organization?.subscriptionPlanId ?? "free";
-  const hasSignalsProAccess = ["business_standard", "pro", "enterprise"].includes(subscriptionPlanId);
+  const hasSignalsProAccess = [
+    "growth",
+    "scale",
+    "pro_teams",
+    "enterprise",
+    // Legacy ids
+    "business_standard",
+    "pro",
+  ].includes(subscriptionPlanId);
   const { data: feed, isLoading: feedLoading } = trpc.signals.listSignals.useQuery(
     {
       limit: 40,
@@ -292,7 +300,7 @@ export default function Signals() {
                   <div>
                     <p className="text-sm font-semibold flex items-center gap-2">
                       Signals PRO
-                      <Badge variant="secondary" className="text-[10px]">Business Standard+</Badge>
+                      <Badge variant="secondary" className="text-[10px]">Growth+</Badge>
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Unlock LLM-powered event intelligence with instant outreach actions and decision-maker matching.
@@ -437,7 +445,7 @@ export default function Signals() {
             </div>
             {!hasSignalsProAccess ? (
               <p className="rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-primary">
-                Your current plan is <span className="font-semibold">{subscriptionPlanId.replaceAll("_", " ")}</span>. Upgrade to <span className="font-semibold">Business Standard</span> to unlock Signals PRO.
+                Your current plan is <span className="font-semibold">{subscriptionPlanId.replaceAll("_", " ")}</span>. Upgrade to <span className="font-semibold">Growth</span> to unlock Signals PRO.
               </p>
             ) : (
               <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-emerald-300">
@@ -466,10 +474,10 @@ export default function Signals() {
                 onClick={() => {
                   setShowSignalsProModal(false);
                   setLocation("/app/settings");
-                  toast.message("Upgrade to Business Standard to enable Signals PRO.");
+                  toast.message("Upgrade to Growth to enable Signals PRO.");
                 }}
               >
-                Upgrade to Business Standard
+                Upgrade to Growth
               </Button>
             )}
           </DialogFooter>

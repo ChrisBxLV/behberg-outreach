@@ -159,12 +159,17 @@ function providerConfigured(provider: MailboxOAuthProvider): boolean {
 
 function mailboxLimitForPlan(planId: string | null | undefined): number {
   switch ((planId ?? "free").toLowerCase()) {
-    case "basic":
-      return 1;
+    case "pro_teams":
+      return 10;
+    case "growth":
     case "business_standard":
       return 3;
+    case "scale":
     case "pro":
       return 5;
+    case "starter":
+    case "basic":
+      return 1;
     case "free":
     default:
       return 1;

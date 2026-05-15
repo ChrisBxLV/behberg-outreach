@@ -5,8 +5,13 @@ describe("subscription email checker gating", () => {
     vi.resetModules();
   });
 
-  it("hasEmailCheckerAccess allows basic+", async () => {
+  it("hasEmailCheckerAccess allows starter+", async () => {
     const { hasEmailCheckerAccess } = await import("./subscription");
+    expect(hasEmailCheckerAccess("starter")).toBe(true);
+    expect(hasEmailCheckerAccess("growth")).toBe(true);
+    expect(hasEmailCheckerAccess("scale")).toBe(true);
+    expect(hasEmailCheckerAccess("pro_teams")).toBe(true);
+    // Legacy aliases still accepted.
     expect(hasEmailCheckerAccess("basic")).toBe(true);
     expect(hasEmailCheckerAccess("business_standard")).toBe(true);
     expect(hasEmailCheckerAccess("pro")).toBe(true);

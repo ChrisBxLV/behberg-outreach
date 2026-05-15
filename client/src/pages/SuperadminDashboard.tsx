@@ -71,10 +71,24 @@ import { ProspectCrawlerControlCenter } from "@/components/prospect/ProspectCraw
 
 const PLATFORM_PLAN_OPTIONS = [
   { id: "free" as const, label: "Free" },
-  { id: "basic" as const, label: "Basic" },
-  { id: "business_standard" as const, label: "Business Standard" },
-  { id: "pro" as const, label: "Pro" },
+  { id: "starter" as const, label: "Starter" },
+  { id: "growth" as const, label: "Growth" },
+  { id: "scale" as const, label: "Scale" },
+  { id: "pro_teams" as const, label: "Pro / Teams" },
 ];
+
+type PlatformPlanId = (typeof PLATFORM_PLAN_OPTIONS)[number]["id"];
+
+function normalizePlatformPlanId(planId: string | null | undefined): PlatformPlanId {
+  const normalized = (planId ?? "free").trim().toLowerCase();
+  if (normalized === "basic") return "starter";
+  if (normalized === "business_standard") return "growth";
+  if (normalized === "pro") return "scale";
+  if (PLATFORM_PLAN_OPTIONS.some(option => option.id === normalized)) {
+    return normalized as PlatformPlanId;
+  }
+  return "free";
+}
 
 type EditableUserRow = {
   id: number;
@@ -743,11 +757,11 @@ export default function SuperadminDashboard() {
                           <TableCell className="font-medium">{o.name}</TableCell>
                           <TableCell>
                             <Select
-                              value={o.subscriptionPlanId ?? "free"}
+                              value={normalizePlatformPlanId(o.subscriptionPlanId)}
                               onValueChange={planId =>
                                 setOrgPlan.mutate({
                                   organizationId: o.id,
-                                  planId: planId as (typeof PLATFORM_PLAN_OPTIONS)[number]["id"],
+                                  planId: planId as PlatformPlanId,
                                 })
                               }
                               disabled={setOrgPlan.isPending}
@@ -1096,11 +1110,11 @@ export default function SuperadminDashboard() {
                           <TableCell className="font-medium">{o.name}</TableCell>
                           <TableCell>
                             <Select
-                              value={o.subscriptionPlanId ?? "free"}
+                              value={normalizePlatformPlanId(o.subscriptionPlanId)}
                               onValueChange={planId =>
                                 setOrgPlan.mutate({
                                   organizationId: o.id,
-                                  planId: planId as (typeof PLATFORM_PLAN_OPTIONS)[number]["id"],
+                                  planId: planId as PlatformPlanId,
                                 })
                               }
                               disabled={setOrgPlan.isPending}
