@@ -50,6 +50,12 @@ type SimpleStep = {
   icon: LucideIcon;
 };
 
+type Principle = {
+  title: string;
+  text: string;
+  icon: LucideIcon;
+};
+
 type PricingPlan = {
   name: string;
   price: string;
@@ -60,19 +66,42 @@ type PricingPlan = {
 
 const simpleSteps: SimpleStep[] = [
   {
-    title: "Search contacts",
-    text: "Find people in the database without switching between tools first.",
+    title: "Find contacts",
+    text: "Search the database and keep the people you want to reach in one place.",
     icon: Search,
   },
   {
-    title: "Add to a sequence",
-    text: "Save contacts or move them directly into an email campaign.",
+    title: "Start a sequence",
+    text: "Move saved contacts into a clear email flow without imports or extra setup.",
     icon: Mail,
   },
   {
-    title: "Use the right signal",
-    text: "Reference timely account context without turning outreach into a research project.",
+    title: "Send with context",
+    text: "Use account signals when they matter, so emails feel timely without more research.",
     icon: BellRing,
+  },
+];
+
+const principles: Principle[] = [
+  {
+    title: "One obvious next step",
+    text: "Every screen should make the next action clear: save, add to sequence, review signal, or launch.",
+    icon: ArrowRight,
+  },
+  {
+    title: "Power stays close to the work",
+    text: "Signals, contacts, and sequences live together instead of hiding behind separate tools.",
+    icon: Database,
+  },
+  {
+    title: "Less setup, more sending",
+    text: "Teams can get from contact search to a campaign without building a complicated GTM machine.",
+    icon: Mail,
+  },
+  {
+    title: "Clear controls for teams",
+    text: "Connected inboxes, roles, and analytics are there when needed without making daily work heavy.",
+    icon: ShieldCheck,
   },
 ];
 
@@ -135,7 +164,7 @@ const faqs = [
   {
     question: "What is Krot?",
     answer:
-      "Krot is a focused B2B outbound platform that combines contact search, email sequences, real-time signals, and campaign analytics in one workspace.",
+      "Krot is a focused B2B outbound platform that combines contact search, email sequences, real-time signals, and campaign analytics in one workspace that is easy for teams to adopt.",
   },
   {
     question: "How does Krot work?",
@@ -480,6 +509,50 @@ function HeroEmailMotionPanel() {
   );
 }
 
+function SimplicitySection() {
+  return (
+    <section className="py-16">
+      <LandingContainer>
+        <div className="grid gap-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">
+              Simple by design
+            </div>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
+              The full outbound loop, without the maze.
+            </h2>
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground">
+              Krot is built for teams that want the reach of a modern outbound stack
+              without turning daily selling into tool administration. Search, sequence,
+              signal context, and replies stay close together.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {principles.map((principle) => {
+              const Icon = principle.icon;
+              return (
+                <div
+                  key={principle.title}
+                  className="rounded-3xl border border-border bg-card/80 p-5 shadow-sm backdrop-blur"
+                >
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="mt-4 text-lg font-black text-foreground">{principle.title}</div>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {principle.text}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </LandingContainer>
+    </section>
+  );
+}
+
 function HeroProductMockup() {
   const heroStats: { label: string; value: string; icon: LucideIcon }[] = [
     { label: "Saved", value: "128", icon: Database },
@@ -629,12 +702,12 @@ export default function VisualProductLanding({
               <div className="grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr]">
                 <div>
                   <h1 className="text-4xl font-black leading-[1.02] tracking-tight text-foreground sm:text-6xl">
-                    B2B email outreach without the busywork.
+                    Outbound that feels lighter from the first click.
                   </h1>
                   <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
-                    Search contacts, add them to a sequence, and use real-time signals to
-                    send with better context. Krot keeps outbound focused enough for any
-                    team to use, with the controls needed to scale.
+                    Krot brings contact search, email sequences, and real-time buying
+                    signals into one focused workspace. Teams get the outbound engine they
+                    need without wrestling with a bloated sales stack.
                   </p>
                   <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                     <PrimaryCtaLink href="/signup">
@@ -687,8 +760,8 @@ export default function VisualProductLanding({
             <LandingContainer className="relative z-10">
               <SectionHeader
                 eyebrow="Product"
-                title="A clean workspace for the work that matters."
-                text="Krot keeps contact search, sequences, signals, and replies close together so teams can move without navigating a crowded sales stack."
+                title="Everything important stays in view."
+                text="Contacts, sequences, signals, and replies are connected in a workspace that feels calm, fast, and deliberate."
               />
 
               <div className="mt-10">
@@ -725,6 +798,8 @@ export default function VisualProductLanding({
               </div>
             </LandingContainer>
           </section>
+
+          <SimplicitySection />
 
           <section className="py-16">
             <LandingContainer>
