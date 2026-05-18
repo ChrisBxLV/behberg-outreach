@@ -63,7 +63,7 @@ export default function MarketingLayout({
               >
                 <img
                   src="/krot-mole-logo.svg"
-                  alt="Krot"
+                  alt="Krot email outreach software logo, yellow circle with cream mole mascot"
                   className="h-8 w-auto shrink-0 select-none lg:h-10"
                 />
                 <span className="text-sm font-black tracking-tight text-primary lg:text-lg">

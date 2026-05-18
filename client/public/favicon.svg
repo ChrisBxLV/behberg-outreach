@@ -1,24 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs>
-    <linearGradient id="g" x1="12" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0EA5E9" />
-      <stop offset="1" stop-color="#1D4ED8" />
-    </linearGradient>
-  </defs>
-
-  <rect x="6" y="6" width="52" height="52" rx="14" fill="#0B1220" />
-  <rect
-    x="8.5"
-    y="8.5"
-    width="47"
-    height="47"
-    rx="12"
-    fill="url(#g)"
-    opacity="0.95"
-  />
-
-  <path
-    d="M22 18h8v12l11-12h10L37 32l14 14H41L30 35v11h-8V18z"
-    fill="#FFFFFF"
-  />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="krotFaviconTitle">
+  <title id="krotFaviconTitle">Krot</title>
+  <desc>Krot emailing software: circular yellow badge with cream mole mascot.</desc>
+  <circle cx="32" cy="32" r="30" fill="#FDE047" stroke="#EAB308" stroke-width="1.25" />
+  <ellipse cx="32" cy="38" rx="21" ry="18" fill="#FFF8E7" stroke="#E8D5A3" stroke-width="0.7" />
+  <ellipse cx="32" cy="28" rx="15" ry="12" fill="#FFFBEF" stroke="#E8D5A3" stroke-width="0.65" />
+  <ellipse cx="32" cy="31" rx="8.5" ry="4.2" fill="#FFFEF5" stroke="#D9C47A" stroke-width="0.45" />
+  <circle cx="28.8" cy="31" r="1.15" fill="#292524" />
+  <circle cx="35.2" cy="31" r="1.15" fill="#292524" />
+  <circle cx="25.2" cy="24.8" r="1.9" fill="#1c1917" />
+  <circle cx="38.8" cy="24.8" r="1.9" fill="#1c1917" />
+  <g stroke="#713f12" stroke-width="0.95" stroke-linecap="round" fill="none">
+    <path d="M9 22q6-1 12 2" />
+    <path d="M7 26q7-1 13 2" />
+    <path d="M9 30q6-1 12 2" />
+    <path d="M55 22q-6-1-12 2" />
+    <path d="M57 26q-7-1-13 2" />
+    <path d="M55 30q-6-1-12 2" />
+  </g>
+  <ellipse cx="18" cy="51" rx="8" ry="6.2" fill="#FFF8E7" stroke="#E8D5A3" stroke-width="0.55" />
+  <ellipse cx="46" cy="51" rx="8" ry="6.2" fill="#FFF8E7" stroke="#E8D5A3" stroke-width="0.55" />
+  <g stroke="#C9B87A" stroke-width="1.05" stroke-linecap="round" fill="none">
+    <path d="M12 55v5.5M18 55v6.5M24 55v5.5" />
+    <path d="M40 55v5.5M46 55v6.5M52 55v5.5" />
+  </g>
 </svg>
