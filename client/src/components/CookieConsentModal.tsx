@@ -13,9 +13,9 @@ function LogoRow() {
   return (
     <div className="flex items-center gap-3">
       <img
-        src="/logoipsum-294.svg"
+        src="/krot-mole.png"
         alt="Krot"
-        className="h-8 w-auto select-none pointer-events-none"
+        className="h-18 w-18 shrink-0 select-none rounded-full object-cover pointer-events-none"
         draggable={false}
       />
       <div className="flex flex-col leading-tight">

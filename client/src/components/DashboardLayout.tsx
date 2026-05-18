@@ -279,6 +279,12 @@ function DashboardLayoutContent({
                   className="flex items-center gap-2 min-w-0 text-left rounded-md px-1 py-0.5 -mx-1 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label="Go to dashboard home"
                 >
+                  <img
+                    src="/krot-mole.png"
+                    alt=""
+                    className="h-18 w-18 shrink-0 rounded-full object-cover"
+                    draggable={false}
+                  />
                   <div className="flex flex-col min-w-0">
                     <span className="font-bold tracking-tight truncate text-foreground">Krot</span>
                     <span className="text-xs text-primary truncate font-medium">Platform</span>

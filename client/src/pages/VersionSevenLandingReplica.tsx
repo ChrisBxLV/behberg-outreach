@@ -175,14 +175,16 @@ export default function VersionSevenLandingReplica({
       {/* Top offer bar */}
       <div className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card/70 backdrop-blur">
         <LandingContainer>
-          <div className="py-3 text-sm flex items-center justify-between gap-3 flex-wrap max-sm:py-2 max-sm:text-xs max-sm:gap-2 max-[380px]:gap-1.5">
-            <a href={brandHomeHref} className="flex items-center max-[380px]:w-full max-[380px]:justify-center">
-              <img
-                src="/logoipsum-294.svg"
-                alt="Krot"
-                className="h-8 w-auto select-none pointer-events-none max-[380px]:h-7"
-              />
-              <span className="ml-2 text-sm font-bold tracking-wide text-primary max-sm:text-xs">krot.io</span>
+          <div className="py-1.5 text-sm flex items-center justify-between gap-3 flex-wrap max-sm:text-xs max-sm:gap-2 max-[380px]:gap-1.5">
+            <a href={brandHomeHref} className="flex items-center leading-none max-[380px]:w-full max-[380px]:justify-center">
+              <span className="inline-flex h-11 w-11 shrink-0 overflow-hidden rounded-full sm:h-12 sm:w-12">
+                <img
+                  src="/krot-mole.png"
+                  alt="Krot"
+                  className="block h-full w-full scale-[1.2] object-cover object-center select-none pointer-events-none"
+                />
+              </span>
+              <span className="ml-2 text-sm font-bold tracking-wide text-primary leading-none max-sm:text-xs">krot.io</span>
             </a>
             <div className="flex items-center gap-4 max-sm:w-full max-sm:justify-between max-sm:gap-2 max-[380px]:justify-center max-[380px]:flex-wrap max-[380px]:gap-x-3 max-[380px]:gap-y-1.5">
               <a href="#features" className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors max-[380px]:text-[11px]">Features</a>

@@ -53,20 +53,22 @@ export default function MarketingLayout({
             <div
               className={cn(
                 "flex w-full min-w-0 items-center justify-between gap-x-2",
-                "max-lg:flex-nowrap max-lg:gap-y-0 max-lg:py-2",
-                "lg:flex-wrap lg:gap-x-4 lg:gap-y-3 lg:py-[1.125rem]",
+                "max-lg:flex-nowrap max-lg:gap-y-0 max-lg:py-1.5",
+                "lg:flex-wrap lg:gap-x-4 lg:gap-y-0 lg:py-2",
               )}
             >
               <a
                 href={brandHomeHref}
-                className="flex shrink-0 items-center gap-2 rounded-xl outline-offset-4 transition-opacity hover:opacity-90 max-lg:gap-1.5 lg:gap-2.5"
+                className="flex shrink-0 items-center gap-2 rounded-xl leading-none outline-offset-4 transition-opacity hover:opacity-90 max-lg:gap-1.5 lg:gap-2"
               >
-                <img
-                  src="/logoipsum-294.svg"
-                  alt="Krot"
-                  className="h-8 w-auto shrink-0 select-none lg:h-10"
-                />
-                <span className="text-sm font-black tracking-tight text-primary lg:text-lg">
+                <span className="inline-flex h-11 w-11 shrink-0 overflow-hidden rounded-full sm:h-12 sm:w-12">
+                  <img
+                    src="/krot-mole.png"
+                    alt="Krot"
+                    className="block h-full w-full scale-[1.2] object-cover object-center select-none"
+                  />
+                </span>
+                <span className="text-sm font-black tracking-tight text-primary leading-none sm:text-base">
                   krot.io
                 </span>
               </a>
