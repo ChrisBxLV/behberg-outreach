@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 112" fill="none" role="img" aria-labelledby="krot-logo-title">
+  <title id="krot-logo-title">Krot</title>
+  <!-- Dirt mound -->
+  <path
+    d="M4 92c18-14 38-18 60-18s44 4 60 18v20H4V92Z"
+    fill="#383838"
+  />
+  <!-- Mole body -->
+  <ellipse cx="64" cy="46" rx="40" ry="38" fill="#4a4a4a" />
+  <!-- Snout -->
+  <ellipse cx="64" cy="58" rx="20" ry="14" fill="#c9a227" />
+  <circle cx="57" cy="58" r="2.5" fill="#3a3a3a" />
+  <circle cx="71" cy="58" r="2.5" fill="#3a3a3a" />
+  <!-- Eyes -->
+  <circle cx="46" cy="40" r="5" fill="#c9a227" />
+  <circle cx="82" cy="40" r="5" fill="#c9a227" />
+  <!-- Whiskers -->
+  <g stroke="#3a3a3a" stroke-width="2.2" stroke-linecap="round">
+    <path d="M18 42 34 40" />
+    <path d="M16 50 34 48" />
+    <path d="M18 58 36 56" />
+    <path d="M110 42 94 40" />
+    <path d="M112 50 94 48" />
+    <path d="M110 58 92 56" />
+  </g>
+  <!-- Paws -->
+  <path
+    d="M22 78c-4 0-8 4-8 10v6h26c0-8-6-14-18-16Zm84 0c12-2 18 8 18 16h26v-6c0-6-4-10-8-10-6 0-10 4-12 10l-6-4c-2-4-8-6-18-6Z"
+    fill="#c9a227"
+  />
+  <path
+    d="M26 92v6h10v-4c0-3-2-2-4-2Zm72 0c-2 0-4-1-4 2v4h10v-6h-6Z"
+    fill="#a88b1f"
+  />
+</svg>
