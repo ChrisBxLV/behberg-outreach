@@ -368,12 +368,25 @@ function HeroEmailMotionPanel() {
         `}
       </style>
 
+      {/* Grey + gold mole mascot (transparent); reads better than low-contrast faux app chrome. */}
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_24%_26%,rgba(196,160,66,0.15),transparent_26%),radial-gradient(circle_at_80%_22%,rgba(99,179,237,0.12),transparent_24%),radial-gradient(circle_at_50%_84%,rgba(196,160,66,0.10),transparent_28%)]"
+        className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
+        aria-hidden
+      >
+        <img
+          src="/krot-mole-mascot-mark.svg"
+          alt=""
+          decoding="async"
+          className="h-[min(132%,36rem)] w-auto max-w-[min(110%,40rem)] -translate-y-[2%] object-contain opacity-[0.13] saturate-[1.05] dark:opacity-[0.2]"
+        />
+      </div>
+
+      <div
+        className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_82%_74%_at_50%_48%,transparent_30%,hsl(var(--background)_/_0.5)_62%,hsl(var(--background)_/_0.88)_100%),radial-gradient(circle_at_24%_26%,rgba(196,160,66,0.14),transparent_28%),radial-gradient(circle_at_80%_22%,rgba(99,179,237,0.11),transparent_26%),radial-gradient(circle_at_50%_84%,rgba(196,160,66,0.09),transparent_30%)]"
         aria-hidden
       />
 
-      <div className="relative z-10 mx-auto max-w-sm rounded-3xl border border-border bg-background/80 p-5 shadow-sm">
+      <div className="relative z-10 mx-auto max-w-sm rounded-3xl border border-border bg-background/80 p-5 shadow-sm backdrop-blur-[2px]">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
             <Mail className="h-5 w-5" />
