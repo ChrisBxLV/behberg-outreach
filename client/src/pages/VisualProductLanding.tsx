@@ -399,10 +399,10 @@ function HeroEmailMotionPanel() {
       {/* Hero mole replaces the old centre “app” panel; cards float above (higher z-index) */}
       <div className="relative z-10 mx-auto flex w-full max-w-lg items-center justify-center py-6 sm:py-8">
         <img
-          src="/krot-mole-mascot-mark.svg"
-          alt="Krot mole mascot"
+          src="/krot-mole-logo.svg"
+          alt="Krot logo: yellow circle with mole mascot"
           decoding="async"
-          className="krot-hero-mole h-auto w-full max-w-[min(92%,17.5rem)] select-none drop-shadow-[0_12px_28px_rgba(0,0,0,0.12)] saturate-[1.02] sm:max-w-[20rem] lg:max-w-[24rem] dark:drop-shadow-[0_16px_36px_rgba(0,0,0,0.35)]"
+          className="krot-hero-mole h-auto w-full max-w-[min(92%,17.5rem)] select-none drop-shadow-[0_12px_28px_rgba(0,0,0,0.12)] sm:max-w-[20rem] lg:max-w-[24rem] dark:drop-shadow-[0_16px_36px_rgba(0,0,0,0.35)]"
         />
       </div>
 
