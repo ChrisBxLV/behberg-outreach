@@ -9,6 +9,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import InsideSoftwareLanding from "./pages/InsideSoftwareLanding";
 import MarketingLanding from "./pages/MarketingLanding";
 import About from "./pages/About";
+import Demo from "./pages/Demo";
 import Pricing from "./pages/Pricing";
 import Home from "./pages/Home";
 import Contacts from "./pages/Contacts";
@@ -48,6 +49,7 @@ function Router() {
       <Route path="/" component={InsideSoftwareLanding} />
       <Route path="/home" component={MarketingLanding} />
       <Route path="/about">{() => <About />}</Route>
+      <Route path="/demo">{() => <Demo />}</Route>
       <Route path="/pricing">{() => <Pricing />}</Route>
       <Route path="/login" component={Login} />
       <Route path="/signup" component={SignUp} />

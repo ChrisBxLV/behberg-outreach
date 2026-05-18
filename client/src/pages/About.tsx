@@ -11,17 +11,20 @@ export default function AboutPage({ brandHomeHref = getPublicHomeUrl() }: AboutP
     <MarketingLayout brandHomeHref={brandHomeHref}>
       <main className="pt-28 pb-16 sm:pt-32">
         <LandingContainer>
-          <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">Team</div>
+          <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">About</div>
           <h1 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
             Built by operators.
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
             We have run outbound, hiring, and agency pipelines ourselves. Krot reflects what we wished
             our tools had prioritized: fewer tabs, clearer next steps, and less busywork between
-            intent and send.
+            intent and send. Below is the team behind the product.
           </p>
 
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
+          <div className="mt-10">
+            <h2 className="text-sm font-black uppercase tracking-wide text-muted-foreground">Team</h2>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
             {versionSevenFounders.map((founder) => (
               <article
                 key={founder.name + founder.role}

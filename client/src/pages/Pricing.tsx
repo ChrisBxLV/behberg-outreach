@@ -17,8 +17,8 @@ export default function PricingPage({ brandHomeHref = getPublicHomeUrl() }: Pric
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
             Add connected email licenses anytime from inside the app. Higher tiers unlock more
-            enrichments, signal depth, automations, and analytics—without changing how your team
-            works day to day.
+            contacts, signal depth, automations, and analytics—without changing how your team works day
+            to day.
           </p>
 
           <MarketingPricingPlansGrid className="mt-10" />

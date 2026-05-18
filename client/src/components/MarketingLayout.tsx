@@ -46,10 +46,6 @@ export default function MarketingLayout({
 
   return (
     <div id="top" className="relative isolate min-h-screen overflow-x-clip bg-background text-foreground">
-      <div
-        className="pointer-events-none fixed -bottom-[40%] left-0 z-[1] h-[min(95dvh,56rem)] w-[min(140vw,72rem)] max-w-[200vw] -translate-x-[42%] rounded-full bg-gradient-to-tr from-primary/38 via-primary/16 to-transparent blur-3xl sm:-bottom-[35%] sm:h-[min(100dvh,64rem)] sm:w-[min(150vw,80rem)] sm:-translate-x-[38%]"
-        aria-hidden
-      />
       <DataParticlesBackground />
       <div className="relative z-10">
         <header className="fixed left-0 right-0 top-0 z-50 border-b border-border bg-card/75 backdrop-blur-xl">
@@ -68,8 +64,11 @@ export default function MarketingLayout({
                 <a href={`${brandHomeHref}#product`} className="transition hover:text-foreground">
                   Product
                 </a>
+                <a href="/demo" className="transition hover:text-foreground">
+                  Demo
+                </a>
                 <a href="/about" className="transition hover:text-foreground">
-                  Team
+                  About
                 </a>
                 <a href={`${brandHomeHref}#pricing`} className="transition hover:text-foreground">
                   Pricing

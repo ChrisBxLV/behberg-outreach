@@ -449,7 +449,7 @@ export default function VisualProductLanding({
                         Register for Free <ArrowRight className="h-4 w-4" />
                       </span>
                     </PrimaryCtaLink>
-                    <SecondaryCtaLink href="#product">
+                    <SecondaryCtaLink href="/demo">
                       <span className="flex items-center gap-2">
                         See the product <ArrowRight className="h-4 w-4" />
                       </span>
@@ -605,7 +605,7 @@ export default function VisualProductLanding({
               <SectionHeader
                 eyebrow="Pricing"
                 title="Choose the plan that fits your team."
-                text="Start free and add connected inboxes, enrichments, signals, and automations as volume grows. Every tier includes the same focused workflow—capacity and depth scale with you."
+                text="Start free and add connected inboxes, signals, and automations as volume grows. Every tier includes the same focused workflow—capacity and depth scale with you."
               />
               <MarketingPricingPlansGrid className="mt-8" />
             </LandingContainer>

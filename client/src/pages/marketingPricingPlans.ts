@@ -17,9 +17,9 @@ export const marketingPricingPlans: PricingPlan[] = [
     bullets: [
       "1 mailbox (limited sends)",
       "100 saved contacts",
-      "50 enrichments / month",
       "Basic sequencing + CSV upload",
       "Limited signals (core set only)",
+      "Contact search with capped lookups",
     ],
   },
   {
@@ -30,9 +30,9 @@ export const marketingPricingPlans: PricingPlan[] = [
     bullets: [
       "1 connected email inbox",
       "2,000 saved contacts",
-      "1,000 enrichments / month",
       "Full sequencing + contact search",
       "Basic signals + CSV upload",
+      "Campaign activity overview",
     ],
   },
   {
@@ -44,9 +44,9 @@ export const marketingPricingPlans: PricingPlan[] = [
     bullets: [
       "3 connected email inboxes",
       "10,000 saved contacts",
-      "5,000 enrichments / month",
       "Advanced signals + analytics",
       "Automations (Zapier / CRM hooks)",
+      "Shared workspace defaults for growing teams",
     ],
   },
   {
@@ -57,9 +57,9 @@ export const marketingPricingPlans: PricingPlan[] = [
     bullets: [
       "5 connected email inboxes",
       "30,000 saved contacts",
-      "15,000 enrichments / month",
       "Premium signals + priority processing",
       "Advanced analytics + reporting",
+      "Higher throughput for busy send calendars",
     ],
   },
   {
@@ -70,9 +70,9 @@ export const marketingPricingPlans: PricingPlan[] = [
     bullets: [
       "10 connected email inboxes",
       "100,000 saved contacts",
-      "50,000 enrichments / month",
       "Advanced automations + integrations",
       "Team roles, audit logs, priority support",
+      "Named support channel with faster response targets",
     ],
   },
 ];
