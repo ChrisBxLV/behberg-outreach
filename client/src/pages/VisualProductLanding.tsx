@@ -431,7 +431,7 @@ export default function VisualProductLanding({
   return (
     <MarketingLayout brandHomeHref={brandHomeHref}>
       <main>
-        <section className="pt-28 pb-16 sm:pt-32 lg:pb-20">
+        <section className="pt-32 pb-16 sm:pt-36 sm:pb-20 lg:pb-24">
             <LandingContainer>
               <div className="grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr]">
                 <div>

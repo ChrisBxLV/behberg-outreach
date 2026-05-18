@@ -48,51 +48,74 @@ export default function MarketingLayout({
     <div id="top" className="relative isolate min-h-screen overflow-x-clip bg-background text-foreground">
       <DataParticlesBackground />
       <div className="relative z-10">
-        <header className="fixed left-0 right-0 top-0 z-50 border-b border-border bg-card/75 backdrop-blur-xl">
+        <header className="fixed left-0 right-0 top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
           <LandingContainer>
-            <div className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <a href={brandHomeHref} className="flex items-center">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 py-4 sm:py-[1.125rem]">
+              <a
+                href={brandHomeHref}
+                className="flex items-center gap-2.5 rounded-xl outline-offset-4 transition-opacity hover:opacity-90"
+              >
                 <img
                   src="/logoipsum-294.svg"
                   alt="Krot"
-                  className="h-8 w-auto select-none"
+                  className="h-9 w-auto select-none sm:h-10"
                 />
-                <span className="ml-2 text-sm font-black tracking-wide text-primary">krot.io</span>
+                <span className="text-base font-black tracking-tight text-primary sm:text-lg">
+                  krot.io
+                </span>
               </a>
 
-              <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold text-muted-foreground sm:gap-x-5">
-                <a href={`${brandHomeHref}#product`} className="transition hover:text-foreground">
-                  Product
-                </a>
-                <a href="/demo" className="transition hover:text-foreground">
-                  Demo
-                </a>
-                <a href="/about" className="transition hover:text-foreground">
-                  About
-                </a>
-                <a href={`${brandHomeHref}#pricing`} className="transition hover:text-foreground">
-                  Pricing
-                </a>
-                <a href={`${brandHomeHref}#faq`} className="transition hover:text-foreground">
-                  FAQ
-                </a>
+              <nav className="flex flex-wrap items-center gap-x-0.5 gap-y-1 sm:gap-x-1">
+                {(
+                  [
+                    ["Product", `${brandHomeHref}#product`],
+                    ["Demo", "/demo"],
+                    ["About", "/about"],
+                    ["Pricing", `${brandHomeHref}#pricing`],
+                    ["FAQ", `${brandHomeHref}#faq`],
+                  ] as const
+                ).map(([label, href]) => (
+                  <a
+                    key={label}
+                    href={href}
+                    className={cn(
+                      "rounded-xl px-3.5 py-2.5 text-sm font-semibold tracking-tight text-muted-foreground",
+                      "transition-colors duration-200 hover:bg-muted/55 hover:text-foreground",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                      "sm:px-4 sm:py-3 sm:text-[0.9375rem]",
+                    )}
+                  >
+                    {label}
+                  </a>
+                ))}
                 {switchable && toggleTheme ? (
                   <button
                     type="button"
                     onClick={(event) => toggleTheme?.(event)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background/60 text-muted-foreground transition hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className={cn(
+                      "ml-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/80",
+                      "bg-background/70 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                      "sm:ml-1 sm:h-11 sm:w-11",
+                    )}
                     aria-label="Toggle theme"
                   >
                     {theme === "dark" ? (
-                      <Sun className="h-4 w-4" />
+                      <Sun className="h-[1.125rem] w-[1.125rem] sm:h-5 sm:w-5" />
                     ) : (
-                      <Moon className="h-4 w-4" />
+                      <Moon className="h-[1.125rem] w-[1.125rem] sm:h-5 sm:w-5" />
                     )}
                   </button>
                 ) : null}
                 <a
                   href="/login"
-                  className="inline-flex items-center rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-primary transition hover:bg-primary/15"
+                  className={cn(
+                    "ml-1 inline-flex items-center justify-center rounded-xl border border-primary/45",
+                    "bg-primary/[0.09] px-4 py-2.5 text-sm font-semibold tracking-tight text-primary",
+                    "transition-colors duration-200 hover:bg-primary/15 hover:text-primary",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    "sm:ml-2 sm:px-5 sm:py-3 sm:text-[0.9375rem]",
+                  )}
                 >
                   Log in
                 </a>

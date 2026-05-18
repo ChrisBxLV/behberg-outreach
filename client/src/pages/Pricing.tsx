@@ -9,7 +9,7 @@ type PricingPageProps = {
 export default function PricingPage({ brandHomeHref = getPublicHomeUrl() }: PricingPageProps) {
   return (
     <MarketingLayout brandHomeHref={brandHomeHref}>
-      <main className="pt-28 pb-16 sm:pt-32">
+      <main className="pt-32 pb-16 sm:pt-36 sm:pb-20">
         <LandingContainer>
           <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">Pricing</div>
           <h1 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
