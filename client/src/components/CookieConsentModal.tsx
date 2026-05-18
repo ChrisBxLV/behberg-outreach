@@ -15,7 +15,7 @@ function LogoRow() {
       <img
         src="/krot-logo.png"
         alt="Krot"
-        className="h-9 w-9 shrink-0 object-contain select-none pointer-events-none"
+        className="h-9 w-auto max-h-10 shrink-0 object-contain object-left select-none pointer-events-none"
         draggable={false}
       />
       <div className="flex flex-col leading-tight">

@@ -64,7 +64,7 @@ export default function MarketingLayout({
                 <img
                   src="/krot-logo.png"
                   alt="Krot"
-                  className="h-9 w-9 shrink-0 object-contain select-none lg:h-10 lg:w-10"
+                  className="h-9 w-auto max-h-10 shrink-0 object-contain object-left select-none lg:h-10 lg:max-h-11"
                 />
                 <span className="text-sm font-black tracking-tight text-primary lg:text-lg">
                   krot.io

@@ -180,7 +180,7 @@ export default function VersionSevenLandingReplica({
               <img
                 src="/krot-logo.png"
                 alt="Krot"
-                className="h-9 w-9 shrink-0 object-contain select-none pointer-events-none max-[380px]:h-8 max-[380px]:w-8"
+                className="h-9 w-auto max-h-10 shrink-0 object-contain object-left select-none pointer-events-none max-[380px]:max-h-9"
               />
               <span className="ml-2 text-sm font-bold tracking-wide text-primary max-sm:text-xs">krot.io</span>
             </a>
