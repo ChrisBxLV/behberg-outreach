@@ -46,10 +46,10 @@ export default function MarketingLayout({
 
   return (
     <div id="top" className="relative isolate min-h-screen overflow-x-clip bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 z-[1] overflow-hidden" aria-hidden>
-        <div className="absolute -right-8 top-0 h-[min(52vh,26rem)] w-[min(60vw,30rem)] rounded-full bg-gradient-to-bl from-primary/30 via-primary/10 to-transparent blur-3xl opacity-90" />
-        <div className="absolute -left-12 bottom-0 h-[min(42vh,20rem)] w-[min(55vw,26rem)] rounded-full bg-gradient-to-tr from-primary/22 via-primary/5 to-transparent blur-3xl opacity-80" />
-      </div>
+      <div
+        className="pointer-events-none fixed -bottom-[40%] left-0 z-[1] h-[min(95dvh,56rem)] w-[min(140vw,72rem)] max-w-[200vw] -translate-x-[42%] rounded-full bg-gradient-to-tr from-primary/38 via-primary/16 to-transparent blur-3xl sm:-bottom-[35%] sm:h-[min(100dvh,64rem)] sm:w-[min(150vw,80rem)] sm:-translate-x-[38%]"
+        aria-hidden
+      />
       <DataParticlesBackground />
       <div className="relative z-10">
         <header className="fixed left-0 right-0 top-0 z-50 border-b border-border bg-card/75 backdrop-blur-xl">
@@ -71,7 +71,7 @@ export default function MarketingLayout({
                 <a href="/about" className="transition hover:text-foreground">
                   Team
                 </a>
-                <a href="/pricing" className="transition hover:text-foreground">
+                <a href={`${brandHomeHref}#pricing`} className="transition hover:text-foreground">
                   Pricing
                 </a>
                 <a href={`${brandHomeHref}#faq`} className="transition hover:text-foreground">
