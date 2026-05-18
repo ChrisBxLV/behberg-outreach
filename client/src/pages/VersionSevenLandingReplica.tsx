@@ -179,7 +179,7 @@ export default function VersionSevenLandingReplica({
             <a href={brandHomeHref} className="flex items-center max-[380px]:w-full max-[380px]:justify-center">
               <img
                 src="/krot-mole-logo.svg"
-                alt="Krot emailing software logo, golden mole mascot"
+                alt="Krot email outreach software logo, yellow circle with cream mole mascot"
                 className="h-8 w-auto select-none pointer-events-none max-[380px]:h-7"
               />
               <span className="ml-2 text-sm font-bold tracking-wide text-primary max-sm:text-xs">krot.io</span>

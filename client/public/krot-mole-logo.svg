@@ -1,44 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 112" fill="none" role="img" aria-labelledby="krotLogoTitle">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-labelledby="krotLogoTitle">
   <title id="krotLogoTitle">Krot: email outreach software</title>
   <desc id="krotLogoDesc">
-    Krot emailing software logo: minimalist golden mole mascot peeking from a mound.
+    Krot emailing software logo: bright yellow circle with minimalist cream mole mascot.
   </desc>
-  <!-- Golden dirt mound -->
-  <path
-    d="M0 96c12-18 32-22 48-14 12-8 28-6 40 2 16-12 40-8 40 12v18H0V96Z"
-    fill="#EAB308"
-    stroke="#CA8A04"
-    stroke-width="1.25"
-    stroke-linejoin="round"
-  />
-  <!-- Head -->
-  <ellipse cx="64" cy="50" rx="40" ry="36" fill="#FACC15" stroke="#CA8A04" stroke-width="1.25" />
-  <!-- Snout -->
-  <ellipse cx="64" cy="60" rx="22" ry="15" fill="#FFF8E7" stroke="#FBBF24" stroke-width="1" />
-  <circle cx="56" cy="60" r="2.75" fill="#292524" />
-  <circle cx="72" cy="60" r="2.75" fill="#292524" />
-  <!-- Eyes -->
-  <circle cx="46" cy="42" r="6" fill="#FFFFFF" stroke="#EAB308" stroke-width="1.5" />
-  <circle cx="82" cy="42" r="6" fill="#FFFFFF" stroke="#EAB308" stroke-width="1.5" />
-  <!-- Whiskers -->
-  <g stroke="#D97706" stroke-width="2" stroke-linecap="round" fill="none">
-    <path d="M18 42c10-4 18-2 26 2" />
-    <path d="M16 50c10-3 20-2 28 2" />
-    <path d="M18 58c10-3 18-2 26 2" />
-    <path d="M110 42c-10-4-18-2-26 2" />
-    <path d="M112 50c-10-3-20-2-28 2" />
-    <path d="M110 58c-10-3-18-2-26 2" />
+  <circle cx="64" cy="64" r="58" fill="#FDE047" stroke="#EAB308" stroke-width="2.2" />
+  <ellipse cx="64" cy="76" rx="40" ry="34" fill="#FFF8E7" stroke="#E8D5A3" stroke-width="1.2" />
+  <ellipse cx="64" cy="56" rx="28" ry="22" fill="#FFFBEF" stroke="#E8D5A3" stroke-width="1.1" />
+  <ellipse cx="64" cy="62" rx="16" ry="8" fill="#FFFEF5" stroke="#D9C47A" stroke-width="0.9" />
+  <circle cx="56.5" cy="62" r="2.2" fill="#292524" />
+  <circle cx="71.5" cy="62" r="2.2" fill="#292524" />
+  <circle cx="49" cy="49" r="3.6" fill="#1c1917" />
+  <circle cx="79" cy="49" r="3.6" fill="#1c1917" />
+  <g stroke="#713f12" stroke-width="1.85" stroke-linecap="round" fill="none">
+    <path d="M18 44q12-2 24 4" />
+    <path d="M14 52q14-2 26 4" />
+    <path d="M18 60q12-2 24 4" />
+    <path d="M110 44q-12-2-24 4" />
+    <path d="M114 52q-14-2-26 4" />
+    <path d="M110 60q-12-2-24 4" />
   </g>
-  <!-- Paws -->
-  <path
-    d="M22 86c-8 2-14 10-12 20h28c0-10-6-18-16-20Zm84 0c-10 2-16 10-16 20h28c2-10-4-18-12-20Z"
-    fill="#FFF8E7"
-    stroke="#FBBF24"
-    stroke-width="1"
-    stroke-linejoin="round"
-  />
-  <path
-    d="M26 100v8h8v-6c0-2-2-2-4-2h-4Zm68 0h-4c-2 0-4 0-4 2v6h8v-8Z"
-    fill="#FDE68A"
-  />
+  <ellipse cx="36" cy="100" rx="15" ry="12" fill="#FFF8E7" stroke="#E8D5A3" stroke-width="1" />
+  <ellipse cx="92" cy="100" rx="15" ry="12" fill="#FFF8E7" stroke="#E8D5A3" stroke-width="1" />
+  <g stroke="#C9B87A" stroke-width="2" stroke-linecap="round" fill="none">
+    <path d="M24 108v11M36 108v13M48 108v11" />
+    <path d="M80 108v11M92 108v13M104 108v11" />
+  </g>
 </svg>
