@@ -1,24 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs>
-    <linearGradient id="g" x1="12" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0EA5E9" />
-      <stop offset="1" stop-color="#1D4ED8" />
-    </linearGradient>
-  </defs>
-
-  <rect x="6" y="6" width="52" height="52" rx="14" fill="#0B1220" />
-  <rect
-    x="8.5"
-    y="8.5"
-    width="47"
-    height="47"
-    rx="12"
-    fill="url(#g)"
-    opacity="0.95"
-  />
-
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="krotFaviconTitle">
+  <title id="krotFaviconTitle">Krot email software</title>
+  <rect width="64" height="64" rx="12" fill="#0a0a0a" />
+  <!-- Mound -->
   <path
-    d="M22 18h8v12l11-12h10L37 32l14 14H41L30 35v11h-8V18z"
-    fill="#FFFFFF"
+    d="M6 50c6-9 16-11 24-7 6-4 14-3 20 1 8-6 20-4 20 8v13H6V50Z"
+    fill="#EAB308"
+    stroke="#CA8A04"
+    stroke-width="0.9"
+    stroke-linejoin="round"
+  />
+  <!-- Head -->
+  <ellipse cx="32" cy="28" rx="18" ry="16" fill="#FACC15" stroke="#CA8A04" stroke-width="0.9" />
+  <!-- Snout -->
+  <ellipse cx="32" cy="32" rx="10" ry="7" fill="#FFF8E7" stroke="#FBBF24" stroke-width="0.6" />
+  <circle cx="28" cy="32" r="1.4" fill="#292524" />
+  <circle cx="36" cy="32" r="1.4" fill="#292524" />
+  <!-- Eyes -->
+  <circle cx="24" cy="24" r="2.8" fill="#FFFFFF" stroke="#EAB308" stroke-width="0.7" />
+  <circle cx="40" cy="24" r="2.8" fill="#FFFFFF" stroke="#EAB308" stroke-width="0.7" />
+  <!-- Whiskers -->
+  <g stroke="#D97706" stroke-width="1.2" stroke-linecap="round" fill="none">
+    <path d="M8 24c5-2 9-1 13 1" />
+    <path d="M7 28c5-2 10-1 14 1" />
+    <path d="M8 32c5-2 9-1 13 1" />
+    <path d="M56 24c-5-2-9-1-13 1" />
+    <path d="M57 28c-5-2-10-1-14 1" />
+    <path d="M56 32c-5-2-9-1-13 1" />
+  </g>
+  <!-- Paws -->
+  <path
+    d="M12 44c-4 1-7 5-6 10h14c0-5-3-9-8-10Zm40 0c-5 1-8 5-8 10h14c1-5-2-9-6-10Z"
+    fill="#FFF8E7"
+    stroke="#FBBF24"
+    stroke-width="0.6"
   />
 </svg>
