@@ -8,6 +8,8 @@ import { CookieConsentProvider, useCookieConsent } from "./contexts/CookieConsen
 import { ThemeProvider } from "./contexts/ThemeContext";
 import InsideSoftwareLanding from "./pages/InsideSoftwareLanding";
 import MarketingLanding from "./pages/MarketingLanding";
+import About from "./pages/About";
+import Pricing from "./pages/Pricing";
 import Home from "./pages/Home";
 import Contacts from "./pages/Contacts";
 import Campaigns from "./pages/Campaigns";
@@ -45,6 +47,8 @@ function Router() {
     <Switch>
       <Route path="/" component={InsideSoftwareLanding} />
       <Route path="/home" component={MarketingLanding} />
+      <Route path="/about">{() => <About />}</Route>
+      <Route path="/pricing">{() => <Pricing />}</Route>
       <Route path="/login" component={Login} />
       <Route path="/signup" component={SignUp} />
       <Route path="/login/verify" component={LoginVerify} />

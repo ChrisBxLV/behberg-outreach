@@ -1,20 +1,15 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
-  BarChart3,
   BellRing,
-  CheckCircle2,
-  ChevronUp,
   Code2,
   Database,
   DollarSign,
   Mail,
-  Moon,
   Newspaper,
   Search,
   ShieldCheck,
-  Sun,
   Target,
   Users,
   UserRoundPlus,
@@ -26,11 +21,9 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import DataParticlesBackground from "@/components/DataParticlesBackground";
-import { useCookieConsent } from "@/contexts/CookieConsentContext";
-import { useTheme } from "@/contexts/ThemeContext";
+import MarketingLayout, { LandingContainer } from "@/components/MarketingLayout";
 import { getPublicHomeUrl } from "@/const";
 import { cn } from "@/lib/utils";
-import { versionSevenFounders } from "./versionSevenLandingData";
 
 type VisualProductLandingProps = {
   /** Header logo + brand tap target; should match the marketing route hosting this page (`/` vs `/home`). */
@@ -56,14 +49,6 @@ type Principle = {
   icon: LucideIcon;
 };
 
-type PricingPlan = {
-  name: string;
-  price: string;
-  label: string;
-  highlight?: boolean;
-  bullets: string[];
-};
-
 const simpleSteps: SimpleStep[] = [
   {
     title: "Find contacts",
@@ -85,22 +70,22 @@ const simpleSteps: SimpleStep[] = [
 const principles: Principle[] = [
   {
     title: "One obvious next step",
-    text: "Every screen should make the next action clear: save, add to sequence, review signal, or launch.",
+    text: "Primary actions stay visible so you are never guessing whether to save, sequence, or follow a signal.",
     icon: ArrowRight,
   },
   {
     title: "Power stays close to the work",
-    text: "Signals, contacts, and sequences live together instead of hiding behind separate tools.",
+    text: "Context sits beside the record you are on, so you are not tab-hopping to stitch a story together.",
     icon: Database,
   },
   {
     title: "Less setup, more sending",
-    text: "Teams can get from contact search to a campaign without building a complicated GTM machine.",
+    text: "Most teams can go from first login to a live sequence without a long implementation checklist.",
     icon: Mail,
   },
   {
     title: "Clear controls for teams",
-    text: "Connected inboxes, roles, and analytics are there when needed without making daily work heavy.",
+    text: "Roles, inboxes, and reporting stay available but out of the way until you actually need them.",
     icon: ShieldCheck,
   },
 ];
@@ -123,40 +108,6 @@ const snapshots: Snapshot[] = [
     caption: "Bring account news and market events into your outreach context.",
     icon: BellRing,
     variant: "signals",
-  },
-];
-
-const pricingPlans: PricingPlan[] = [
-  {
-    name: "Free",
-    price: "$0",
-    label: "Try Krot",
-    bullets: ["1 mailbox", "100 contacts", "Basic sequences"],
-  },
-  {
-    name: "Starter",
-    price: "$59",
-    label: "Small team outbound",
-    bullets: ["1 connected email", "2,000 saved contacts", "Contact search access"],
-  },
-  {
-    name: "Growth",
-    price: "$149",
-    label: "Most popular",
-    highlight: true,
-    bullets: ["3 connected emails", "Advanced signals", "Analytics"],
-  },
-  {
-    name: "Scale",
-    price: "$299",
-    label: "Higher volume",
-    bullets: ["5 connected emails", "Premium signals", "Priority processing"],
-  },
-  {
-    name: "Pro / Teams",
-    price: "$499",
-    label: "Team operations",
-    bullets: ["10 connected emails", "Roles + audit logs", "Priority support"],
   },
 ];
 
@@ -208,20 +159,6 @@ const faqs = [
   },
 ];
 
-function LandingContainer({
-  className,
-  children,
-}: {
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className={cn("w-full max-w-7xl mx-auto px-4 sm:px-6", className)}>
-      {children}
-    </div>
-  );
-}
-
 function PrimaryCtaLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <a
@@ -241,22 +178,6 @@ function SecondaryCtaLink({ href, children }: { href: string; children: ReactNod
     >
       {children}
     </a>
-  );
-}
-
-function BrowserChrome({ children }: { children: ReactNode }) {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card/85 shadow-2xl shadow-primary/10 backdrop-blur">
-      <div className="flex items-center gap-2 border-b border-border bg-muted/45 px-4 py-3">
-        <span className="h-2.5 w-2.5 rounded-full bg-destructive/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-primary/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-chart-3/70" />
-        <div className="ml-3 h-6 flex-1 rounded-full border border-border bg-background/80 px-3 text-[11px] font-semibold leading-6 text-muted-foreground">
-          app.krot.io/workspace
-        </div>
-      </div>
-      {children}
-    </div>
   );
 }
 
@@ -509,9 +430,9 @@ function HeroEmailMotionPanel() {
   );
 }
 
-function SimplicitySection() {
+function ProductEaseSection() {
   return (
-    <section className="py-16">
+    <div className="py-6 sm:py-10">
       <LandingContainer>
         <div className="grid gap-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
           <div>
@@ -519,12 +440,12 @@ function SimplicitySection() {
               Simple by design
             </div>
             <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
-              The full outbound loop, without the maze.
+              Pick up the basics in one sitting—then stay in flow all week.
             </h2>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground">
-              Krot is built for teams that want the reach of a modern outbound stack
-              without turning daily selling into tool administration. Search, sequence,
-              signal context, and replies stay close together.
+              You are not assembling a custom GTM operating system. Search, save or sequence, skim
+              signals, and answer from connected inboxes stay on a short path so reps spend minutes
+              learning the product and hours on conversations.
             </p>
           </div>
 
@@ -549,55 +470,7 @@ function SimplicitySection() {
           </div>
         </div>
       </LandingContainer>
-    </section>
-  );
-}
-
-function HeroProductMockup() {
-  const heroStats: { label: string; value: string; icon: LucideIcon }[] = [
-    { label: "Saved", value: "128", icon: Database },
-    { label: "Signals", value: "24", icon: BellRing },
-    { label: "Replies", value: "21%", icon: BarChart3 },
-  ];
-
-  return (
-    <BrowserChrome>
-      <div className="bg-background/60 p-4 sm:p-6">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="text-xs font-bold uppercase tracking-[0.22em] text-primary">
-              Search to sequence
-            </div>
-            <h2 className="mt-1 text-2xl font-black tracking-tight text-foreground">
-              Contact and campaign workspace
-            </h2>
-          </div>
-          <div className="flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-2 text-xs font-bold text-muted-foreground">
-            <span className="h-2 w-2 rounded-full bg-primary" />
-            Pipeline active
-          </div>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-[1fr_15rem]">
-          <div className="rounded-2xl border border-border bg-card/80 p-4">
-            <ContactSearchVisual />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-            {heroStats.map(({ label, value, icon: Icon }) => (
-              <div key={label} className="rounded-2xl border border-border bg-card/80 p-4">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                  <Icon className="h-4 w-4" />
-                </div>
-                <div className="mt-4 text-2xl font-black text-foreground">{value}</div>
-                <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                  {label}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </BrowserChrome>
+    </div>
   );
 }
 
@@ -628,76 +501,10 @@ function SectionHeader({
 export default function VisualProductLanding({
   brandHomeHref = getPublicHomeUrl(),
 }: VisualProductLandingProps) {
-  const [showBackToTop, setShowBackToTop] = useState(false);
-  const { openModal: openCookiePreferences } = useCookieConsent();
-  const { theme, toggleTheme, switchable } = useTheme();
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowBackToTop(window.scrollY > 320);
-    };
-
-    handleScroll();
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
   return (
-    <div id="top" className="relative isolate min-h-screen overflow-x-clip bg-background text-foreground">
-      <DataParticlesBackground />
-      <div className="relative z-10">
-        <header className="fixed left-0 right-0 top-0 z-50 border-b border-border bg-card/75 backdrop-blur-xl">
-          <LandingContainer>
-            <div className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <a href={brandHomeHref} className="flex items-center">
-                <img
-                  src="/logoipsum-294.svg"
-                  alt="Krot"
-                  className="h-8 w-auto select-none"
-                />
-                <span className="ml-2 text-sm font-black tracking-wide text-primary">krot.io</span>
-              </a>
-
-              <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold text-muted-foreground sm:gap-x-5">
-                <a href="#product" className="transition hover:text-foreground">
-                  Product
-                </a>
-                <a href="#team" className="transition hover:text-foreground">
-                  Team
-                </a>
-                <a href="#pricing" className="transition hover:text-foreground">
-                  Pricing
-                </a>
-                <a href="#faq" className="transition hover:text-foreground">
-                  FAQ
-                </a>
-                {switchable && toggleTheme ? (
-                  <button
-                    type="button"
-                    onClick={(event) => toggleTheme?.(event)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background/60 text-muted-foreground transition hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label="Toggle theme"
-                  >
-                    {theme === "dark" ? (
-                      <Sun className="h-4 w-4" />
-                    ) : (
-                      <Moon className="h-4 w-4" />
-                    )}
-                  </button>
-                ) : null}
-                <a
-                  href="/login"
-                  className="inline-flex items-center rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-primary transition hover:bg-primary/15"
-                >
-                  Log in
-                </a>
-              </nav>
-            </div>
-          </LandingContainer>
-        </header>
-
-        <main>
-          <section className="pt-28 pb-16 sm:pt-32 lg:pb-20">
+    <MarketingLayout brandHomeHref={brandHomeHref}>
+      <main>
+        <section className="pt-28 pb-16 sm:pt-32 lg:pb-20">
             <LandingContainer>
               <div className="grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr]">
                 <div>
@@ -764,17 +571,15 @@ export default function VisualProductLanding({
                 text="Contacts, sequences, signals, and replies are connected in a workspace that feels calm, fast, and deliberate."
               />
 
-              <div className="mt-10">
-                <HeroProductMockup />
-              </div>
+              <ProductEaseSection />
 
-              <div className="mt-8 grid gap-5 lg:grid-cols-3">
+              <div className="mt-6 grid gap-5 lg:grid-cols-3">
                 {snapshots.map((snapshot) => {
                   const Icon = snapshot.icon;
                   return (
                     <article
                       key={snapshot.title}
-                      className="flex min-h-[31rem] flex-col rounded-3xl border border-border bg-card/80 p-5 shadow-sm backdrop-blur"
+                      className="flex min-h-[26rem] flex-col rounded-3xl border border-border bg-card/80 p-5 shadow-sm backdrop-blur"
                     >
                       <div className="mb-5 flex items-start justify-between gap-3">
                         <div>
@@ -798,8 +603,6 @@ export default function VisualProductLanding({
               </div>
             </LandingContainer>
           </section>
-
-          <SimplicitySection />
 
           <section className="py-16">
             <LandingContainer>
@@ -872,128 +675,27 @@ export default function VisualProductLanding({
             </LandingContainer>
           </section>
 
-          <section className="border-y border-border bg-card/30 py-10">
+          <section id="faq" className="border-y border-border bg-card/30 py-10">
             <LandingContainer>
-              <Accordion
-                type="single"
-                collapsible
-                className="overflow-hidden rounded-3xl border border-border bg-card/80 px-5 shadow-sm backdrop-blur sm:px-7"
-              >
-                <AccordionItem id="team" value="team">
-                  <AccordionTrigger className="py-5 text-left hover:no-underline">
-                    <div>
-                      <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">Team</div>
-                      <div className="mt-1 text-2xl font-black text-foreground">Built by operators.</div>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="grid gap-4 md:grid-cols-3">
-                      {versionSevenFounders.map((founder) => (
-                        <article
-                          key={founder.name + founder.role}
-                          className="rounded-2xl border border-border bg-background/70 p-5 shadow-sm"
-                        >
-                          <img
-                            src={founder.photoSrc}
-                            alt={founder.photoAlt}
-                            className="h-24 w-24 rounded-2xl border border-border/70 bg-muted/30 object-cover"
-                            loading="lazy"
-                          />
-                          <div className="mt-4 text-base font-black text-foreground">{founder.name}</div>
-                          <div className="mt-1 text-xs font-bold uppercase tracking-wide text-primary">
-                            {founder.role}
-                          </div>
-                          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                            {founder.bio}
-                          </p>
-                        </article>
-                      ))}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-
-                <AccordionItem id="pricing" value="pricing">
-                  <AccordionTrigger className="py-5 text-left hover:no-underline">
-                    <div>
-                      <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">Pricing</div>
-                      <div className="mt-1 text-2xl font-black text-foreground">Choose the right plan.</div>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                      {pricingPlans.map((plan) => (
-                        <div
-                          key={plan.name}
-                          className={cn(
-                            "flex h-full flex-col rounded-2xl border bg-background/70 p-5",
-                            plan.highlight ? "border-primary" : "border-border",
-                          )}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="text-sm font-black text-foreground">{plan.name}</div>
-                            {plan.highlight ? <ScorePill value="Popular" /> : null}
-                          </div>
-                          <div className="mt-4 text-4xl font-black text-foreground">{plan.price}</div>
-                          <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                            {plan.label}
-                          </div>
-                          <ul className="mt-5 flex-1 space-y-3 text-sm font-semibold text-muted-foreground">
-                            {plan.bullets.map((bullet) => (
-                              <li key={bullet} className="flex items-start gap-2">
-                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                                <span>{bullet}</span>
-                              </li>
-                            ))}
-                          </ul>
-                          <a
-                            href="/signup"
-                            className={cn(
-                              "mt-6 inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-black transition hover:-translate-y-0.5",
-                              plan.highlight
-                                ? "border-primary/45 bg-primary/15 text-primary"
-                                : "border-border bg-card/80 text-foreground",
-                            )}
-                          >
-                            Get started
-                          </a>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-6 rounded-2xl border border-border bg-background/70 p-4 text-sm font-semibold text-muted-foreground">
-                      Need custom integrations? Contact{" "}
-                      <a href="mailto:sales@krot.io" className="text-foreground underline underline-offset-4">
-                        sales@krot.io
-                      </a>
-                      .
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-
-                <AccordionItem id="faq" value="faq">
-                  <AccordionTrigger className="py-5 text-left hover:no-underline">
-                    <div>
-                      <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">FAQ</div>
-                      <div className="mt-1 text-2xl font-black text-foreground">
-                        Frequently asked questions.
-                      </div>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <Accordion type="single" collapsible className="w-full rounded-2xl border border-border bg-background/70 px-5">
-                      {faqs.map((item) => (
-                        <AccordionItem key={item.question} value={item.question}>
-                          <AccordionTrigger className="text-left font-black text-foreground">
-                            {item.question}
-                          </AccordionTrigger>
-                          <AccordionContent className="text-muted-foreground">
-                            {item.answer}
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+              <div className="overflow-hidden rounded-3xl border border-border bg-card/80 px-5 py-6 shadow-sm backdrop-blur sm:px-7 sm:py-8">
+                <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">FAQ</div>
+                <h2 className="mt-2 text-2xl font-black text-foreground sm:text-3xl">
+                  Frequently asked questions.
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                  Straight answers about how Krot fits into outbound, inboxes, and team workflows.
+                </p>
+                <Accordion type="single" collapsible className="mt-6 w-full rounded-2xl border border-border bg-background/70 px-3 sm:px-5">
+                  {faqs.map((item) => (
+                    <AccordionItem key={item.question} value={item.question}>
+                      <AccordionTrigger className="text-left font-black text-foreground">
+                        {item.question}
+                      </AccordionTrigger>
+                      <AccordionContent className="text-muted-foreground">{item.answer}</AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </div>
             </LandingContainer>
           </section>
 
@@ -1023,66 +725,6 @@ export default function VisualProductLanding({
             </LandingContainer>
           </section>
         </main>
-
-        <footer className="border-t border-border bg-card/65 py-10">
-          <LandingContainer>
-            <div className="mb-5 flex flex-wrap items-center justify-center gap-2">
-              {[
-                "ISO 27001 aligned",
-                "GDPR compliant",
-                "Data encryption in transit and at rest",
-                "Role-based access controls",
-              ].map((item) => (
-                <span
-                  key={item}
-                  className="inline-flex items-center rounded-full border border-border bg-background/60 px-3 py-1 text-[11px] font-bold text-muted-foreground"
-                >
-                  {item}
-                </span>
-              ))}
-            </div>
-            <div className="text-center text-sm font-bold text-muted-foreground">
-              Krot - B2B intelligence and outbound execution.
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center text-xs text-muted-foreground">
-              <a
-                href="/privacy"
-                className="font-semibold underline underline-offset-4 hover:text-foreground"
-              >
-                Privacy Policy
-              </a>
-              <a
-                href="/privacy/remove"
-                className="font-semibold underline underline-offset-4 hover:text-foreground"
-              >
-                Do not contact / Opt-out request
-              </a>
-              <button
-                type="button"
-                onClick={openCookiePreferences}
-                className="rounded-sm font-semibold underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                Cookie Preferences
-              </button>
-            </div>
-          </LandingContainer>
-        </footer>
-
-        <button
-          type="button"
-          aria-label="Back to top"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className={cn(
-            "fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full border border-border bg-card/90 px-4 py-2 text-sm font-bold text-foreground shadow-md backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:bg-card",
-            showBackToTop
-              ? "translate-y-0 opacity-100 pointer-events-auto"
-              : "translate-y-2 opacity-0 pointer-events-none",
-          )}
-        >
-          <ChevronUp className="h-4 w-4" />
-          Back to Top
-        </button>
-      </div>
-    </div>
+      </MarketingLayout>
   );
 }
