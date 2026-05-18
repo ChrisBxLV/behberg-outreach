@@ -9,13 +9,13 @@ type AboutPageProps = {
 export default function AboutPage({ brandHomeHref = getPublicHomeUrl() }: AboutPageProps) {
   return (
     <MarketingLayout brandHomeHref={brandHomeHref}>
-      <main className="pt-32 pb-16 sm:pt-36 sm:pb-20">
+      <main className="min-w-0 touch-manipulation pt-32 pb-16 sm:pt-36 sm:pb-20">
         <LandingContainer>
           <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">About</div>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
+          <h1 className="mt-3 text-balance text-3xl font-black tracking-tight text-foreground sm:text-4xl">
             Built by operators.
           </h1>
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
+          <p className="mt-4 max-w-2xl text-pretty text-base leading-relaxed text-muted-foreground">
             We have run outbound, hiring, and agency pipelines ourselves. Krot reflects what we wished
             our tools had prioritized: fewer tabs, clearer next steps, and less busywork between
             intent and send. Below is the team behind the product.

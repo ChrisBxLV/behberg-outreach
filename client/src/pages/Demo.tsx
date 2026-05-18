@@ -219,10 +219,10 @@ function DemoTestimonialsCarousel() {
         >
           Testimonials
         </h2>
-        <p className="mt-3 text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+        <p className="mt-3 text-balance text-2xl font-black tracking-tight text-foreground sm:text-3xl">
           What teams say about the workflow.
         </p>
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+        <p className="mt-3 text-pretty text-sm leading-relaxed text-muted-foreground sm:text-base">
           Placeholder quotes and titles for layout—swap with real customers when you have approvals.
         </p>
       </div>
@@ -231,7 +231,7 @@ function DemoTestimonialsCarousel() {
         opts={{ align: "start", loop: true }}
         className="mt-10 w-full"
       >
-        <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-stretch sm:gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch sm:gap-4">
           <CarouselPrevious
             variant="outline"
             className="static top-auto order-2 left-auto right-auto mx-auto mt-0 size-10 shrink-0 translate-x-0 translate-y-0 rounded-xl border-border shadow-sm sm:order-none sm:mx-0 sm:self-center"
@@ -240,8 +240,8 @@ function DemoTestimonialsCarousel() {
             <CarouselContent className="-ml-2 sm:-ml-4">
               {demoTestimonials.map((t) => (
                 <CarouselItem key={t.name} className="pl-2 sm:pl-4">
-                <figure className="flex h-full flex-col rounded-3xl border border-border bg-card/70 p-6 shadow-sm backdrop-blur sm:p-8">
-                  <blockquote className="text-base font-semibold leading-relaxed text-foreground sm:text-lg">
+                  <figure className="flex h-full flex-col rounded-3xl border border-border bg-card/70 p-6 shadow-sm backdrop-blur sm:p-8">
+                    <blockquote className="text-pretty text-base font-semibold leading-relaxed text-foreground sm:text-lg">
                     &ldquo;{t.quote}&rdquo;
                   </blockquote>
                   <figcaption className="mt-6 border-t border-border/80 pt-5">
@@ -250,8 +250,8 @@ function DemoTestimonialsCarousel() {
                       {t.role}, {t.company}
                     </div>
                   </figcaption>
-                </figure>
-              </CarouselItem>
+                  </figure>
+                </CarouselItem>
             ))}
           </CarouselContent>
           </div>
@@ -268,13 +268,13 @@ function DemoTestimonialsCarousel() {
 export default function DemoPage({ brandHomeHref = getPublicHomeUrl() }: DemoPageProps) {
   return (
     <MarketingLayout brandHomeHref={brandHomeHref}>
-      <main className="pt-32 pb-16 sm:pt-36 sm:pb-20">
+      <main className="min-w-0 touch-manipulation pt-32 pb-16 sm:pt-36 sm:pb-20">
         <LandingContainer>
           <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">Demo</div>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
+          <h1 className="mt-3 text-balance text-3xl font-black tracking-tight text-foreground sm:text-4xl">
             See Krot in motion.
           </h1>
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
+          <p className="mt-4 max-w-2xl text-pretty text-base leading-relaxed text-muted-foreground">
             Watch a short walkthrough of search, sequences, and signals—then browse stylized captures
             of the workspace. Replace the sample clip with your own recording when the file is ready.
           </p>

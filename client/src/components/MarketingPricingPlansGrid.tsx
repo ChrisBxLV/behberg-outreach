@@ -48,7 +48,7 @@ export default function MarketingPricingPlansGrid({
             <div className="mt-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
               {plan.label}
             </div>
-            <ul className="mt-5 flex-1 space-y-2.5 text-sm font-semibold leading-snug text-muted-foreground">
+            <ul className="mt-5 flex-1 space-y-2.5 text-pretty text-sm font-semibold leading-snug text-muted-foreground">
               {plan.bullets.map((bullet) => (
                 <li key={bullet} className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />

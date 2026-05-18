@@ -130,22 +130,44 @@ const faqs = [
   },
 ];
 
-function PrimaryCtaLink({ href, children }: { href: string; children: ReactNode }) {
+function PrimaryCtaLink({
+  href,
+  children,
+  className,
+}: {
+  href: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <a
       href={href}
-      className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow-sm shadow-primary/20 transition hover:-translate-y-0.5 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={cn(
+        "inline-flex touch-manipulation items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow-sm shadow-primary/20 transition hover:-translate-y-0.5 hover:opacity-90 active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-lg:min-h-11",
+        className,
+      )}
     >
       {children}
     </a>
   );
 }
 
-function SecondaryCtaLink({ href, children }: { href: string; children: ReactNode }) {
+function SecondaryCtaLink({
+  href,
+  children,
+  className,
+}: {
+  href: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <a
       href={href}
-      className="inline-flex items-center justify-center rounded-xl border border-border bg-card/75 px-5 py-3 text-sm font-bold text-foreground transition hover:-translate-y-0.5 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={cn(
+        "inline-flex touch-manipulation items-center justify-center rounded-xl border border-border bg-card/75 px-5 py-3 text-sm font-bold text-foreground transition hover:-translate-y-0.5 hover:bg-card active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-lg:min-h-11",
+        className,
+      )}
     >
       {children}
     </a>
@@ -320,7 +342,7 @@ function HeroEmailMotionPanel() {
   ];
 
   return (
-    <div className="relative min-h-[31rem] p-2 sm:p-6">
+    <div className="relative min-h-[22rem] p-2 sm:p-6 lg:min-h-[31rem]">
       <style>
         {`
           @keyframes krot-email-float-a {
@@ -415,11 +437,11 @@ function SectionHeader({
   return (
     <div className={cn("max-w-3xl", center && "mx-auto text-center")}>
       <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">{eyebrow}</div>
-      <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
+      <h2 className="mt-3 text-balance text-3xl font-black tracking-tight text-foreground sm:text-4xl">
         {title}
       </h2>
       {text ? (
-        <p className="mt-3 text-base leading-relaxed text-muted-foreground">{text}</p>
+        <p className="mt-3 text-pretty text-base leading-relaxed text-muted-foreground">{text}</p>
       ) : null}
     </div>
   );
@@ -430,20 +452,20 @@ export default function VisualProductLanding({
 }: VisualProductLandingProps) {
   return (
     <MarketingLayout brandHomeHref={brandHomeHref}>
-      <main>
+      <main className="min-w-0 touch-manipulation">
         <section className="pt-32 pb-16 sm:pt-36 sm:pb-20 lg:pb-24">
-            <LandingContainer>
-              <div className="grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr]">
-                <div>
-                  <h1 className="text-4xl font-black leading-[1.02] tracking-tight text-foreground sm:text-6xl">
+          <LandingContainer>
+            <div className="grid min-w-0 items-center gap-8 sm:gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:gap-10">
+              <div className="min-w-0">
+                  <h1 className="text-balance break-words text-4xl font-black leading-[1.02] tracking-tight text-foreground sm:text-6xl">
                     Outbound that feels lighter from the first click.
                   </h1>
-                  <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
+                  <p className="mt-5 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
                     Krot brings contact search, email sequences, and real-time buying
                     signals into one focused workspace. Teams get the outbound engine they
                     need without wrestling with a bloated sales stack.
                   </p>
-                  <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                  <div className="mt-8 flex max-w-lg flex-col gap-3 sm:max-w-none sm:flex-row">
                     <PrimaryCtaLink href="/signup">
                       <span className="flex items-center gap-2">
                         Register for Free <ArrowRight className="h-4 w-4" />
@@ -455,12 +477,14 @@ export default function VisualProductLanding({
                       </span>
                     </SecondaryCtaLink>
                   </div>
-                </div>
+              </div>
 
+              <div className="min-w-0">
                 <HeroEmailMotionPanel />
               </div>
-            </LandingContainer>
-          </section>
+            </div>
+          </LandingContainer>
+        </section>
 
           <section className="pb-12">
             <LandingContainer>
@@ -489,7 +513,7 @@ export default function VisualProductLanding({
             </LandingContainer>
           </section>
 
-          <section id="product" className="relative isolate overflow-hidden border-y border-border bg-card/30 py-16">
+          <section id="product" className="relative isolate overflow-hidden border-y border-border bg-card/30 py-12 lg:py-16">
             <DataParticlesBackground id="product-particles" variant="section" />
             <LandingContainer className="relative z-10">
               <SectionHeader
@@ -504,7 +528,7 @@ export default function VisualProductLanding({
                   return (
                     <article
                       key={snapshot.title}
-                      className="flex min-h-[26rem] flex-col rounded-3xl border border-border bg-card/80 p-5 shadow-sm backdrop-blur"
+                      className="flex min-h-0 flex-col rounded-3xl border border-border bg-card/80 p-5 shadow-sm backdrop-blur lg:min-h-[26rem]"
                     >
                       <div className="mb-5 flex items-start justify-between gap-3">
                         <div>
@@ -532,7 +556,7 @@ export default function VisualProductLanding({
           <section className="py-16">
             <LandingContainer>
               <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-                <div className="rounded-3xl border border-border bg-card/80 p-7">
+                <div className="rounded-3xl border border-border bg-card/80 p-5 lg:p-7">
                   <SectionHeader
                     eyebrow="Trust"
                     title="Control without clutter."
@@ -554,7 +578,7 @@ export default function VisualProductLanding({
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-border bg-card/80 p-7">
+                <div className="rounded-3xl border border-border bg-card/80 p-5 lg:p-7">
                   <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">
                     Sales view
                   </div>
@@ -615,19 +639,21 @@ export default function VisualProductLanding({
             <LandingContainer>
               <div className="overflow-hidden rounded-3xl border border-border bg-card/80 px-5 py-6 shadow-sm backdrop-blur sm:px-7 sm:py-8">
                 <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">FAQ</div>
-                <h2 className="mt-2 text-2xl font-black text-foreground sm:text-3xl">
+                <h2 className="mt-2 text-balance text-2xl font-black text-foreground sm:text-3xl">
                   Frequently asked questions.
                 </h2>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
                   Straight answers about how Krot fits into outbound, inboxes, and team workflows.
                 </p>
                 <Accordion type="single" collapsible className="mt-6 w-full rounded-2xl border border-border bg-background/70 px-3 sm:px-5">
                   {faqs.map((item) => (
                     <AccordionItem key={item.question} value={item.question}>
-                      <AccordionTrigger className="text-left font-black text-foreground">
+                      <AccordionTrigger className="max-lg:min-h-[3.25rem] max-lg:items-center max-lg:text-[15px] text-left font-black text-foreground lg:items-start">
                         {item.question}
                       </AccordionTrigger>
-                      <AccordionContent className="text-muted-foreground">{item.answer}</AccordionContent>
+                      <AccordionContent className="text-pretty text-muted-foreground">
+                        {item.answer}
+                      </AccordionContent>
                     </AccordionItem>
                   ))}
                 </Accordion>
@@ -643,15 +669,15 @@ export default function VisualProductLanding({
                     <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">
                       Get started
                     </div>
-                    <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
+                    <h2 className="mt-3 text-balance text-3xl font-black tracking-tight text-foreground sm:text-4xl">
                       Turn contact search and signals into email outreach.
                     </h2>
-                    <p className="mt-3 max-w-2xl text-muted-foreground">
+                    <p className="mt-3 max-w-2xl text-pretty text-muted-foreground">
                       Search the database, save contacts, connect inboxes, and launch
                       sequences with timely account context.
                     </p>
                   </div>
-                  <PrimaryCtaLink href="/signup">
+                  <PrimaryCtaLink href="/signup" className="w-full lg:w-auto lg:shrink-0">
                     <span className="flex items-center gap-2">
                       Register for Free <ArrowRight className="h-4 w-4" />
                     </span>
