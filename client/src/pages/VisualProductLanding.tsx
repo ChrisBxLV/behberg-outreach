@@ -453,7 +453,7 @@ export default function VisualProductLanding({
   return (
     <MarketingLayout brandHomeHref={brandHomeHref}>
       <main className="min-w-0 touch-manipulation">
-        <section className="pt-32 pb-16 sm:pt-36 sm:pb-20 lg:pb-24">
+        <section className="pt-28 pb-16 sm:pt-36 sm:pb-20 lg:pb-24">
           <LandingContainer>
             <div className="grid min-w-0 items-center gap-8 sm:gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:gap-10">
               <div className="min-w-0">

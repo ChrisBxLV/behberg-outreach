@@ -50,25 +50,31 @@ export default function MarketingLayout({
       <div className="relative z-10">
         <header className="fixed left-0 right-0 top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
           <LandingContainer>
-            <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-3 py-4 sm:gap-x-4 sm:py-[1.125rem]">
+            <div
+              className={cn(
+                "flex w-full min-w-0 items-center justify-between gap-x-2",
+                "max-lg:flex-nowrap max-lg:gap-y-0 max-lg:py-2",
+                "lg:flex-wrap lg:gap-x-4 lg:gap-y-3 lg:py-[1.125rem]",
+              )}
+            >
               <a
                 href={brandHomeHref}
-                className="flex shrink-0 items-center gap-2.5 rounded-xl outline-offset-4 transition-opacity hover:opacity-90"
+                className="flex shrink-0 items-center gap-2 rounded-xl outline-offset-4 transition-opacity hover:opacity-90 max-lg:gap-1.5 lg:gap-2.5"
               >
                 <img
                   src="/logoipsum-294.svg"
                   alt="Krot"
-                  className="h-9 w-auto select-none sm:h-10"
+                  className="h-8 w-auto shrink-0 select-none lg:h-10"
                 />
-                <span className="text-base font-black tracking-tight text-primary sm:text-lg">
+                <span className="text-sm font-black tracking-tight text-primary lg:text-lg">
                   krot.io
                 </span>
               </a>
 
               <nav
                 className={cn(
-                  "flex min-w-0 max-w-full flex-1 flex-wrap items-center justify-end gap-x-0.5 gap-y-1 sm:gap-x-1 lg:flex-none lg:justify-end",
-                  "max-lg:basis-full max-lg:flex-nowrap max-lg:gap-x-1 max-lg:overflow-x-auto max-lg:pb-1 max-lg:[-webkit-overflow-scrolling:touch] max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden",
+                  "flex min-w-0 flex-1 items-center justify-end gap-x-0.5 lg:flex-none",
+                  "max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:[-webkit-overflow-scrolling:touch] max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden",
                 )}
               >
                 {(
@@ -84,11 +90,11 @@ export default function MarketingLayout({
                     key={label}
                     href={href}
                     className={cn(
-                      "shrink-0 touch-manipulation rounded-xl px-3.5 py-2.5 text-sm font-semibold tracking-tight text-muted-foreground",
-                      "transition-colors duration-200 hover:bg-muted/55 hover:text-foreground active:bg-muted/70",
+                      "shrink-0 touch-manipulation rounded-lg font-semibold tracking-tight text-muted-foreground transition-colors duration-200",
+                      "hover:bg-muted/55 hover:text-foreground active:bg-muted/70",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                      "max-lg:py-3 max-lg:text-[0.9375rem]",
-                      "sm:px-4 sm:py-3 sm:text-[0.9375rem]",
+                      "max-lg:px-2 max-lg:py-1.5 max-lg:text-xs",
+                      "lg:rounded-xl lg:px-4 lg:py-3 lg:text-[0.9375rem]",
                     )}
                   >
                     {label}
@@ -99,30 +105,30 @@ export default function MarketingLayout({
                     type="button"
                     onClick={(event) => toggleTheme?.(event)}
                     className={cn(
-                      "ml-0.5 inline-flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-border/80",
+                      "ml-0.5 inline-flex shrink-0 touch-manipulation items-center justify-center rounded-lg border border-border/80",
                       "bg-background/70 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground active:bg-muted/60",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                      "max-lg:h-11 max-lg:w-11",
-                      "sm:ml-1 sm:h-11 sm:w-11",
+                      "max-lg:h-8 max-lg:w-8",
+                      "lg:ml-1 lg:h-11 lg:w-11 lg:rounded-xl",
                     )}
                     aria-label="Toggle theme"
                   >
                     {theme === "dark" ? (
-                      <Sun className="h-[1.125rem] w-[1.125rem] sm:h-5 sm:w-5" />
+                      <Sun className="h-4 w-4 lg:h-5 lg:w-5" />
                     ) : (
-                      <Moon className="h-[1.125rem] w-[1.125rem] sm:h-5 sm:w-5" />
+                      <Moon className="h-4 w-4 lg:h-5 lg:w-5" />
                     )}
                   </button>
                 ) : null}
                 <a
                   href="/login"
                   className={cn(
-                    "ml-1 inline-flex shrink-0 touch-manipulation items-center justify-center rounded-xl border border-primary/45",
-                    "bg-primary/[0.09] px-4 py-2.5 text-sm font-semibold tracking-tight text-primary",
-                    "transition-colors duration-200 hover:bg-primary/15 hover:text-primary active:bg-primary/20",
+                    "ml-1 inline-flex shrink-0 touch-manipulation items-center justify-center rounded-lg border border-primary/45",
+                    "bg-primary/[0.09] font-semibold tracking-tight text-primary transition-colors duration-200",
+                    "hover:bg-primary/15 hover:text-primary active:bg-primary/20",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                    "max-lg:min-h-11 max-lg:px-4 max-lg:py-3 max-lg:text-[0.9375rem]",
-                    "sm:ml-2 sm:px-5 sm:py-3 sm:text-[0.9375rem]",
+                    "max-lg:px-3 max-lg:py-1.5 max-lg:text-xs",
+                    "lg:ml-2 lg:rounded-xl lg:px-5 lg:py-3 lg:text-[0.9375rem]",
                   )}
                 >
                   Log in
