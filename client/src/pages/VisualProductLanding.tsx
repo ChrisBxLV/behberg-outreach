@@ -396,13 +396,13 @@ function HeroEmailMotionPanel() {
         aria-hidden
       />
 
-      {/* Hero mole replaces the old centre “app” panel; cards float above (higher z-index) */}
+      {/* Peek mole (grey + yellow flat art) — separate from the yellow-circle nav logo */}
       <div className="relative z-10 mx-auto flex w-full max-w-lg items-center justify-center py-6 sm:py-8">
         <img
-          src="/krot-mole-logo.svg"
-          alt="Krot logo: yellow circle with mole mascot"
+          src="/krot-mole-peek-hero.svg"
+          alt="Krot mole mascot peeking from a burrow"
           decoding="async"
-          className="krot-hero-mole h-auto w-full max-w-[min(92%,17.5rem)] select-none drop-shadow-[0_12px_28px_rgba(0,0,0,0.12)] sm:max-w-[20rem] lg:max-w-[24rem] dark:drop-shadow-[0_16px_36px_rgba(0,0,0,0.35)]"
+          className="krot-hero-mole h-auto w-full max-w-[min(92%,18rem)] select-none drop-shadow-[0_14px_32px_rgba(0,0,0,0.14)] sm:max-w-[21rem] lg:max-w-[26rem] dark:drop-shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
         />
       </div>
 
