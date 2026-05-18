@@ -323,26 +323,33 @@ function HeroEmailMotionPanel() {
       title: "Find the right people",
       text: "Search the database, save contacts, or add them straight to a campaign.",
       icon: Search,
-      className: "left-4 top-8 rotate-[-2deg] krot-email-card-a",
+      className: "left-2 top-6 rotate-[-2deg] krot-email-card-a sm:left-4 sm:top-8",
     },
     {
       label: "Real-time signal",
       title: "New hiring activity",
       text: "Use fresh account context to make outreach more timely.",
       icon: BellRing,
-      className: "right-4 top-24 rotate-[2deg] krot-email-card-b",
+      className: "right-2 top-20 rotate-[2deg] krot-email-card-b sm:right-4 sm:top-24",
     },
     {
       label: "Email sequence",
       title: "Personalized follow-up",
       text: "Launch a sequence from a connected inbox and track replies.",
       icon: Mail,
-      className: "left-10 bottom-7 rotate-[-1deg] krot-email-card-c",
+      className: "left-4 bottom-8 rotate-[-1deg] krot-email-card-c max-sm:left-2 sm:left-10 sm:bottom-7",
+    },
+    {
+      label: "Campaign health",
+      title: "Inbox and sends on track",
+      text: "Catch deliverability dips and reply trends before they slow pipeline.",
+      icon: ShieldCheck,
+      className: "right-4 bottom-10 rotate-[1.5deg] krot-email-card-d max-sm:right-2 sm:right-8",
     },
   ];
 
   return (
-    <div className="relative min-h-[22rem] p-2 sm:p-6 lg:min-h-[31rem]">
+    <div className="relative min-h-[26rem] p-2 sm:min-h-[28rem] sm:p-6 lg:min-h-[34rem]">
       <style>
         {`
           @keyframes krot-email-float-a {
@@ -357,70 +364,53 @@ function HeroEmailMotionPanel() {
             0%, 100% { transform: translate3d(0, 0, 0) rotate(-1deg); }
             50% { transform: translate3d(12px, 10px, 0) rotate(1deg); }
           }
+          @keyframes krot-email-float-d {
+            0%, 100% { transform: translate3d(0, 0, 0) rotate(1.5deg); }
+            50% { transform: translate3d(-10px, -10px, 0) rotate(0.5deg); }
+          }
+          @keyframes krot-hero-mole-drift {
+            0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+            50% { transform: translate3d(0, -8px, 0) scale(1.03); }
+          }
           .krot-email-card-a { animation: krot-email-float-a 6s ease-in-out infinite; }
           .krot-email-card-b { animation: krot-email-float-b 7s ease-in-out infinite; }
           .krot-email-card-c { animation: krot-email-float-c 6.5s ease-in-out infinite; }
+          .krot-email-card-d { animation: krot-email-float-d 7.5s ease-in-out infinite; }
+          .krot-hero-mole {
+            animation: krot-hero-mole-drift 5.5s ease-in-out infinite;
+            transform-origin: 50% 85%;
+          }
           @media (prefers-reduced-motion: reduce) {
             .krot-email-card-a,
             .krot-email-card-b,
-            .krot-email-card-c { animation: none; }
+            .krot-email-card-c,
+            .krot-email-card-d,
+            .krot-hero-mole { animation: none; }
           }
         `}
       </style>
 
-      {/* Grey + gold mole mascot (transparent); reads better than low-contrast faux app chrome. */}
+      {/* Light edge accents only so the mole stays fully visible in the centre */}
       <div
-        className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
-        aria-hidden
-      >
-        <img
-          src="/krot-mole-mascot-mark.svg"
-          alt=""
-          decoding="async"
-          className="h-[min(132%,36rem)] w-auto max-w-[min(110%,40rem)] -translate-y-[2%] object-contain opacity-[0.13] saturate-[1.05] dark:opacity-[0.2]"
-        />
-      </div>
-
-      <div
-        className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_82%_74%_at_50%_48%,transparent_30%,hsl(var(--background)_/_0.5)_62%,hsl(var(--background)_/_0.88)_100%),radial-gradient(circle_at_24%_26%,rgba(196,160,66,0.14),transparent_28%),radial-gradient(circle_at_80%_22%,rgba(99,179,237,0.11),transparent_26%),radial-gradient(circle_at_50%_84%,rgba(196,160,66,0.09),transparent_30%)]"
+        className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_18%,rgba(196,160,66,0.09),transparent_32%),radial-gradient(circle_at_88%_16%,rgba(99,179,237,0.07),transparent_30%),radial-gradient(circle_at_50%_92%,rgba(196,160,66,0.06),transparent_36%)]"
         aria-hidden
       />
 
-      <div className="relative z-10 mx-auto max-w-sm rounded-3xl border border-border bg-background/80 p-5 shadow-sm backdrop-blur-[2px]">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-            <Mail className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">
-              Sequence builder
-            </div>
-            <div className="text-xl font-black text-foreground">Email campaign ready</div>
-          </div>
-        </div>
-        <div className="mt-5 space-y-3">
-          {["Intro email", "Signal follow-up", "Reply reminder"].map((step, index) => (
-            <div key={step} className="rounded-2xl border border-border bg-card/85 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-black text-foreground">{step}</div>
-                <div className="text-xs font-bold text-primary">0{index + 1}</div>
-              </div>
-              <div className="mt-3 h-2 rounded-full bg-primary/15">
-                <div
-                  className="h-2 rounded-full bg-primary"
-                  style={{ width: `${82 - index * 12}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Hero mole replaces the old centre “app” panel; cards float above (higher z-index) */}
+      <div className="relative z-10 mx-auto flex w-full max-w-lg items-center justify-center py-6 sm:py-8">
+        <img
+          src="/krot-mole-mascot-mark.svg"
+          alt="Krot mole mascot"
+          decoding="async"
+          className="krot-hero-mole h-auto w-full max-w-[min(92%,17.5rem)] select-none drop-shadow-[0_12px_28px_rgba(0,0,0,0.12)] saturate-[1.02] sm:max-w-[20rem] lg:max-w-[24rem] dark:drop-shadow-[0_16px_36px_rgba(0,0,0,0.35)]"
+        />
       </div>
 
       {emailCards.map(({ label, title, text, icon: Icon, className }) => (
         <div
           key={label}
           className={cn(
-            "absolute z-20 w-56 rounded-2xl border border-border bg-card/95 p-4 shadow-lg backdrop-blur max-sm:static max-sm:mt-4 max-sm:w-full max-sm:rotate-0",
+            "absolute z-30 w-52 rounded-2xl border border-border bg-card/95 p-4 shadow-lg backdrop-blur-sm max-sm:static max-sm:mt-3 max-sm:w-full max-sm:rotate-0 sm:w-56",
             className,
           )}
         >
