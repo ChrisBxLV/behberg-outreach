@@ -178,9 +178,9 @@ export default function VersionSevenLandingReplica({
           <div className="py-3 text-sm flex items-center justify-between gap-3 flex-wrap max-sm:py-2 max-sm:text-xs max-sm:gap-2 max-[380px]:gap-1.5">
             <a href={brandHomeHref} className="flex items-center max-[380px]:w-full max-[380px]:justify-center">
               <img
-                src="/logoipsum-294.svg"
+                src="/krot-logo-transparent.png"
                 alt="Krot"
-                className="h-8 w-auto select-none pointer-events-none max-[380px]:h-7"
+                className="h-9 w-9 shrink-0 object-contain select-none pointer-events-none max-[380px]:h-8 max-[380px]:w-8"
               />
               <span className="ml-2 text-sm font-bold tracking-wide text-primary max-sm:text-xs">krot.io</span>
             </a>
