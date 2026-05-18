@@ -52,6 +52,7 @@ import { prospectV2Router } from "./routers/prospectV2";
 import { platformRouter } from "./routers/platform";
 import { mailboxesRouter } from "./routers/mailboxes";
 import { dashboardRouter } from "./routers/dashboard";
+import { emailVerificationRouter } from "./routers/emailVerification";
 
 function safeAuthMeUser(user: User) {
   return {
@@ -926,6 +927,7 @@ export const appRouter = router({
   dashboard: dashboardRouter,
   platform: platformRouter,
   mailboxes: mailboxesRouter,
+  emailVerification: emailVerificationRouter,
 });
 
 export type AppRouter = typeof appRouter;
