@@ -4,7 +4,6 @@ import {
   ArrowRight,
   BellRing,
   Code2,
-  Database,
   DollarSign,
   Mail,
   Newspaper,
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui/accordion";
 import DataParticlesBackground from "@/components/DataParticlesBackground";
 import MarketingLayout, { LandingContainer } from "@/components/MarketingLayout";
+import MarketingPricingPlansGrid from "@/components/MarketingPricingPlansGrid";
 import { getPublicHomeUrl } from "@/const";
 import { cn } from "@/lib/utils";
 
@@ -43,12 +43,6 @@ type SimpleStep = {
   icon: LucideIcon;
 };
 
-type Principle = {
-  title: string;
-  text: string;
-  icon: LucideIcon;
-};
-
 const simpleSteps: SimpleStep[] = [
   {
     title: "Find contacts",
@@ -64,29 +58,6 @@ const simpleSteps: SimpleStep[] = [
     title: "Send with context",
     text: "Use account signals when they matter, so emails feel timely without more research.",
     icon: BellRing,
-  },
-];
-
-const principles: Principle[] = [
-  {
-    title: "One obvious next step",
-    text: "Primary actions stay visible so you are never guessing whether to save, sequence, or follow a signal.",
-    icon: ArrowRight,
-  },
-  {
-    title: "Power stays close to the work",
-    text: "Context sits beside the record you are on, so you are not tab-hopping to stitch a story together.",
-    icon: Database,
-  },
-  {
-    title: "Less setup, more sending",
-    text: "Most teams can go from first login to a live sequence without a long implementation checklist.",
-    icon: Mail,
-  },
-  {
-    title: "Clear controls for teams",
-    text: "Roles, inboxes, and reporting stay available but out of the way until you actually need them.",
-    icon: ShieldCheck,
   },
 ];
 
@@ -430,50 +401,6 @@ function HeroEmailMotionPanel() {
   );
 }
 
-function ProductEaseSection() {
-  return (
-    <div className="py-6 sm:py-10">
-      <LandingContainer>
-        <div className="grid gap-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
-          <div>
-            <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">
-              Simple by design
-            </div>
-            <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
-              Pick up the basics in one sitting—then stay in flow all week.
-            </h2>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground">
-              You are not assembling a custom GTM operating system. Search, save or sequence, skim
-              signals, and answer from connected inboxes stay on a short path so reps spend minutes
-              learning the product and hours on conversations.
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {principles.map((principle) => {
-              const Icon = principle.icon;
-              return (
-                <div
-                  key={principle.title}
-                  className="rounded-3xl border border-border bg-card/80 p-5 shadow-sm backdrop-blur"
-                >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="mt-4 text-lg font-black text-foreground">{principle.title}</div>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {principle.text}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </LandingContainer>
-    </div>
-  );
-}
-
 function SectionHeader({
   eyebrow,
   title,
@@ -571,9 +498,7 @@ export default function VisualProductLanding({
                 text="Contacts, sequences, signals, and replies are connected in a workspace that feels calm, fast, and deliberate."
               />
 
-              <ProductEaseSection />
-
-              <div className="mt-6 grid gap-5 lg:grid-cols-3">
+              <div className="mt-10 grid gap-5 lg:grid-cols-3">
                 {snapshots.map((snapshot) => {
                   const Icon = snapshot.icon;
                   return (
@@ -675,7 +600,18 @@ export default function VisualProductLanding({
             </LandingContainer>
           </section>
 
-          <section id="faq" className="border-y border-border bg-card/30 py-10">
+          <section id="pricing" className="border-y border-border bg-card/30 py-12 sm:py-16">
+            <LandingContainer>
+              <SectionHeader
+                eyebrow="Pricing"
+                title="Choose the plan that fits your team."
+                text="Start free and add connected inboxes, enrichments, signals, and automations as volume grows. Every tier includes the same focused workflow—capacity and depth scale with you."
+              />
+              <MarketingPricingPlansGrid className="mt-8" />
+            </LandingContainer>
+          </section>
+
+          <section id="faq" className="border-b border-border bg-card/30 py-10">
             <LandingContainer>
               <div className="overflow-hidden rounded-3xl border border-border bg-card/80 px-5 py-6 shadow-sm backdrop-blur sm:px-7 sm:py-8">
                 <div className="text-xs font-black uppercase tracking-[0.28em] text-primary">FAQ</div>
