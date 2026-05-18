@@ -62,7 +62,7 @@ export default function MarketingLayout({
                 className="flex shrink-0 items-center gap-2 rounded-xl outline-offset-4 transition-opacity hover:opacity-90 max-lg:gap-1.5 lg:gap-2.5"
               >
                 <img
-                  src="/krot-logo-transparent.png"
+                  src="/krot-logo.png"
                   alt="Krot"
                   className="h-9 w-9 shrink-0 object-contain select-none lg:h-10 lg:w-10"
                 />
