@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 import { ArrowRight, BarChart3, BellRing, Database, Mail, Search, UserRoundPlus } from "lucide-react";
 import MarketingLayout, { LandingContainer } from "@/components/MarketingLayout";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 import { getPublicHomeUrl } from "@/const";
 
 /** Replace with your hosted demo asset when ready. */
@@ -134,6 +141,51 @@ function ShotAnalytics() {
   );
 }
 
+const demoTestimonials = [
+  {
+    quote:
+      "We replaced three tabs with one workspace. Reps actually run sequences now instead of debating which list is current.",
+    name: "Mira Ashford",
+    role: "Head of Revenue",
+    company: "Northbridge Analytics",
+  },
+  {
+    quote:
+      "Signals next to the contact record changed our reply rate. Context is right there when someone opens the thread.",
+    name: "Jordan Okonkwo",
+    role: "Growth Lead",
+    company: "Veldt Systems",
+  },
+  {
+    quote:
+      "Agency clients see the same pipeline view we do. Onboarding took an afternoon, not a sprint planning week.",
+    name: "Sofia Lindgren",
+    role: "Partner Director",
+    company: "Harbor & Row Consulting",
+  },
+  {
+    quote:
+      "Hiring triggers plus a tight sequence template is our bread and butter. Krot keeps both in one place.",
+    name: "Eli Navarro",
+    role: "Managing Partner",
+    company: "Brightline Talent Partners",
+  },
+  {
+    quote:
+      "Audit-friendly roles without slowing sellers down. That balance was hard to find before we moved outbound here.",
+    name: "Priya Menon",
+    role: "VP Sales Operations",
+    company: "Cartograph Commerce",
+  },
+  {
+    quote:
+      "CSV days are behind us. Search, save, sequence—my team describes the flow in three verbs on purpose.",
+    name: "Theo Brennan",
+    role: "Commercial Director",
+    company: "Keystone Industrial Supply",
+  },
+] as const;
+
 const showcase = [
   {
     title: "Contact search",
@@ -156,6 +208,62 @@ const showcase = [
     node: <ShotAnalytics />,
   },
 ];
+
+function DemoTestimonialsCarousel() {
+  return (
+    <section className="mt-20" aria-labelledby="demo-testimonials-heading">
+      <div className="max-w-2xl">
+        <h2
+          id="demo-testimonials-heading"
+          className="text-xs font-black uppercase tracking-[0.28em] text-primary"
+        >
+          Testimonials
+        </h2>
+        <p className="mt-3 text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+          What teams say about the workflow.
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+          Placeholder quotes and titles for layout—swap with real customers when you have approvals.
+        </p>
+      </div>
+
+      <Carousel
+        opts={{ align: "start", loop: true }}
+        className="mt-10 w-full"
+      >
+        <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-stretch sm:gap-4">
+          <CarouselPrevious
+            variant="outline"
+            className="static top-auto order-2 left-auto right-auto mx-auto mt-0 size-10 shrink-0 translate-x-0 translate-y-0 rounded-xl border-border shadow-sm sm:order-none sm:mx-0 sm:self-center"
+          />
+          <div className="order-1 min-h-0 min-w-0 flex-1 sm:order-none">
+            <CarouselContent className="-ml-2 sm:-ml-4">
+              {demoTestimonials.map((t) => (
+                <CarouselItem key={t.name} className="pl-2 sm:pl-4">
+                <figure className="flex h-full flex-col rounded-3xl border border-border bg-card/70 p-6 shadow-sm backdrop-blur sm:p-8">
+                  <blockquote className="text-base font-semibold leading-relaxed text-foreground sm:text-lg">
+                    &ldquo;{t.quote}&rdquo;
+                  </blockquote>
+                  <figcaption className="mt-6 border-t border-border/80 pt-5">
+                    <div className="text-sm font-black text-foreground">{t.name}</div>
+                    <div className="mt-1 text-xs font-semibold text-muted-foreground sm:text-sm">
+                      {t.role}, {t.company}
+                    </div>
+                  </figcaption>
+                </figure>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          </div>
+          <CarouselNext
+            variant="outline"
+            className="static top-auto order-3 left-auto right-auto mx-auto mt-0 size-10 shrink-0 translate-x-0 translate-y-0 rounded-xl border-border shadow-sm sm:order-none sm:mx-0 sm:self-center"
+          />
+        </div>
+      </Carousel>
+    </section>
+  );
+}
 
 export default function DemoPage({ brandHomeHref = getPublicHomeUrl() }: DemoPageProps) {
   return (
@@ -208,11 +316,11 @@ export default function DemoPage({ brandHomeHref = getPublicHomeUrl() }: DemoPag
               <p className="mt-3 text-2xl font-black tracking-tight text-foreground sm:text-3xl">
                 What the workspace feels like day to day.
               </p>
-            <p className="mt-3 text-muted-foreground">
-              Lightweight previews of the flows prospects see in a live workspace—swap in PNG or WebP
-              under <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">public/</code>{" "}
-              when you have final marketing shots.
-            </p>
+              <p className="mt-3 text-muted-foreground">
+                Lightweight previews of the flows prospects see in a live workspace—swap in PNG or WebP
+                under <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">public/</code>{" "}
+                when you have final marketing shots.
+              </p>
             </div>
 
             <div className="mt-10 grid gap-8 lg:grid-cols-2">
@@ -230,6 +338,8 @@ export default function DemoPage({ brandHomeHref = getPublicHomeUrl() }: DemoPag
               ))}
             </div>
           </section>
+
+          <DemoTestimonialsCarousel />
 
           <div className="mt-16 flex flex-wrap gap-3">
             <a
