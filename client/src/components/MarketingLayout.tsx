@@ -62,8 +62,8 @@ export default function MarketingLayout({
                 className="flex shrink-0 items-center gap-2 rounded-xl outline-offset-4 transition-opacity hover:opacity-90 max-lg:gap-1.5 lg:gap-2.5"
               >
                 <img
-                  src="/krot-mole-logo.svg"
-                  alt="Krot logo, yellow circle with cream mole and pink snout"
+                  src="/krot-logo-source.png"
+                  alt="Krot"
                   className="h-8 w-auto shrink-0 select-none lg:h-10"
                 />
                 <span className="text-sm font-black tracking-tight text-primary lg:text-lg">

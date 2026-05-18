@@ -13,8 +13,8 @@ function LogoRow() {
   return (
     <div className="flex items-center gap-3">
       <img
-        src="/krot-mole-logo.svg"
-        alt="Krot logo, yellow circle with cream mole and pink snout"
+        src="/krot-logo-source.png"
+        alt="Krot"
         className="h-8 w-auto select-none pointer-events-none"
         draggable={false}
       />
