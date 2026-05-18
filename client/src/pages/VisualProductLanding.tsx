@@ -126,7 +126,7 @@ const faqs = [
   {
     question: "Can I try Krot for free?",
     answer:
-      "Yes. The free plan lets teams explore Krot with a limited mailbox, saved contacts, contact search, and basic sequencing.",
+      "Yes. The free plan lets teams explore Krot with a limited mailbox, contacts, contact search, and basic sequencing.",
   },
 ];
 

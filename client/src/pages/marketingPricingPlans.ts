@@ -16,7 +16,7 @@ export const marketingPricingPlans: PricingPlan[] = [
     periodNote: "per month",
     bullets: [
       "1 mailbox (limited sends)",
-      "100 saved contacts",
+      "100 contacts",
       "Basic sequencing + CSV upload",
       "Limited signals (core set only)",
       "Contact search with capped lookups",
@@ -29,7 +29,7 @@ export const marketingPricingPlans: PricingPlan[] = [
     periodNote: "per month",
     bullets: [
       "1 connected email inbox",
-      "2,000 saved contacts",
+      "2,000 contacts",
       "Full sequencing + contact search",
       "Basic signals + CSV upload",
       "Campaign activity overview",
@@ -43,7 +43,7 @@ export const marketingPricingPlans: PricingPlan[] = [
     highlight: true,
     bullets: [
       "3 connected email inboxes",
-      "10,000 saved contacts",
+      "10,000 contacts",
       "Advanced signals + analytics",
       "Automations (Zapier / CRM hooks)",
       "Shared workspace defaults for growing teams",
@@ -56,7 +56,7 @@ export const marketingPricingPlans: PricingPlan[] = [
     periodNote: "per month",
     bullets: [
       "5 connected email inboxes",
-      "30,000 saved contacts",
+      "30,000 contacts",
       "Premium signals + priority processing",
       "Advanced analytics + reporting",
       "Higher throughput for busy send calendars",
@@ -69,7 +69,7 @@ export const marketingPricingPlans: PricingPlan[] = [
     periodNote: "per month",
     bullets: [
       "10 connected email inboxes",
-      "100,000 saved contacts",
+      "100,000 contacts",
       "Advanced automations + integrations",
       "Team roles, audit logs, priority support",
       "Named support channel with faster response targets",
